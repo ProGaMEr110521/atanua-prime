@@ -23,7 +23,6 @@ distribution.
 #include "atanua.h"
 #include "atanua_internal.h"
 #include "fileutils.h"
-#include "tinyxml.h"
 #include "extpin.h"
 #include "box.h"
 #include <string>
@@ -512,6 +511,24 @@ void do_cancel()
 static int gSaveCycle = 0;
 static int gSaveInterval = 0;
 
+static const int kMaxUndoDepth = 50;
+
+static void trim_stack(vector<File *> &stack)
+{
+    while ((int)stack.size() > kMaxUndoDepth)
+    {
+        delete stack.front();
+        stack.erase(stack.begin());
+    }
+}
+
+static void clear_stack(vector<File *> &stack)
+{
+    for (size_t i = 0; i < stack.size(); i++)
+        delete stack[i];
+    stack.clear();
+}
+
 void save_undo()
 {
 	if (gConfig.mAutosaveEnable)
@@ -520,22 +537,25 @@ void save_undo()
 		if (gSaveInterval >= gConfig.mAutosaveInterval)
 		{
 			gSaveInterval = 0;
-			char temp[1024];		
-			sprintf(temp, "%sautosave%04d.atanua", gConfig.mAutosaveDir, gSaveCycle);
-			gSaveCycle = (gSaveCycle + 1) % gConfig.mAutosaveCount;
+			const char *dir = gConfig.mAutosaveDir ? gConfig.mAutosaveDir : "";
+			int count = gConfig.mAutosaveCount;
+			if (count <= 0) count = 1;
+			if (count > 100) count = 100;
+			char temp[1024];
+			snprintf(temp, sizeof(temp), "%sautosave%04d.atanua", dir, gSaveCycle);
+			gSaveCycle = (gSaveCycle + 1) % count;
 			FILE * f = fopen(temp, "wb");
-			do_savexml(f);
+			if (f)
+				do_savexml(f);
 		}
 	}
     MemoryFile * state = new MemoryFile();
     do_savebinary(state);
     gUndoStack.push_back(state);
+    trim_stack(gUndoStack);
     if (!gRedoStack.empty())
     {
-        int i;
-        for (i = 0; i < (signed)gRedoStack.size(); i++)
-            delete gRedoStack[i];
-        gRedoStack.clear();
+        clear_stack(gRedoStack);
     }
 }
 
@@ -547,11 +567,12 @@ void do_undo()
         File * state = new MemoryFile();
         do_savebinary(state);
         gRedoStack.push_back(state);
-        do_reset();
+        trim_stack(gRedoStack);
         state = gUndoStack.back();
-        state->seek(0);
-        do_loadbinary(state);
         gUndoStack.pop_back();
+        state->seek(0);
+        do_reset();
+        do_loadbinary(state);
         delete state;
     }
 }
@@ -564,11 +585,12 @@ void do_redo()
         File * state = new MemoryFile();
         do_savebinary(state);
         gUndoStack.push_back(state);
-        do_reset();
+        trim_stack(gUndoStack);
         state = gRedoStack.back();
-        state->seek(0);
-        do_loadbinary(state);
         gRedoStack.pop_back();
+        state->seek(0);
+        do_reset();
+        do_loadbinary(state);
         delete state;
     }
 }

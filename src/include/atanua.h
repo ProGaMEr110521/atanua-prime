@@ -209,9 +209,14 @@ public:
 
 extern AtanuaConfig gConfig;
 extern ACFont fn, fn14;
-extern int gKeyState[SDLK_LAST];
+#define ATANUA_KEYSTATE_SIZE 512
+extern int gKeyState[ATANUA_KEYSTATE_SIZE];
+extern struct SDL_Window *gMainWindow;
+extern void *gGLContext;
 extern int gSelectKeyMask;
 extern int gCloneKeyMask;
 extern int gBlackBackground;
+
+int AtanuaKeyIndex(int keysym);
 
 char *mystrdup(const char *data);

@@ -5,3 +5,8 @@ data/
 Release/
 Debug/
 *.sdf
+build/
+out/
+.vcpkg/
+vcpkg_installed/
+atanua_build_public/

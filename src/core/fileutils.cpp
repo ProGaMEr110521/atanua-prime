@@ -48,6 +48,8 @@ File::~File()
 int File::readbyte()
 {
     char i = 0;
+    if (!f)
+        return i;
     fread(&i,1,1,f);
     return i;
 }
@@ -55,6 +57,8 @@ int File::readbyte()
 int File::readword()
 {
     short i = 0;
+    if (!f)
+        return i;
     fread(&i,2,1,f);
 #if SDL_BYTEORDER == SDL_LIL_ENDIAN
     return i;
@@ -66,6 +70,8 @@ int File::readword()
 int File::readint()
 {
     int i = 0;
+    if (!f)
+        return i;
     fread(&i,4,1,f);
 #if SDL_BYTEORDER == SDL_LIL_ENDIAN
     return i;

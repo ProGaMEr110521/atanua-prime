@@ -23,8 +23,10 @@ distribution.
 #include "atanua.h"
 #include "atanua_internal.h"
 #include "pluginchipfactory.h"
-#include "tinyxml.h"
+#include <tinyxml2.h>
 #include "pluginchip.h"
+
+using namespace tinyxml2;
 
 PluginChipFactory::~PluginChipFactory()
 {
@@ -32,58 +34,55 @@ PluginChipFactory::~PluginChipFactory()
 
 PluginChipFactory::PluginChipFactory()
 {
-    TiXmlDocument doc;
+    XMLDocument doc;
     FILE * f = fopen("atanua.xml", "rb");
-    if (!doc.LoadFile(f))
+    if (!f)
+        return;
+    if (doc.LoadFile(f) != XML_SUCCESS)
     {
         fclose(f);
         return;
     }
     fclose(f);
     // Load config
-    TiXmlNode *root;
-    for (root = doc.FirstChild(); root != 0; root = root->NextSibling())
+    XMLElement *root = doc.FirstChildElement("AtanuaConfig");
+    if (!root)
+        return;
+    for (XMLElement *part = root->FirstChildElement(); part != 0; part = part->NextSiblingElement())
     {
-        if (root->Type() == TiXmlNode::ELEMENT)
+        if (stricmp(part->Value(), "Plugin") == 0)
         {
-            if (stricmp(root->Value(), "AtanuaConfig")==0)
+            const char *dll = part->Attribute("dll");
+            if (!dll)
+                continue;
+            DLLHANDLETYPE h = opendll(dll);
+            if (h)
             {
-                TiXmlNode *part;
-                for (part = root->FirstChild(); part != 0; part = part->NextSibling())
+                getatanuadllinfoproc getdllinfo = (getatanuadllinfoproc)getdllproc(h, "getatanuadllinfo");
+                if (getdllinfo)
                 {
-                    if (part->Type() == TiXmlNode::ELEMENT)
+                    atanuadllinfo *dllinfo = new atanuadllinfo;
+                    getdllinfo(dllinfo);
+                    if (dllinfo->mDllVersion <= ATANUA_PLUGIN_DLL_VERSION)
                     {
-                        if (stricmp(part->Value(), "Plugin") == 0)
+                        mDllInfo.push_back(dllinfo);
+                        mDllHandle.push_back(h);
+                    }
+                    else
+                    {
+                        char temp[512];
+                        sprintf(temp, "Plug-in \"%s\" version is incompatible \n"
+                                     "with the current version of Atanua.\n"
+                                     "\n"
+                                     "Try to use it anyway?", dll);
+                        if (okcancel(temp))
                         {
-                            const char *dll = ((TiXmlElement*)part)->Attribute("dll");
-                            DLLHANDLETYPE h = opendll(dll);
-                            if (h)
-                            {
-                                getatanuadllinfoproc getdllinfo = (getatanuadllinfoproc)getdllproc(h, "getatanuadllinfo");
-                                if (getdllinfo)
-                                {
-                                    atanuadllinfo *dllinfo = new atanuadllinfo;
-                                    getdllinfo(dllinfo);
-                                    if (dllinfo->mDllVersion <= ATANUA_PLUGIN_DLL_VERSION)
-                                    {
-                                        mDllInfo.push_back(dllinfo);
-                                        mDllHandle.push_back(h);
-                                    }
-                                    else
-                                    {
-                                        char temp[512];
-                                        sprintf(temp, "Plug-in \"%s\" version is incompatible \n"
-                                                     "with the current version of Atanua.\n"
-                                                     "\n"
-                                                     "Try to use it anyway?", dll);
-                                        if (okcancel(temp))
-                                        {
-                                            mDllInfo.push_back(dllinfo);
-                                            mDllHandle.push_back(h);
-                                        }
-                                    }
-                                }
-                            }
+                            mDllInfo.push_back(dllinfo);
+                            mDllHandle.push_back(h);
+                        }
+                        else
+                        {
+                            delete dllinfo;
                         }
                     }
                 }

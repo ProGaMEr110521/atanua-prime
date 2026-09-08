@@ -69,7 +69,20 @@ int gVisibleChiplist = 0;
 Chip * gNewChip = NULL;
 const char * gNewChipName = NULL;
 Pin * gWireStartDrag = NULL;
-int gKeyState[SDLK_LAST];
+int gKeyState[ATANUA_KEYSTATE_SIZE];
+SDL_Window *gMainWindow = NULL;
+void *gGLContext = NULL;
+
+int AtanuaKeyIndex(int keysym)
+{
+    if (keysym >= 32 && keysym < 127)
+        return keysym;
+    SDL_Keycode kc = (SDL_Keycode)keysym;
+    SDL_Scancode sc = SDL_GetScancodeFromKey(kc);
+    if (sc != SDL_SCANCODE_UNKNOWN)
+        return 128 + (sc % (ATANUA_KEYSTATE_SIZE - 128));
+    return (keysym & 0xff) % ATANUA_KEYSTATE_SIZE;
+}
 
 float gWorldOfsX = 0, gWorldOfsY = 0;
 float gZoomFactor = 20.0f;
@@ -109,8 +122,7 @@ void handle_key(int keysym, int down)
         }
         break;        
     }
-    if (keysym >= 0 && keysym < SDLK_LAST)
-        gKeyState[keysym] = down;
+    gKeyState[AtanuaKeyIndex(keysym)] = down;
 }
 
 void do_rotate()
@@ -186,15 +198,19 @@ void process_events()
                 gUIState.keyentered = SDLK_DELETE;
 
 
-            // if key is ASCII, accept it as character input
-            if ((event.key.keysym.unicode & 0xFF80) == 0)
-                gUIState.keychar = event.key.keysym.unicode & 0x7f;                
+            // SDL2: no unicode field; printable ASCII comes via sym, full text via SDL_TEXTINPUT
+            if (event.key.keysym.sym >= 32 && event.key.keysym.sym < 127)
+                gUIState.keychar = event.key.keysym.sym;
+            break;
+        case SDL_TEXTINPUT:
+            if (event.text.text[0] >= 32 && event.text.text[0] < 127)
+                gUIState.keychar = event.text.text[0];
             break;
         case SDL_KEYUP:
             gUIState.keymod = event.key.keysym.mod;
             handle_key(event.key.keysym.sym, 0);
             if (event.key.keysym.sym == SDLK_z &&
-                event.key.keysym.mod & KMOD_META)
+                event.key.keysym.mod & KMOD_GUI)
                 do_undo();
             if (event.key.keysym.sym == SDLK_z &&
                 event.key.keysym.mod & KMOD_CTRL)
@@ -203,7 +219,7 @@ void process_events()
                 event.key.keysym.mod & KMOD_ALT)
                 do_undo();
             if (event.key.keysym.sym == SDLK_y &&
-                event.key.keysym.mod & KMOD_META)
+                event.key.keysym.mod & KMOD_GUI)
                 do_redo();
             if (event.key.keysym.sym == SDLK_y &&
                 event.key.keysym.mod & KMOD_CTRL)
@@ -268,40 +284,42 @@ void process_events()
             break;
         case SDL_MOUSEBUTTONDOWN:
             // update button down state if left-clicking
-            if (event.button.button == 1)
+            if (event.button.button == SDL_BUTTON_LEFT)
             {
                 gUIState.mousedown = 1;
-                gUIState.mousedownx = event.motion.x;
-                gUIState.mousedowny = event.motion.y;
+                gUIState.mousedownx = (float)event.button.x;
+                gUIState.mousedowny = (float)event.button.y;
                 gUIState.mousedownkeymod = gUIState.keymod;
             }
-            if (event.button.button == 3)
+            if (event.button.button == SDL_BUTTON_RIGHT)
             {
                 do_cancel();
             }
 
-            if (event.button.button == 4)
-            {
+            break;
+        case SDL_MOUSEWHEEL:
+            if (event.wheel.y > 0)
                 gUIState.scroll = +1;
-            }
-            if (event.button.button == 5)
-            {
+            else if (event.wheel.y < 0)
                 gUIState.scroll = -1;
-            }
             break;
         case SDL_MOUSEBUTTONUP:
             // update button down state if left-clicking
-            if (event.button.button == 1)
+            if (event.button.button == SDL_BUTTON_LEFT)
                 gUIState.mousedown = 0;
             break;
         case SDL_QUIT:
             SDL_Quit();
             exit(0);
             break;
-        case SDL_VIDEORESIZE:
-            gScreenWidth = event.resize.w;
-            gScreenHeight = event.resize.h;
-            initvideo();
+        case SDL_WINDOWEVENT:
+            if (event.window.event == SDL_WINDOWEVENT_RESIZED ||
+                event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+            {
+                gScreenWidth = event.window.data1;
+                gScreenHeight = event.window.data2;
+                initvideo();
+            }
             break;
         }
     }
@@ -1621,45 +1639,49 @@ static void draw_screen()
 
     SDL_Delay(10);
     glFinish();
-    SDL_GL_SwapBuffers();
+    if (gMainWindow)
+        SDL_GL_SwapWindow(gMainWindow);
 }
 
 void initvideo()
 {
-    const SDL_VideoInfo *info = NULL;
-    int bpp = 0;
-    int flags = 0;
-    info = SDL_GetVideoInfo();
-
-    if (!info) 
+    if (gMainWindow == NULL)
     {
-        fprintf(stderr, "Video query failed: %s\n", SDL_GetError());
-        SDL_Quit();
-        exit(0);
+        gMainWindow = SDL_CreateWindow("Atanua",
+            SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+            gScreenWidth, gScreenHeight,
+            SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+        if (!gMainWindow)
+        {
+            fprintf(stderr, "Video mode set failed: %s\n", SDL_GetError());
+            SDL_Quit();
+            exit(0);
+        }
+        gGLContext = SDL_GL_CreateContext(gMainWindow);
+        if (!gGLContext)
+        {
+            fprintf(stderr, "GL context creation failed: %s\n", SDL_GetError());
+            SDL_Quit();
+            exit(0);
+        }
+    }
+    else
+    {
+        SDL_SetWindowSize(gMainWindow, gScreenWidth, gScreenHeight);
     }
 
-    bpp = info->vfmt->BitsPerPixel;
-    flags = SDL_OPENGL | SDL_RESIZABLE;
+    glViewport(0, 0, gScreenWidth, gScreenHeight);
 
-    if (SDL_SetVideoMode(gScreenWidth, gScreenHeight, bpp, flags) == 0) 
-    {
-        fprintf( stderr, "Video mode set failed: %s\n", SDL_GetError());
-        SDL_Quit();
-        exit(0);
-    }
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
 
-    glViewport( 0, 0, gScreenWidth, gScreenHeight );
-
-    glMatrixMode( GL_PROJECTION );
-    glLoadIdentity( );
-
-    gluOrtho2D(0,gScreenWidth,gScreenHeight,0);
+    glOrtho(0, gScreenWidth, gScreenHeight, 0, -1, 1);
 
     if (gConfig.mUseBlending)
         glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    reload_textures();    
+    reload_textures();
 }
 
 void audiomixer(void *userdata, Uint8 *stream, int len)
@@ -1703,11 +1725,11 @@ int main(int argc, char** args)
     }
 
 
-    memset(gKeyState,0,sizeof(int) * 256);
+    memset(gKeyState, 0, sizeof(gKeyState));
 
     gVisualRand.init_genrand(0xc0cac01a);
 
-    int sdlflags = SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE;
+    int sdlflags = SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_EVENTS;
     
     if (gConfig.mAudioEnable)
         sdlflags |= SDL_INIT_AUDIO;
@@ -1722,8 +1744,9 @@ int main(int argc, char** args)
     if (gConfig.mAudioEnable)
     {
         SDL_AudioSpec *as = new SDL_AudioSpec;
+        SDL_zero(*as);
         as->freq = 44100;
-        as->format = AUDIO_S16;
+        as->format = AUDIO_S16SYS;
         as->channels = 1;
         as->samples = 4096;
         as->callback = audiomixer;
@@ -1731,9 +1754,12 @@ int main(int argc, char** args)
         if (SDL_OpenAudio(as, NULL) < 0)
         {
             fprintf(stderr, "Unable to init SDL audio: %s\n", SDL_GetError());
-            exit(1);
+            delete as;
         }
-        gAudioSpec = as;
+        else
+        {
+            gAudioSpec = as;
+        }
         // audio is now started only when the audio device is created, to avoid popping sounds..
         //SDL_PauseAudio(0);
     }
@@ -1752,13 +1778,11 @@ int main(int argc, char** args)
     {
         char temp[256];
         sprintf(temp, "%s - %s", TITLE, gConfig.mUserInfo);
-        SDL_WM_SetCaption(temp, NULL);  
+        if (gMainWindow)
+            SDL_SetWindowTitle(gMainWindow, temp);
     }
 
-    // For imgui - Enable keyboard repeat to make sliders more tolerable
-    SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
-    // For imgui - Enable keyboard UNICODE processing for the text field.
-    SDL_EnableUNICODE(1);
+    SDL_StartTextInput();
 
     fn.load("data/vera31.fnt");
     fn14.load("data/vera14.fnt");
@@ -1767,12 +1791,14 @@ int main(int argc, char** args)
 	int x, y, n;
 	unsigned char *data = stbi_load("data/icon.png", &x, &y, &n, 4);
     if (data)
-	{	
-		SDL_Surface *icon = SDL_CreateRGBSurfaceFrom(data,x,y,32,x*4,0x000000ff,0x0000ff00, 0x00ff0000, 0xff000000);
-		SDL_WM_SetIcon(icon, NULL);
-		SDL_FreeSurface(icon);
-		stbi_image_free(data);
-	}
+    {
+        SDL_Surface *icon = SDL_CreateRGBSurfaceFrom(data, x, y, 32, x * 4, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000);
+        if (icon && gMainWindow)
+            SDL_SetWindowIcon(gMainWindow, icon);
+        if (icon)
+            SDL_FreeSurface(icon);
+        stbi_image_free(data);
+    }
 #endif
 
     SDL_ShowCursor(1);

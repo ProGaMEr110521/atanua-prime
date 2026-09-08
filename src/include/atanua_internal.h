@@ -23,15 +23,17 @@ distribution.
 #ifndef ATANUA_INTERNAL_H
 #define ATANUA_INTERNAL_H
 
+#include <stdint.h>
+
 
 #define ATANUAVERSION "1.3.141220"
 
 #ifdef __APPLE__
 #define ATANUAPLATFORM "OSX"
-#define DLLHANDLETYPE int
+#define DLLHANDLETYPE intptr_t
 #elif _MSC_VER
 #define ATANUAPLATFORM "Win32"
-#define DLLHANDLETYPE int
+#define DLLHANDLETYPE intptr_t
 #else
 #ifdef __x86_64__
 #define ATANUAPLATFORM "Linux64"

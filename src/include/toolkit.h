@@ -57,9 +57,9 @@ distribution.
 
 #ifdef WINDOWS_VERSION
 #include <windows.h> // needed to get GL stuff to work
-#include <SDL.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_endian.h>
 #include "stb/stb_image.h"
-#include "glee/glee.h"
 #include <GL/gl.h>
 #include <GL/glu.h>
 #define stricmp _stricmp
@@ -68,9 +68,9 @@ distribution.
 
 
 #ifdef OSX_VERSION
-#include <SDL/SDL.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_endian.h>
 #include "stb/stb_image.h"
-#include "glee/GLee.h"
 #include <OpenGL/gl.h>
 #include <OpenGL/glu.h>
 #define stricmp(a,b) strcasecmp((a),(b))
@@ -78,9 +78,9 @@ distribution.
 
 
 #ifdef LINUX_VERSION
-#include <SDL/SDL.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_endian.h>
 #include "stb/stb_image.h"
-#include "glee/GLee.h"
 #include <GL/gl.h>
 #include <GL/glu.h>
 #define stricmp(a,b) strcasecmp((a),(b))

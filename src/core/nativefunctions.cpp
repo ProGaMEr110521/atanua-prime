@@ -57,7 +57,8 @@ void resetfilename()
 	gFilename = NULL;
     char temp[256];
     sprintf(temp, "%s - %s", TITLE, gConfig.mUserInfo);
-    SDL_WM_SetCaption(temp, NULL);  
+    if (gMainWindow)
+        SDL_SetWindowTitle(gMainWindow, temp);
 }
 
 void storefilename(const char *fn)
@@ -97,15 +98,29 @@ void storefilename(const char *fn)
 
     char temp[1024];
     sprintf(temp, "%s - " TITLE " - %s", pt, gConfig.mUserInfo);
-    SDL_WM_SetCaption(temp, NULL);  
+    if (gMainWindow)
+        SDL_SetWindowTitle(gMainWindow, temp);
 	
 }
 
 #ifdef WINDOWS_VERSION
 
 #include <windows.h> // dialogs
+#include <commdlg.h> // OPENFILENAME
 #include <direct.h> // directory handling
-#include "SDL_syswm.h" // to get current window handle
+#include <SDL2/SDL_syswm.h> // to get current window handle
+
+static HWND AtanuaGetHWND()
+{
+    if (!gMainWindow)
+        return NULL;
+    SDL_SysWMinfo wmInfo;
+    SDL_zero(wmInfo);
+    SDL_VERSION(&wmInfo.version);
+    if (!SDL_GetWindowWMInfo(gMainWindow, &wmInfo))
+        return NULL;
+    return wmInfo.info.win.window;
+}
 
 FILE * openfiledialog(const char *title)
 {
@@ -114,10 +129,7 @@ FILE * openfiledialog(const char *title)
     char path[1024];
     _getdcwd(curdrive, path, 1024);
 
-    SDL_SysWMinfo wmInfo;
-    memset(&wmInfo, 0, sizeof(wmInfo));
-    SDL_GetWMInfo(&wmInfo);
-    HWND hWnd = wmInfo.window;
+    HWND hWnd = AtanuaGetHWND();
     OPENFILENAME ofn;
     char szFileName[1024] = "";
 
@@ -177,10 +189,7 @@ FILE * savefiledialog(const char *title)
     char path[1024];
     _getdcwd(curdrive, path, 1024);
 
-    SDL_SysWMinfo wmInfo;
-    memset(&wmInfo, 0, sizeof(wmInfo));
-    SDL_GetWMInfo(&wmInfo);
-    HWND hWnd = wmInfo.window;
+    HWND hWnd = AtanuaGetHWND();
 
     OPENFILENAME ofn;
     char szFileName[1024] = "";
@@ -233,11 +242,8 @@ FILE * savefiledialog(const char *title)
 
 int okcancel(const char *prompt)
 {
-    SDL_SysWMinfo wmInfo;
-    memset(&wmInfo, 0, sizeof(wmInfo));
-    SDL_GetWMInfo(&wmInfo);
-    HWND hWnd = wmInfo.window;
-    if (MessageBox(hWnd,prompt,TITLE,MB_OKCANCEL | MB_ICONWARNING) == IDOK)
+    HWND hWnd = AtanuaGetHWND();
+    if (MessageBox(hWnd, prompt, TITLE, MB_OKCANCEL | MB_ICONWARNING) == IDOK)
         return 1;
     return 0;
 }
@@ -252,13 +258,13 @@ void gotoappdirectory(int parc, char ** pars)
     _chdir(buf);
 }
 
-int opendll(const char *dllfilename)
+DLLHANDLETYPE opendll(const char *dllfilename)
 {
     HMODULE dllh = LoadLibrary(dllfilename);
-    return (int)dllh;
+    return (DLLHANDLETYPE)dllh;
 }
 
-void *getdllproc(int dllhandle, const char *procname)
+void *getdllproc(DLLHANDLETYPE dllhandle, const char *procname)
 {
     HMODULE dllh = (HMODULE)dllhandle;
     return GetProcAddress(dllh, procname);
@@ -316,7 +322,7 @@ int okcancel(const char *prompt)
 
 #else // carbon
 
-#include <SDL/SDL_syswm.h>
+#include <SDL2/SDL_syswm.h>
 #include <Carbon/Carbon.h>
 
 static void 
@@ -512,7 +518,7 @@ void *getdllproc(int dllhandle, const char *procname)
 
 #ifdef LINUX_VERSION
 
-#include "SDL/SDL_syswm.h" // to get current window handle
+#include <SDL2/SDL_syswm.h> // to get current window handle
 #include <gtk/gtk.h>
 #include <dlfcn.h> // dll functions
 #include <unistd.h>

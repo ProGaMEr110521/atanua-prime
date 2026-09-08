@@ -199,7 +199,10 @@ void ACFont::load(FILE *handle)
 
 void ACFont::load(const char *filename)
 {
-    File * f = new File(fopen(filename, "rb"));
+    FILE *handle = fopen(filename, "rb");
+    if (!handle)
+        return;
+    File * f = new File(handle);
     if (f)
     {
         load(f);
@@ -368,12 +371,6 @@ void ACFont::drawstring(const char * string, float x, float y, int color, float 
             delete[] lru->mTexcoords;
             delete[] lru->mString;
 
-            if (gConfig.mUseVBOs && GLEE_ARB_vertex_buffer_object)
-            {
-                glDeleteBuffers(1, &lru->mVvbo);
-                glDeleteBuffers(1, &lru->mTvbo);
-            }
-
             lru->mCount = len * 8 - 2;
             lru->mCoords = new float[lru->mCount * 2];
             lru->mTexcoords = new float[lru->mCount * 2];
@@ -463,20 +460,6 @@ void ACFont::drawstring(const char * string, float x, float y, int color, float 
                 string++;
             }
             str = lru;
-
-            if (gConfig.mUseVBOs && GLEE_ARB_vertex_buffer_object)
-            {                  
-                glGenBuffers(1, &lru->mVvbo);   
-                glBindBuffer(GL_ARRAY_BUFFER, lru->mVvbo);
-                glBufferData(GL_ARRAY_BUFFER, p * sizeof(float), lru->mCoords, GL_STATIC_DRAW);
-                delete[] lru->mCoords;
-                lru->mCoords = NULL;
-                glGenBuffers(1, &lru->mTvbo);   
-                glBindBuffer(GL_ARRAY_BUFFER, lru->mTvbo);
-                glBufferData(GL_ARRAY_BUFFER, p * sizeof(float), lru->mTexcoords, GL_STATIC_DRAW);
-                delete[] lru->mTexcoords;
-                lru->mTexcoords = NULL;
-            }
         }
         else
         {
@@ -496,24 +479,10 @@ void ACFont::drawstring(const char * string, float x, float y, int color, float 
         glEnableClientState(GL_VERTEX_ARRAY);
         glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 
-        if (gConfig.mUseVBOs && GLEE_ARB_vertex_buffer_object)
-        {
-            glBindBuffer(GL_ARRAY_BUFFER, str->mVvbo);
-            glVertexPointer(2, GL_FLOAT, 0, 0);
-            glBindBuffer(GL_ARRAY_BUFFER, str->mTvbo);
-            glTexCoordPointer(2, GL_FLOAT, 0, 0);
+        glVertexPointer(2, GL_FLOAT, 0, str->mCoords);
+        glTexCoordPointer(2, GL_FLOAT, 0, str->mTexcoords);
 
-            glDrawArrays(GL_TRIANGLE_STRIP,0,str->mCount);
-
-            glBindBuffer(GL_ARRAY_BUFFER, 0);
-        }
-        else
-        {
-            glVertexPointer(2, GL_FLOAT, 0, str->mCoords);
-            glTexCoordPointer(2, GL_FLOAT, 0, str->mTexcoords);
-
-            glDrawArrays(GL_TRIANGLE_STRIP,0,str->mCount);
-        }
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, str->mCount);
 
         glDisableClientState(GL_VERTEX_ARRAY);
         glDisableClientState(GL_TEXTURE_COORD_ARRAY);

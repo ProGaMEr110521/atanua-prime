@@ -69,7 +69,7 @@ void ButtonChip::render(int aChipId)
 
 void ButtonChip::update(float aTick) 
 {
-    if (gKeyState[mCharacter] || mPressed)
+    if (gKeyState[AtanuaKeyIndex(mCharacter)] || mPressed)
         mOutputPin.setState(PINSTATE_WRITE_HIGH);
     else
         mOutputPin.setState(PINSTATE_WRITE_LOW);
