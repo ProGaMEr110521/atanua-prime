@@ -127,6 +127,16 @@ set(ATANUA_SOURCES
 
 add_executable(atanua ${ATANUA_SOURCES})
 
+if(MSVC)
+  # Third-party stb sources trigger benign 4244/4267 narrowing warnings
+  # under /W3; keep first-party code warning-clean without forking them.
+  set_source_files_properties(
+    src/stb/stb_image.c
+    src/stb/stb_image_write.c
+    PROPERTIES COMPILE_OPTIONS "/wd4244;/wd4267"
+  )
+endif()
+
 target_include_directories(atanua PRIVATE
   src/include
   src
