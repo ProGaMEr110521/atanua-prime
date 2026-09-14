@@ -15,10 +15,16 @@ SRC_FONT = os.path.join(REPO, "src", "basecode", "angelcodefont.cpp")
 THEME_H = os.path.join(REPO, "src", "include", "ui_theme.h")
 BUILD_EXE = os.path.join(REPO, "build", "Release", "atanua.exe")
 DATA_DIR = os.path.join(REPO, "data")
+def _circuit(name):
+    # Vendored fixtures are committed; legacy public path is gitignored.
+    cand = os.path.join(REPO, "tests", "fixtures", name)
+    if os.path.exists(cand):
+        return cand
+    return os.path.join(REPO, "atanua_build_public", "tests", name)
 TEST_CIRCUITS = [
-    os.path.join(REPO, "atanua_build_public", "tests", "baselogic.atanua"),
-    os.path.join(REPO, "atanua_build_public", "tests", "heavy.atanua"),
-    os.path.join(REPO, "atanua_build_public", "tests", "74181.atanua"),
+    _circuit("baselogic.atanua"),
+    _circuit("heavy.atanua"),
+    _circuit("74181.atanua"),
 ]
 
 
