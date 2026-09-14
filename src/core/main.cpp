@@ -45,8 +45,10 @@ distribution.
 #define UI_BTN_W 68
 #define UI_ROW_H 30
 
+int gTopbarH = UI_TOPBAR_H;
+
 #define WORLDTOSCREENX(x) ((((x)+gWorldOfsX) * gZoomFactor) + gConfig.mToolkitWidth)
-#define WORLDTOSCREENY(y) ((((y)+gWorldOfsY) * gZoomFactor) + UI_TOPBAR_H)
+#define WORLDTOSCREENY(y) ((((y)+gWorldOfsY) * gZoomFactor) + gTopbarH)
 
 ACFont fn, fn14;
 
@@ -164,7 +166,7 @@ void do_screengrab()
 	while(f);
 
 	int x0 = gConfig.mToolkitWidth;
-	int y0 = UI_TOPBAR_H;
+	int y0 = gTopbarH;
 	int w = gScreenWidth - x0;
 	int h = gScreenHeight - y0;
 	
@@ -366,7 +368,7 @@ int split_wire(int aDoSplit)
     if (gZoomFactor < 1.0f)
         gZoomFactor = 1.0f;
     float worldmousex = ((gUIState.mousex - gConfig.mToolkitWidth) / gZoomFactor) - gWorldOfsX;
-    float worldmousey = ((gUIState.mousey - UI_TOPBAR_H) / gZoomFactor) - gWorldOfsY;
+    float worldmousey = ((gUIState.mousey - gTopbarH) / gZoomFactor) - gWorldOfsY;
     float pos1[2], pos2[2], pos3[2];
     int wireid;
     if (aDoSplit)
@@ -505,12 +507,14 @@ void do_build_nets();
 static void draw_screen()
 {
     int i;
-    int tick = SDL_GetTicks();     
+    int tick = SDL_GetTicks();
     static int slidervalue = 0;
+    UiTheme::TopbarLayout tb = UiTheme::topbarLayout(gScreenWidth);
+    gTopbarH = tb.topH;
     float worldmousex = ((gUIState.mousex - gConfig.mToolkitWidth) / gZoomFactor) - gWorldOfsX;
-    float worldmousey = ((gUIState.mousey - UI_TOPBAR_H) / gZoomFactor) - gWorldOfsY;
+    float worldmousey = ((gUIState.mousey - gTopbarH) / gZoomFactor) - gWorldOfsY;
     float worldmousedownx = ((gUIState.mousedownx - gConfig.mToolkitWidth) / gZoomFactor) - gWorldOfsX;
-    float worldmousedowny = ((gUIState.mousedowny - UI_TOPBAR_H) / gZoomFactor) - gWorldOfsY;
+    float worldmousedowny = ((gUIState.mousedowny - gTopbarH) / gZoomFactor) - gWorldOfsY;
     static float physicstick = 0;
     static int lasttick = 0;
     int mousemode = 0;
@@ -622,36 +626,36 @@ static void draw_screen()
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
 	drawrect(0, 0, gConfig.mToolkitWidth, gScreenHeight, C_MENUBG);
-	drawrect(0, 0, gScreenWidth, UI_TOPBAR_H, C_MENUBG);
+	drawrect(0, 0, gScreenWidth, gTopbarH, C_MENUBG);
 	drawrect(gConfig.mToolkitWidth, 0, 1, gScreenHeight, C_MENULINE);
-	drawrect(0, UI_TOPBAR_H, gScreenWidth, 1, C_MENULINE);
+	drawrect(0, gTopbarH, gScreenWidth, 1, C_MENULINE);
 
     imgui_prepare();
 
     glEnable(GL_SCISSOR_TEST);
-    glScissor(0,0,gConfig.mToolkitWidth-20,gScreenHeight - UI_TOPBAR_H);
+    glScissor(0,0,gConfig.mToolkitWidth-20,gScreenHeight - gTopbarH);
 
     int loc = -1;
     int chipListCount = (int)gAvailableChip[gVisibleChiplist < 0 || gVisibleChiplist > 4 ? 0 : gVisibleChiplist].size();
     if (gVisibleChiplist < 0 || gVisibleChiplist > 4)
         gVisibleChiplist = 0;
-    if (gUIState.scroll && gUIState.mousex < gConfig.mToolkitWidth && gUIState.mousey > UI_TOPBAR_H)
+    if (gUIState.scroll && gUIState.mousex < gConfig.mToolkitWidth && gUIState.mousey > gTopbarH)
     {
         slidervalue -= gUIState.scroll * UI_ROW_H * 3;
-        int max = UiTheme::clampSliderMax(chipListCount, UI_ROW_H, gScreenHeight - UI_TOPBAR_H);
+        int max = UiTheme::clampSliderMax(chipListCount, UI_ROW_H, gScreenHeight - gTopbarH);
         slidervalue = UiTheme::clampSliderValue(slidervalue, max);
     }
-    if (gUIState.mousex < gConfig.mToolkitWidth-20 && gUIState.mousey > UI_TOPBAR_H)
+    if (gUIState.mousex < gConfig.mToolkitWidth-20 && gUIState.mousey > gTopbarH)
     {
-        loc = UiTheme::chipListIndex(gUIState.mousey, UI_TOPBAR_H, slidervalue, UI_ROW_H, chipListCount);
+        loc = UiTheme::chipListIndex(gUIState.mousey, gTopbarH, slidervalue, UI_ROW_H, chipListCount);
     }    
 
     for (i = 0; i < (signed)gAvailableChip[gVisibleChiplist].size(); i++)
     {
         if (gAvailableChip[gVisibleChiplist][i])
         {
-            float rowY = (float)(UI_TOPBAR_H + i * UI_ROW_H - slidervalue);
-            if (rowY + UI_ROW_H >= UI_TOPBAR_H && rowY <= gScreenHeight)
+            float rowY = (float)(gTopbarH + i * UI_ROW_H - slidervalue);
+            if (rowY + UI_ROW_H >= gTopbarH && rowY <= gScreenHeight)
             {
             if (loc == i)
             {
@@ -679,27 +683,44 @@ static void draw_screen()
                     gUIState.activeitem = gUIState.hotitem;
                 }
                 if (gUIState.hotitem == gUIState.activeitem)
-                    drawrect(0, UI_TOPBAR_H+i*UI_ROW_H-slidervalue, gConfig.mToolkitWidth-20, UI_ROW_H, C_HOTROW);
+                    drawrect(0, gTopbarH+i*UI_ROW_H-slidervalue, gConfig.mToolkitWidth-20, UI_ROW_H, C_HOTROW);
                 else
-                    drawrect(0, UI_TOPBAR_H+i*UI_ROW_H-slidervalue, gConfig.mToolkitWidth-20, UI_ROW_H, C_WIDGETBG);
-                drawrect(0, (float)(UI_TOPBAR_H+i*UI_ROW_H-slidervalue), 3, UI_ROW_H, C_WIDGETHOT);
+                    drawrect(0, gTopbarH+i*UI_ROW_H-slidervalue, gConfig.mToolkitWidth-20, UI_ROW_H, C_WIDGETBG);
+                drawrect(0, (float)(gTopbarH+i*UI_ROW_H-slidervalue), 3, UI_ROW_H, C_WIDGETHOT);
             }
             else
             {
-                drawrect(0, (float)(UI_TOPBAR_H+i*UI_ROW_H-slidervalue+UI_ROW_H-1), gConfig.mToolkitWidth-20, 1, C_MENULINE);
+                drawrect(0, (float)(gTopbarH+i*UI_ROW_H-slidervalue+UI_ROW_H-1), gConfig.mToolkitWidth-20, 1, C_MENULINE);
             }
             if (!(gVisibleChiplist == 3 && i == 8))
-                fn14.drawstring(gAvailableChip[gVisibleChiplist][i], 8, (float)(UI_TOPBAR_H + 8 + i * UI_ROW_H - slidervalue), C_TEXT);
+                fn14.drawstring(gAvailableChip[gVisibleChiplist][i], 8, (float)(gTopbarH + 8 + i * UI_ROW_H - slidervalue), C_TEXT);
             }
         }
     }
-    glDisable(GL_SCISSOR_TEST);    
+    glDisable(GL_SCISSOR_TEST);
+    tb = UiTheme::topbarLayout(gScreenWidth);
+    gTopbarH = tb.topH;
 
-    imgui_slider(GEN_ID,gConfig.mToolkitWidth-20,UI_TOPBAR_H,20,gScreenHeight-UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,((signed)gAvailableChip[gVisibleChiplist].size() * UI_ROW_H) - (gScreenHeight - UI_TOPBAR_H),slidervalue, (gScreenHeight - UI_TOPBAR_H), UI_ROW_H);
+    imgui_slider(GEN_ID,gConfig.mToolkitWidth-20,gTopbarH,20,gScreenHeight-gTopbarH,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,((signed)gAvailableChip[gVisibleChiplist].size() * UI_ROW_H) - (gScreenHeight - gTopbarH),slidervalue, (gScreenHeight - gTopbarH), UI_ROW_H);
 
+	int tabW = tb.tabW;
+	int btnW = tb.btnW;
+	int quitW = tb.quitW;
+	int actionY = (tb.rows == 1) ? 0 : UI_TOPBAR_H;
+	const char *lblNew = tb.compactLabels ? "New" : "New\nCtrl-N";
+	const char *lblLoad = tb.compactLabels ? "Load" : "Load\nCtrl-L";
+	const char *lblMerge = tb.compactLabels ? "Merge" : "Merge\nCtrl-M";
+	const char *lblBox = tb.compactLabels ? "Box" : "Box\nCtrl-B";
+	const char *lblSave = tb.compactLabels ? "Save" : "Save\nCtrl-S";
+	const char *lblUndo = tb.compactLabels ? "Undo" : "Undo\nCtrl-Z";
+	const char *lblRedo = tb.compactLabels ? "Redo" : "Redo\nCtrl-Y";
+	const char *lblZoom = tb.compactLabels ? "Zoom" : "Zoom\next";
+	const char *lblSnap = tb.compactLabels ? (gSnap ? "Snap" : "Snap") : (gSnap ? "Snap\n(on)" : "Snap\n(off)");
+	const char *lblView = tb.compactLabels ? "View" : (gLiveWires ? "View\n(live)" : "View\n(grey)");
+	const char *lblPng = tb.compactLabels ? "PNG" : "PNG it\nCtrl-G";
 	int xofs = 0;
 
-    if (imgui_button(GEN_ID,fn14,"Base",xofs,0,UI_TAB_W,UI_TOPBAR_H,(gVisibleChiplist==0?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    if (imgui_button(GEN_ID,fn14,"Base",xofs,0,tabW,UI_TOPBAR_H,(gVisibleChiplist==0?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         int active = gUIState.kbditem;
         do_cancel();
@@ -707,8 +728,8 @@ static void draw_screen()
         gVisibleChiplist = 0;
         slidervalue = 0;
     }
-	xofs += UI_TAB_W;
-    if (imgui_button(GEN_ID,fn14,"Chips",xofs,0,UI_TAB_W,UI_TOPBAR_H,(gVisibleChiplist==1?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+	xofs += tabW;
+    if (imgui_button(GEN_ID,fn14,"Chips",xofs,0,tabW,UI_TOPBAR_H,(gVisibleChiplist==1?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         int active = gUIState.kbditem;
         do_cancel();
@@ -716,8 +737,8 @@ static void draw_screen()
         gVisibleChiplist = 1;
         slidervalue = 0;
     }
-	xofs += UI_TAB_W;
-    if (imgui_button(GEN_ID,fn14,"In",xofs,0,UI_TAB_W,UI_TOPBAR_H,(gVisibleChiplist==2?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+	xofs += tabW;
+    if (imgui_button(GEN_ID,fn14,"In",xofs,0,tabW,UI_TOPBAR_H,(gVisibleChiplist==2?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         int active = gUIState.kbditem;
         do_cancel();
@@ -725,8 +746,8 @@ static void draw_screen()
         gVisibleChiplist = 2;
         slidervalue = 0;
     }
-	xofs += UI_TAB_W;
-    if (imgui_button(GEN_ID,fn14,"Out",xofs,0,UI_TAB_W,UI_TOPBAR_H,(gVisibleChiplist==3?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+	xofs += tabW;
+    if (imgui_button(GEN_ID,fn14,"Out",xofs,0,tabW,UI_TOPBAR_H,(gVisibleChiplist==3?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         int active = gUIState.kbditem;
         do_cancel();
@@ -734,8 +755,8 @@ static void draw_screen()
         gVisibleChiplist = 3;
         slidervalue = 0;
     }
-	xofs += UI_TAB_W;
-    if (imgui_button(GEN_ID,fn14,"Misc",xofs,0,UI_TAB_W,UI_TOPBAR_H,(gVisibleChiplist==4?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+	xofs += tabW;
+    if (imgui_button(GEN_ID,fn14,"Misc",xofs,0,tabW,UI_TOPBAR_H,(gVisibleChiplist==4?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         int active = gUIState.kbditem;
         do_cancel();
@@ -743,88 +764,151 @@ static void draw_screen()
         gVisibleChiplist = 4;
         slidervalue = 0;
     }
-    drawrect((float)(gVisibleChiplist * UI_TAB_W), (float)(UI_TOPBAR_H - 3), (float)UI_TAB_W, 3, C_WIDGETHOT);
-	xofs += 16;
-
-	xofs += 20;
-
-
-    if (imgui_button(GEN_ID,fn14,"New\nCtrl-N",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    drawrect((float)(gVisibleChiplist * tabW), (float)(UI_TOPBAR_H - 3), (float)tabW, 3, C_WIDGETHOT);
+	if (tb.rows == 1)
+	{
+	xofs += tb.gapA;
+    if (imgui_button(GEN_ID,fn14,lblNew,xofs,0,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         do_resetdialog();
     }
-	xofs += UI_BTN_W;
-    if (imgui_button(GEN_ID,fn14,"Load\nCtrl-L",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+	xofs += btnW;
+    if (imgui_button(GEN_ID,fn14,lblLoad,xofs,0,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         do_loaddialog();
     }
-	xofs += UI_BTN_W;
-    if (imgui_button(GEN_ID,fn14,"Merge\nCtrl-M",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+	xofs += btnW;
+    if (imgui_button(GEN_ID,fn14,lblMerge,xofs,0,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         do_loaddialog(1);
     }
-	xofs += UI_BTN_W;
-    if (imgui_button(GEN_ID,fn14,"Box\nCtrl-B",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+	xofs += btnW;
+    if (imgui_button(GEN_ID,fn14,lblBox,xofs,0,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         do_loaddialog(2);
     }
-	xofs += UI_BTN_W;
-    if (imgui_button(GEN_ID,fn14,"Save\nCtrl-S",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+	xofs += btnW;
+    if (imgui_button(GEN_ID,fn14,lblSave,xofs,0,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         do_savedialog();
     }
-	xofs += UI_BTN_W;
-
-	xofs += 20;
-
-    if (imgui_button(GEN_ID,fn14,"Undo\nCtrl-Z",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+	xofs += btnW;
+	xofs += tb.gapB;
+    if (imgui_button(GEN_ID,fn14,lblUndo,xofs,0,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         int active = gUIState.kbditem;
         do_undo();
         gUIState.kbditem = active;
     }
-	xofs += UI_BTN_W;
-    if (imgui_button(GEN_ID,fn14,"Redo\nCtrl-Y",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+	xofs += btnW;
+    if (imgui_button(GEN_ID,fn14,lblRedo,xofs,0,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         int active = gUIState.kbditem;
         do_redo();
         gUIState.kbditem = active;
     }
-	xofs += UI_BTN_W;
-
-	xofs += 20;
-
-    if (imgui_button(GEN_ID,fn14,"Home",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+	xofs += btnW;
+	xofs += tb.gapC;
+    if (imgui_button(GEN_ID,fn14,"Home",xofs,0,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         do_home();
     }
-	xofs += UI_BTN_W;
-
-    if (imgui_button(GEN_ID,fn14,"Zoom\next",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+	xofs += btnW;
+    if (imgui_button(GEN_ID,fn14,lblZoom,xofs,0,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         do_zoomext();
     }
-	xofs += UI_BTN_W;
-
-    if (imgui_button(GEN_ID,fn14,gSnap?"Snap\n(on)":"Snap\n(off)",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+	xofs += btnW;
+    if (imgui_button(GEN_ID,fn14,lblSnap,xofs,0,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         gSnap = !gSnap;
     }
-	xofs += UI_BTN_W;
-
-    if (imgui_button(GEN_ID,fn14,gLiveWires?"View\n(live)":"View\n(grey)",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+	xofs += btnW;
+    if (imgui_button(GEN_ID,fn14,lblView,xofs,0,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         gLiveWires = !gLiveWires;
 		gBlackBackground ^= gLiveWires;
     }
-	xofs += UI_BTN_W;
-    if (imgui_button(GEN_ID,fn14,"PNG it\nCtrl-G",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+	xofs += btnW;
+    if (imgui_button(GEN_ID,fn14,lblPng,xofs,0,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         gSavePNG = 1;
     }
-	xofs += UI_BTN_W;
+	xofs += btnW;
+	}
+	else
+	{
+	xofs = 0;
+    if (imgui_button(GEN_ID,fn14,lblNew,xofs,actionY,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    {
+        do_resetdialog();
+    }
+	xofs += btnW;
+    if (imgui_button(GEN_ID,fn14,lblLoad,xofs,actionY,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    {
+        do_loaddialog();
+    }
+	xofs += btnW;
+    if (imgui_button(GEN_ID,fn14,lblMerge,xofs,actionY,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    {
+        do_loaddialog(1);
+    }
+	xofs += btnW;
+    if (imgui_button(GEN_ID,fn14,lblBox,xofs,actionY,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    {
+        do_loaddialog(2);
+    }
+	xofs += btnW;
+    if (imgui_button(GEN_ID,fn14,lblSave,xofs,actionY,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    {
+        do_savedialog();
+    }
+	xofs += btnW;
+	xofs += tb.gapB;
+    if (imgui_button(GEN_ID,fn14,lblUndo,xofs,actionY,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    {
+        int active = gUIState.kbditem;
+        do_undo();
+        gUIState.kbditem = active;
+    }
+	xofs += btnW;
+    if (imgui_button(GEN_ID,fn14,lblRedo,xofs,actionY,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    {
+        int active = gUIState.kbditem;
+        do_redo();
+        gUIState.kbditem = active;
+    }
+	xofs += btnW;
+	xofs += tb.gapC;
+    if (imgui_button(GEN_ID,fn14,"Home",xofs,actionY,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    {
+        do_home();
+    }
+	xofs += btnW;
+    if (imgui_button(GEN_ID,fn14,lblZoom,xofs,actionY,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    {
+        do_zoomext();
+    }
+	xofs += btnW;
+    if (imgui_button(GEN_ID,fn14,lblSnap,xofs,actionY,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    {
+        gSnap = !gSnap;
+    }
+	xofs += btnW;
+    if (imgui_button(GEN_ID,fn14,lblView,xofs,actionY,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    {
+        gLiveWires = !gLiveWires;
+		gBlackBackground ^= gLiveWires;
+    }
+	xofs += btnW;
+    if (imgui_button(GEN_ID,fn14,lblPng,xofs,actionY,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    {
+        gSavePNG = 1;
+    }
+	xofs += btnW;
+	}
 
-    if (imgui_button(GEN_ID,fn14,"Quit",gScreenWidth-UI_BTN_W-6,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    if (imgui_button(GEN_ID,fn14,"Quit",tb.quitX,0,quitW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         if (okcancel("Are you sure you want to exit?\nAny unsaved changes will be lost."))
 		{
@@ -832,7 +916,7 @@ static void draw_screen()
 		}
     }
   
-    if (gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > UI_TOPBAR_H)
+    if (gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > gTopbarH)
     {
         if (gDragMode == DRAGMODE_NONE)
         {
@@ -1211,7 +1295,7 @@ static void draw_screen()
             }
 
             gWorldOfsX += (gUIState.mousex - gConfig.mToolkitWidth) / gZoomFactor - (gUIState.mousex - gConfig.mToolkitWidth) / oldfactor;
-	gWorldOfsY += (gUIState.mousey - UI_TOPBAR_H) / gZoomFactor - (gUIState.mousey - UI_TOPBAR_H) / oldfactor;
+	gWorldOfsY += (gUIState.mousey - gTopbarH) / gZoomFactor - (gUIState.mousey - gTopbarH) / oldfactor;
         }
     }
 
@@ -1351,10 +1435,10 @@ static void draw_screen()
 	do_build_nets();
 
     glEnable(GL_SCISSOR_TEST);
-	glScissor(gConfig.mToolkitWidth,0,gScreenWidth-gConfig.mToolkitWidth,gScreenHeight-UI_TOPBAR_H);
+	glScissor(gConfig.mToolkitWidth,0,gScreenWidth-gConfig.mToolkitWidth,gScreenHeight-gTopbarH);
 
     glPushMatrix();
-	glTranslatef((float)gConfig.mToolkitWidth, (float)UI_TOPBAR_H, 0);
+	glTranslatef((float)gConfig.mToolkitWidth, (float)gTopbarH, 0);
     glScalef(gZoomFactor, gZoomFactor, 1);
     glTranslatef(gWorldOfsX, gWorldOfsY, 0);
 
@@ -1620,7 +1704,7 @@ static void draw_screen()
         glDisable(GL_LINE_SMOOTH);
     }
 
-    if (gDragMode == DRAGMODE_NEWCHIP && gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > UI_TOPBAR_H && gUIState.mousedown)
+    if (gDragMode == DRAGMODE_NEWCHIP && gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > gTopbarH && gUIState.mousedown)
     {
         if (gNewChip && gNewChipName)
         {

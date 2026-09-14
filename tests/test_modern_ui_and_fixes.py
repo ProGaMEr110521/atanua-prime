@@ -43,6 +43,8 @@ def test_modern_theme_is_default():
     assert "UI_THEME_MENUBG" in theme and "UiTheme" in theme
     assert "UiTheme::clampSliderMax" in main or "clampSliderMax" in main
     assert "Status bar" in main or "Chips:%d" in main
+    for token in ["topbarLayout", "TopbarLayout", "topbarHeight", "compactLabels"]:
+        assert token in theme, f"responsive topbar helper missing: {token}"
 
 
 def test_toolkit_and_font_guards():
@@ -89,6 +91,9 @@ def test_main_interaction_guards():
         "if (want)",
         "cursor_normal",
         "font assets missing",
+        "topbarLayout",
+        "gTopbarH",
+        "compactLabels",
     ]:
         assert needle in main, f"main guard missing: {needle}"
 
@@ -123,9 +128,6 @@ def test_binary_and_assets_present():
 
 
 def test_cpp_theme_harness():
-    # Compiles and runs the real shipped header. Proves helpers work.
-    # Copies to an ASCII-only temp dir: repo path contains Cyrillic which
-    # MSVC's batch setup mangles, so building in place fails spuriously.
     import shutil
     import tempfile
     tmp = tempfile.mkdtemp(prefix="atanua_theme_")
