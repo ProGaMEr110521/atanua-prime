@@ -293,7 +293,12 @@ static void do_loadtexture(const char * aFilename, int clamp = 1)
 
 char * mystrdup(const char *aString)
 {
-	int len = strlen(aString);
+	if (!aString)
+		return NULL;
+	size_t srclen = strlen(aString);
+	if (srclen > 1024 * 1024)
+		srclen = 1024 * 1024;
+	int len = (int)srclen;
 	char * d = new char[len+1];
 	memcpy(d, aString, len);
 	d[len] = 0;
@@ -670,25 +675,30 @@ int imgui_button(int id, ACFont &font, const char *text, float x, float y, float
 
     drawrect(x,y,w,h,base);
 
+    // Snap text to whole pixels: 1px glyphs (i, l) wash out
+    // under LINEAR filtering at fractional offsets.
+    float tx = (float)floor(x+(w-tw)/2);
+    float ty = (float)floor(y+(h-th)/2);
+
     if (gUIState.kbditem == id || gUIState.hotitem == id)
     {
 		if (gUIState.activeitem == id)
 		{
 			// Button is both 'hot' and 'active'
             drawrect(x+3,y+3,w-4,h-4,hot);
-            font.drawstring(text, x+(w-tw)/2+1,y+(h-th)/2+1,textcolor);
+            font.drawstring(text, tx+1,ty+1,textcolor);
 		}
 		else
 		{
             drawrect(x+2,y+2,w-4,h-4,hot);
 			// Button is merely 'hot'
-            font.drawstring(text, x+(w-tw)/2,y+(h-th)/2,textcolor);
+            font.drawstring(text, tx,ty,textcolor);
 		}
     }
     else
     {
         drawrect(x+2,y+2,w-4,h-4,face);
-        font.drawstring(text, x+(w-tw)/2,y+(h-th)/2,textcolor);
+        font.drawstring(text, tx,ty,textcolor);
     }
 
 	// If we have keyboard focus, we'll need to process the keys
@@ -857,7 +867,9 @@ int imgui_slider(int id, float x, float y, float w, float h, int bg, int thumb, 
 
 int imgui_textfield(int id, ACFont &font, int x, int y, int w, int h, char *buffer, int maxlen, int base, int face, int hot, int textcolor)
 {
-	int len = strlen(buffer);
+	if (!buffer || maxlen <= 0)
+		return 0;
+	int len = (int)strlen(buffer);
 	int changed = 0;
 
 	// Check for hotness
@@ -883,14 +895,14 @@ int imgui_textfield(int id, ACFont &font, int x, int y, int w, int h, char *buff
 		drawrect(x+2, y+2, w-4, h-4, face);
 	}
 
-	font.drawstring(buffer,x+2,y+(h-font.common.lineHeight)/2,textcolor);
+	font.drawstring(buffer,x+2,(float)floor(y+(h-font.common.lineHeight)/2),textcolor);
 
 	// Render cursor if we have keyboard focus
 	if (gUIState.kbditem == id && (SDL_GetTicks() >> 8) & 1)
     {
         float th,tw,llw;
         font.stringmetrics(buffer,tw,th,llw);
-		font.drawstring("_",x + tw + 2, y + (h-font.common.lineHeight)/2,textcolor);
+		font.drawstring("_",(float)floor(x + tw + 2), (float)floor(y + (h-font.common.lineHeight)/2),textcolor);
     }
 
 	// If we have keyboard focus, we'll need to process the keys

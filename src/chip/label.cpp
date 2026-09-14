@@ -71,8 +71,8 @@ void Label::render(int aChipId)
 void Label::serialize(File *f)
 {
     f->writeint((int)(mSize * 0xffffff));
-    f->writeint(mData.length());
-    f->writechars(mData.c_str(), mData.length());
+    f->writeint((int)mData.length());
+    f->writechars(mData.c_str(), (int)mData.length());
 }
 
 void Label::deserialize(File *f)

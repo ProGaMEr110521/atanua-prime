@@ -50,7 +50,8 @@ int File::readbyte()
     char i = 0;
     if (!f)
         return i;
-    fread(&i,1,1,f);
+    if (fread(&i,1,1,f) != 1)
+        return 0;
     return i;
 }
 
@@ -59,7 +60,8 @@ int File::readword()
     short i = 0;
     if (!f)
         return i;
-    fread(&i,2,1,f);
+    if (fread(&i,2,1,f) != 1)
+        return 0;
 #if SDL_BYTEORDER == SDL_LIL_ENDIAN
     return i;
 #else
@@ -72,7 +74,8 @@ int File::readint()
     int i = 0;
     if (!f)
         return i;
-    fread(&i,4,1,f);
+    if (fread(&i,4,1,f) != 1)
+        return 0;
 #if SDL_BYTEORDER == SDL_LIL_ENDIAN
     return i;
 #else
@@ -82,21 +85,29 @@ int File::readint()
 
 void File::readchars(char * dst, int count)
 {
-    while (count)
+    if (!dst || count <= 0)
+        return;
+    if (!f)
     {
-        *dst = readbyte();
-        dst++;
-        count--;
+        memset(dst, 0, count);
+        return;
     }
+    size_t got = fread(dst, 1, count, f);
+    if (got < (size_t)count)
+        memset(dst + got, 0, count - got);
 }
 
 void File::writebyte(char data)
 {
+    if (!f)
+        return;
     fwrite(&data,1,1,f);
 }
 
 void File::writeword(short data)
 {
+    if (!f)
+        return;
 #if SDL_BYTEORDER != SDL_LIL_ENDIAN
     data = SDL_Swap16(data);
 #endif
@@ -105,6 +116,8 @@ void File::writeword(short data)
 
 void File::writeint(int data)
 {
+    if (!f)
+        return;
 #if SDL_BYTEORDER != SDL_LIL_ENDIAN
     data = SDL_Swap32(data);
 #endif
@@ -113,6 +126,8 @@ void File::writeint(int data)
 
 void File::writechars(const char * src, int count)
 {
+    if (!f || !src || count <= 0)
+        return;
     while (count)
     {
         writebyte(*src);
@@ -123,11 +138,15 @@ void File::writechars(const char * src, int count)
 
 int File::tell()
 {
+    if (!f)
+        return 0;
     return ftell(f);
 }
 
 void File::seek(int pos)
 {
+    if (!f || pos < 0)
+        return;
     fseek(f,pos,SEEK_SET);
 }
 
@@ -144,6 +163,8 @@ MemoryFile::~MemoryFile()
 
 int MemoryFile::readbyte()
 {
+    if (mDataIdx < 0 || mDataIdx >= (int)mData.size())
+        return 0;
     char i = mData[mDataIdx];
     mDataIdx++;
     return i;
@@ -151,14 +172,24 @@ int MemoryFile::readbyte()
 
 int MemoryFile::readword()
 {
+    if (mDataIdx < 0 || mDataIdx + 1 >= (int)mData.size())
+    {
+        mDataIdx = (int)mData.size();
+        return 0;
+    }
     unsigned short i = 0;
     i |= (unsigned char)readbyte(); i <<= 8;
     i |= (unsigned char)readbyte();
-    return i;
+    return (short)i;
 }
 
 int MemoryFile::readint()
 {
+    if (mDataIdx < 0 || mDataIdx + 3 >= (int)mData.size())
+    {
+        mDataIdx = (int)mData.size();
+        return 0;
+    }
     unsigned int i = 0;
     i |= (unsigned char)readbyte(); i <<= 8;
     i |= (unsigned char)readbyte(); i <<= 8;
@@ -198,5 +229,15 @@ int MemoryFile::tell()
 
 void MemoryFile::seek(int pos)
 {
+    if (pos < 0)
+        pos = 0;
+    if (pos > (int)mData.size())
+        pos = (int)mData.size();
     mDataIdx = pos;
+}
+
+int MemoryFile::bytesRemaining() const
+{
+    int rem = (int)mData.size() - mDataIdx;
+    return rem > 0 ? rem : 0;
 }

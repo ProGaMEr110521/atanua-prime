@@ -246,7 +246,9 @@ ACFontCharBlock * ACFont::findcharblock(int ch)
         if (chars.chars[i].id == ch)
             return &(chars.chars[i]);
     }
-    return chars.chars;
+    if (chars.charcount > 0 && chars.chars)
+        return chars.chars;
+    return NULL;
 }
 
 int ACFont::findkern(int id1, int id2)
@@ -264,6 +266,10 @@ volatile int crap = 0;
 
 void ACFont::drawstring(const char * string, float x, float y, int color, float desired_ht)
 {
+    if (!string || !string[0])
+        return;
+    if (pages.pages == 0)
+        return;
     float scalefactor;
 	if (stricmp(string,"Home")==0)
 	{
@@ -394,8 +400,18 @@ void ACFont::drawstring(const char * string, float x, float y, int color, float 
                 else
                 {
                     ACFontCharBlock *curr = findcharblock(*string);
+                    if (!curr)
+                    {
+                        string++;
+                        continue;
+                    }
                     if (curr->page != currentpage)
                     {
+                        if (curr->page < 0 || curr->page >= pages.pages)
+                        {
+                            string++;
+                            continue;
+                        }
                         currentpage = curr->page;
                         glBindTexture(GL_TEXTURE_2D, pages.glhandle[currentpage]);
                     }
@@ -507,8 +523,18 @@ void ACFont::drawstring(const char * string, float x, float y, int color, float 
             else
             {
                 ACFontCharBlock *curr = findcharblock(*string);
+                if (!curr)
+                {
+                    string++;
+                    continue;
+                }
                 if (curr->page != currentpage)
                 {
+                    if (curr->page < 0 || curr->page >= pages.pages)
+                    {
+                        string++;
+                        continue;
+                    }
                     currentpage = curr->page;
                     glBindTexture(GL_TEXTURE_2D, pages.glhandle[currentpage]);
                 }
@@ -548,6 +574,9 @@ void ACFont::fontcacheframe()
 
 void ACFont::stringmetrics(const char * string, float &w, float &h, float &lastlinew, float desired_ht)
 {
+    w = h = lastlinew = 0;
+    if (!string)
+        return;
     float scalefactor;
     if (desired_ht == 0.0f)
         scalefactor = 1.0f;
@@ -560,7 +589,8 @@ void ACFont::stringmetrics(const char * string, float &w, float &h, float &lastl
         return;
     }
     float maxx = 0;
-    int len = strlen(string);
+    if (common.lineHeight <= 0)
+        common.lineHeight = 1;
     float xofs, yofs;
     xofs = 0;
     yofs = 0;
@@ -577,7 +607,8 @@ void ACFont::stringmetrics(const char * string, float &w, float &h, float &lastl
         else
         {
             ACFontCharBlock *curr = findcharblock(*string);
-            xofs += curr->xadvance * scalefactor;
+            if (curr)
+                xofs += curr->xadvance * scalefactor;
         }
         if (maxx < xofs) maxx = xofs;
         string++;

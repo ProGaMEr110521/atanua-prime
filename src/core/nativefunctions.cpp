@@ -34,7 +34,7 @@ FILE * openfileinsamedir(const char * aFname)
 	if (gFilename)
 	{
 		strcat(temp,gFilename);
-		int i = strlen(temp);
+		int i = (int)strlen(temp);
 		while (i > 0 && temp[i] != '\\' && temp[i] != '/') i--;
 		temp[i+1] = 0;
 	}
@@ -42,7 +42,7 @@ FILE * openfileinsamedir(const char * aFname)
 	if (gAltFilename)
 	{
 		strcat(temp, gAltFilename);
-		int i = strlen(temp);
+		int i = (int)strlen(temp);
 		while (i > 0 && temp[i] != '\\' && temp[i] != '/') i--;
 		temp[i+1] = 0;
 	}

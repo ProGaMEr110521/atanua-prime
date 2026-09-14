@@ -32,10 +32,10 @@ AtanuaConfig::AtanuaConfig()
     mAntialiasedLines = 1;
     mPropagateInvalidState = PINSTATE_PROPAGATE_INVALID;
     mWireFry = 1;
-    mToolkitWidth = 115;
+    mToolkitWidth = 150;
     mMaxPhysicsMs = 40;
-    mWindowWidth = 800;
-    mWindowHeight = 600;
+    mWindowWidth = 1280;
+    mWindowHeight = 800;
     mTooltipDelay = 1500;
     mLinePickTolerance = 0.05f;
     mLineEndTolerance = 0.2f;

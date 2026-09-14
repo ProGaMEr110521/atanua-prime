@@ -61,5 +61,6 @@ public:
     virtual void writeint(int data);
     virtual int tell();
     virtual void seek(int pos);
+    int bytesRemaining() const;
 };
 #endif

@@ -42,14 +42,20 @@ void do_loadoldbinary(File *f)
         return;
     int chipcount = f->readint();
     int wirecount = f->readint();
+    if (chipcount < 0 || chipcount > 50000 || wirecount < 0 || wirecount > 200000)
+    {
+        build_nets();
+        return;
+    }
     int i;
     for (i = 0; i < chipcount; i++)
     {
         char temp[256];
         memset(temp,0,256);
         int len = f->readword();
-        if (len > 255) 
+        if (len <= 0 || len > 255)
         {
+            build_nets();
             return;
         }
         f->readchars(temp, len);
@@ -59,7 +65,7 @@ void do_loadoldbinary(File *f)
         const char *chipname = NULL;
 
 		// boxes are... special.
-		int sl = strlen(temp);
+		int sl = (int)strlen(temp);
 		if (sl > 7 && stricmp(temp+sl-7,".atanua") == 0)
 		{
 			chipname = mystrdup(temp);
@@ -93,6 +99,7 @@ void do_loadoldbinary(File *f)
         {
             // could make a popup here saying 
             // "%temp% not found, missing plugins?"
+            build_nets();
             return;
         }
 
@@ -103,6 +110,7 @@ void do_loadoldbinary(File *f)
         
         if (chip == NULL)
         {
+            build_nets();
             return;
         }
 
@@ -130,6 +138,7 @@ void do_loadoldbinary(File *f)
             pin1 >= gChip[chip1]->mPin.size() ||
             pin2 >= gChip[chip2]->mPin.size())
         {
+            build_nets();
             return;
         }
         gWire.push_back(new Wire(gChip[chip1]->mPin[pin1], gChip[chip2]->mPin[pin2]));    
@@ -296,7 +305,7 @@ BoxStitchingInformation * do_preparse_box(const char *aFname)
 		bd.mData = bf;
 		bd.mName = mystrdup(aFname);
 		gBoxCache.push_back(bd);
-		idx = gBoxCache.size() - 1;
+		idx = (int)gBoxCache.size() - 1;
 	}
 	fclose(f);
 
@@ -345,7 +354,7 @@ void do_loadxml(FILE * f, int box)
                             if (temp)
                             {
 								// boxes are... special.
-								int i = strlen(temp);
+								int i = (int)strlen(temp);
 								if (i > 7 && stricmp(temp+i-7,".atanua") == 0)
 								{
 									chipname = mystrdup(temp);
@@ -400,6 +409,7 @@ void do_loadxml(FILE * f, int box)
                                     
                                     if (chip == NULL)
                                     {
+                                        build_nets();
                                         return;
                                     }
                                     int x, y, key, angle;
@@ -457,6 +467,7 @@ void do_loadxml(FILE * f, int box)
                                             snprintf(temp, sizeof(temp), "Decoding chip-specific data while loading '%s' failed.\nTry to continue loading?", chipname);
                                             if (okcancel(temp) == 0)
                                             {
+                                                build_nets();
                                                 return;
                                             }
                                         }
@@ -523,7 +534,7 @@ void do_loadxml(FILE * f, int box)
 
 void do_loadbinary(File *f, int box)
 {
-	int old_chips = gChip.size();
+	int old_chips = (int)gChip.size();
 
     if (!f)
         return;
@@ -532,14 +543,20 @@ void do_loadbinary(File *f, int box)
         return;
     int chipcount = f->readint();
     int wirecount = f->readint();
+    if (chipcount < 0 || chipcount > 50000 || wirecount < 0 || wirecount > 200000)
+    {
+        build_nets();
+        return;
+    }
     int i;
     for (i = 0; i < chipcount; i++)
     {
         char temp[256];
         memset(temp,0,256);
         int len = f->readword();
-        if (len > 255) 
+        if (len <= 0 || len > 255)
         {
+            build_nets();
             return;
         }
         f->readchars(temp, len);
@@ -551,7 +568,7 @@ void do_loadbinary(File *f, int box)
 		const char *chipname = NULL;
 
 		// boxes are... special.
-		int sl = strlen(temp);
+		int sl = (int)strlen(temp);
 		if (sl > 7 && stricmp(temp+sl-7,".atanua") == 0)
 		{
 			chipname = mystrdup(temp);
@@ -585,6 +602,7 @@ void do_loadbinary(File *f, int box)
         {
             // could make a popup here saying 
             // "%temp% not found, missing plugins?"
+            build_nets();
             return;
         }
 
@@ -595,6 +613,7 @@ void do_loadbinary(File *f, int box)
         
         if (chip == NULL)
         {
+            build_nets();
             return;
         }
 
@@ -627,6 +646,7 @@ void do_loadbinary(File *f, int box)
             pin1 >= gChip[chip1]->mPin.size() ||
             pin2 >= gChip[chip2]->mPin.size())
         {
+            build_nets();
             return;
         }
 		Wire * w = new Wire(gChip[chip1]->mPin[pin1], gChip[chip2]->mPin[pin2]);
@@ -668,7 +688,7 @@ void do_savebinary(File * f)
     {
 		if (gChip[i]->mBox != 0)
 			continue;
-        int len = strlen(gChipName[i]);
+        int len = (int)strlen(gChipName[i]);
         f->writeword(len);
         f->writechars(gChipName[i], len);
         f->writeint((int)floor((1 << 16) * gChip[i]->mX));
@@ -719,15 +739,10 @@ void do_loadxmltobinary(FILE * f, File * outf, BoxcacheData * bd)
     if (!pChild)
         return;
     {
-        outf->writeint(0x02617441); // 'Ata' + 2
-
-        int chipcount = 0;
-        pChild->QueryIntAttribute("ChipCount", &chipcount);
-        outf->writeint(chipcount);
-
-        int wirecount = 0;
-        pChild->QueryIntAttribute("WireCount", &wirecount);
-        outf->writeint(wirecount);
+        MemoryFile chipBuf;
+        MemoryFile wireBuf;
+        int actualChips = 0;
+        int actualWires = 0;
 
         int scale = 24;
         pChild->QueryIntAttribute("scale", &scale);
@@ -744,7 +759,7 @@ void do_loadxmltobinary(FILE * f, File * outf, BoxcacheData * bd)
                             if (temp)
                             {
 								// boxes are... special.
-								int i = strlen(temp);
+								int i = (int)strlen(temp);
 								if (i > 7 && stricmp(temp+i-7,".atanua") == 0)
 								{
 									chipname = mystrdup(temp);
@@ -802,12 +817,12 @@ void do_loadxmltobinary(FILE * f, File * outf, BoxcacheData * bd)
                                     float Y = (float)y / (1 << scale);
 
 									int len = (int)strlen(chipname);
-									outf->writeword(len);
-									outf->writechars(chipname, len);
-									outf->writeint((int)floor((1 << 16) * X));
-									outf->writeint((int)floor((1 << 16) * Y));
-									outf->writeint(AngleIn90DegreeSteps);
-									outf->writeint(0);
+									chipBuf.writeword(len);
+									chipBuf.writechars(chipname, len);
+									chipBuf.writeint((int)floor((1 << 16) * X));
+									chipBuf.writeint((int)floor((1 << 16) * Y));
+									chipBuf.writeint(AngleIn90DegreeSteps);
+									chipBuf.writeint(0);
 
                                     const char *v = part->GetText();
                                     if (v && *v)
@@ -863,7 +878,7 @@ void do_loadxmltobinary(FILE * f, File * outf, BoxcacheData * bd)
 
 										int i;
 										for (i = 0; i < (signed)mf.mData.size(); i++)
-											outf->writebyte(mf.mData[i]);
+											chipBuf.writebyte(mf.mData[i]);
 
                                         if (wholebyte != 0)
                                         {
@@ -871,10 +886,12 @@ void do_loadxmltobinary(FILE * f, File * outf, BoxcacheData * bd)
                                             snprintf(temp, sizeof(temp), "Decoding chip-specific data while loading '%s' failed.\nTry to continue loading?", chipname);
                                             if (okcancel(temp) == 0)
                                             {
+                                                build_nets();
                                                 return;
                                             }
                                         }
                                     }
+                                    actualChips++;
                                 }
                                 else
                                 {
@@ -899,10 +916,18 @@ void do_loadxmltobinary(FILE * f, File * outf, BoxcacheData * bd)
                             part->QueryIntAttribute("pad1", &pin1);
                             part->QueryIntAttribute("pad2", &pin2);
 
-							outf->writeint((chip1<<16) | pin1);
-							outf->writeint((chip2<<16) | pin2);
-							outf->writeint(0);
+							wireBuf.writeint((chip1<<16) | pin1);
+							wireBuf.writeint((chip2<<16) | pin2);
+							wireBuf.writeint(0);
+                            actualWires++;
 						}
         }
+        outf->writeint(0x02617441); // 'Ata' + 2
+        outf->writeint(actualChips);
+        outf->writeint(actualWires);
+        for (size_t bi = 0; bi < chipBuf.mData.size(); bi++)
+            outf->writebyte(chipBuf.mData[bi]);
+        for (size_t bi = 0; bi < wireBuf.mData.size(); bi++)
+            outf->writebyte(wireBuf.mData[bi]);
     }
 }

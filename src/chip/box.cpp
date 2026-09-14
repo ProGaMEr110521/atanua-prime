@@ -37,7 +37,7 @@ Box::Box(const char *aFilename, BoxStitchingInformation * aBsi)
 	
 
 	mBsi = aBsi;
-	mPinCount = aBsi->mToolTips.size();
+	mPinCount = (int)aBsi->mToolTips.size();
 	mExtPin = new Pin[mPinCount];
 
 	mBsi->mExtPinOutside = mExtPin;
@@ -47,7 +47,7 @@ Box::Box(const char *aFilename, BoxStitchingInformation * aBsi)
 	tempstr[0] = 0;
 	strcat(tempstr, aFilename);
 	int i;
-	i = strlen(tempstr);
+	i = (int)strlen(tempstr);
 	while (i > 0 && tempstr[i] != '.') i--;
 	if (i > 0) tempstr[i] = 0;
 	mDisplayString = mystrdup(tempstr);

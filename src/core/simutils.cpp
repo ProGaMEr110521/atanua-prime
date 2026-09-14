@@ -23,6 +23,7 @@ distribution.
 #include "atanua.h"
 #include "atanua_internal.h"
 #include "fileutils.h"
+#include "ui_theme.h"
 #include "extpin.h"
 #include "box.h"
 #include <string>
@@ -154,7 +155,7 @@ void do_build_nets()
 		{
 			Net *n = new Net;
 			gNet.push_back(n);
-			crossmap[idx] = gNet.size() - 1;
+			crossmap[idx] = (int)gNet.size() - 1;
 		}
 	}
 
@@ -190,8 +191,10 @@ void do_build_nets()
 
 void delete_chip(Chip *c)
 {
+    if (!c)
+        return;
     // First let's find the chip's index.
-    int idx = 0;
+    int idx = -1;
     int i;
     for (i = 0; i < (signed)gChip.size(); i++)
     {
@@ -201,6 +204,8 @@ void delete_chip(Chip *c)
             break;
         }
     }
+    if (idx < 0)
+        return;
 
 
     // Special case: if chip is "connection pin" which has two connections, fuse the two wires together.
@@ -383,6 +388,10 @@ float line_point_distance(float x0, float y0, float x1, float y1, float x2, floa
 
 void add_wire(Pin *aFirst, Pin *aSecond)
 {
+    if (!aFirst || !aSecond || aFirst == aSecond)
+        return;
+    if (!aFirst->mHost || !aSecond->mHost)
+        return;
     int i;
     for (i = 0; i < (signed)gWire.size(); i++)
         if ((gWire[i]->mFirst == aFirst && gWire[i]->mSecond == aSecond) ||
@@ -397,6 +406,7 @@ extern void resetfilename();
 void do_reset()
 {
     do_cancel();
+    gFryList.clear();
 	
 	// Wipe away all wires first so we won't need to do wire frying.
     int i;
@@ -513,9 +523,15 @@ static int gSaveInterval = 0;
 
 static const int kMaxUndoDepth = 50;
 
+static int UndoDepthForCurrentDesign()
+{
+    return UiTheme::undoDepthForDesign((unsigned int)gChip.size(), (unsigned int)gWire.size());
+}
+
 static void trim_stack(vector<File *> &stack)
 {
-    while ((int)stack.size() > kMaxUndoDepth)
+    int limit = UndoDepthForCurrentDesign();
+    while ((int)stack.size() > limit)
     {
         delete stack.front();
         stack.erase(stack.begin());
@@ -549,8 +565,25 @@ void save_undo()
 				do_savexml(f);
 		}
 	}
-    MemoryFile * state = new MemoryFile();
-    do_savebinary(state);
+    MemoryFile * state = NULL;
+    try
+    {
+        state = new MemoryFile();
+    }
+    catch (...)
+    {
+        clear_stack(gRedoStack);
+        return;
+    }
+    try
+    {
+        do_savebinary(state);
+    }
+    catch (...)
+    {
+        delete state;
+        return;
+    }
     gUndoStack.push_back(state);
     trim_stack(gUndoStack);
     if (!gRedoStack.empty())
@@ -704,8 +737,8 @@ void do_loaddialog(int merge, const char *aFilename)
 			}
 			else
 			{
-				int oldmaxchip = gChip.size();
-				int oldmaxwire = gWire.size();
+				int oldmaxchip = (int)gChip.size();
+				int oldmaxwire = (int)gWire.size();
 				do_loadxml(fh, 0);
 				if (merge)
 				{
@@ -797,20 +830,18 @@ void do_zoomext()
 
 void do_optimize_box(int aBox)
 {
-	unsigned int i = 0;
-	do
+	size_t i = 0;
+	while (i < gChip.size())
 	{
-		if (gChip.size() &&
-			gChip[i]->mBox == aBox &&
-			gChip[i]->isUselessInBox())
+		Chip *c = gChip[i];
+		if (c && c->mBox == aBox && c->isUselessInBox())
 		{
-			delete_chip(gChip[i]);
+			delete_chip(c);
 		}
 		else
 		{
 			i++;
 		}
 	}
-	while (i < gChip.size());	
 }
 

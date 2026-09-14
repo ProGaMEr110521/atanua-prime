@@ -75,7 +75,7 @@ static void handle_async_call(chipinfostruct &chip)
     switch (chip.mAsyncCall)
     {
     case ATANUA_ASYNC_CALL_OKCANCEL:
-        chip.mAsyncCallReturn = (void*)okcancel((const char*)chip.mAsyncCallParam);
+        chip.mAsyncCallReturn = (void*)(intptr_t)okcancel((const char*)chip.mAsyncCallParam);
         break;
     case ATANUA_ASYNC_CALL_OPENFILE:
         chip.mAsyncCallReturn = (void*)openfiledialog((const char*)chip.mAsyncCallParam);

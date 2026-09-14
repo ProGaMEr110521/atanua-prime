@@ -23,19 +23,30 @@ distribution.
 #include "atanua.h"
 #include "atanua_internal.h"
 #include "fileutils.h"
+#include "ui_theme.h"
 
 #include "basechipfactory.h"
 #include "pluginchipfactory.h"
 
 #include "stb/stb_image_write.h"
 
-#define C_MENUBG 0xff3f4f4f
-#define C_WIDGETBG 0xff3f5f6f
-#define C_WIDGETTHUMB 0xff7f8f9f
-#define C_WIDGETHOT 0xff9fcfff
+#define C_MENUBG 0xff20242c
+#define C_MENULINE 0xff333947
+#define C_WIDGETBG 0xff2c313c
+#define C_WIDGETTHUMB 0xff59637a
+#define C_WIDGETHOT 0xff4c8dff
+#define C_TEXT 0xffeef1f6
+#define C_TEXTDIM 0xff8b93a7
+#define C_HOTROW 0xff31406b
+#define C_ACCENTTEXT 0xff7ddf8a
+
+#define UI_TOPBAR_H 48
+#define UI_TAB_W 68
+#define UI_BTN_W 68
+#define UI_ROW_H 30
 
 #define WORLDTOSCREENX(x) ((((x)+gWorldOfsX) * gZoomFactor) + gConfig.mToolkitWidth)
-#define WORLDTOSCREENY(y) ((((y)+gWorldOfsY) * gZoomFactor) + 40)
+#define WORLDTOSCREENY(y) ((((y)+gWorldOfsY) * gZoomFactor) + UI_TOPBAR_H)
 
 ACFont fn, fn14;
 
@@ -130,6 +141,8 @@ void do_rotate()
     if (IS_CHIP_ID(gUIState.kbditem))
     {
         int id = GET_CHIP_ID(gUIState.kbditem);
+        if (id < 0 || id >= (int)gChip.size() || !gChip[id])
+            return;
         gChip[id]->mAngleIn90DegreeSteps++;
         gChip[id]->mAngleIn90DegreeSteps &= 0x03;
         gChip[id]->rotate(gChip[id]->mAngleIn90DegreeSteps);
@@ -151,7 +164,7 @@ void do_screengrab()
 	while(f);
 
 	int x0 = gConfig.mToolkitWidth;
-	int y0 = 40;
+	int y0 = UI_TOPBAR_H;
 	int w = gScreenWidth - x0;
 	int h = gScreenHeight - y0;
 	
@@ -316,9 +329,12 @@ void process_events()
             if (event.window.event == SDL_WINDOWEVENT_RESIZED ||
                 event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
             {
-                gScreenWidth = event.window.data1;
-                gScreenHeight = event.window.data2;
-                initvideo();
+                if (event.window.data1 >= 100 && event.window.data2 >= 100)
+                {
+                    gScreenWidth = event.window.data1;
+                    gScreenHeight = event.window.data2;
+                    initvideo();
+                }
             }
             break;
         }
@@ -327,9 +343,13 @@ void process_events()
 
 int getChipIdForPad(Pin *p)
 {
+    if (!p)
+        return 0;
     int k, l;
     for (k = 0; k < (signed)gChip.size(); k++)
     {
+        if (!gChip[k])
+            continue;
         for (l = 0; l < (signed)gChip[k]->mPin.size(); l++)
         {
             if (gChip[k]->mPin[l] == p)
@@ -343,18 +363,33 @@ int getChipIdForPad(Pin *p)
 
 int split_wire(int aDoSplit)
 {
+    if (gZoomFactor < 1.0f)
+        gZoomFactor = 1.0f;
     float worldmousex = ((gUIState.mousex - gConfig.mToolkitWidth) / gZoomFactor) - gWorldOfsX;
-    float worldmousey = ((gUIState.mousey - 40) / gZoomFactor) - gWorldOfsY;
+    float worldmousey = ((gUIState.mousey - UI_TOPBAR_H) / gZoomFactor) - gWorldOfsY;
     float pos1[2], pos2[2], pos3[2];
     int wireid;
     if (aDoSplit)
+    {
+        if (!IS_WIRE_ID(gUIState.activeitem))
+            return 0;
         wireid = GET_WIRE_ID(gUIState.activeitem);
+    }
     else
+    {
+        if (!IS_WIRE_ID(gUIState.hotitem))
+            return 0;
         wireid = GET_WIRE_ID(gUIState.hotitem);
-    pos1[0] = gWire[wireid]->mFirst->mHost->mRotatedX + gWire[wireid]->mFirst->mRotatedX + 0.25;
-    pos1[1] = gWire[wireid]->mFirst->mHost->mRotatedY + gWire[wireid]->mFirst->mRotatedY + 0.25;
-    pos2[0] = gWire[wireid]->mSecond->mHost->mRotatedX + gWire[wireid]->mSecond->mRotatedX + 0.25;
-    pos2[1] = gWire[wireid]->mSecond->mHost->mRotatedY + gWire[wireid]->mSecond->mRotatedY + 0.25;
+    }
+    if (wireid < 0 || wireid >= (int)gWire.size())
+        return 0;
+    Wire *w = gWire[wireid];
+    if (!w || !w->mFirst || !w->mSecond || !w->mFirst->mHost || !w->mSecond->mHost)
+        return 0;
+    pos1[0] = w->mFirst->mHost->mRotatedX + w->mFirst->mRotatedX + 0.25f;
+    pos1[1] = w->mFirst->mHost->mRotatedY + w->mFirst->mRotatedY + 0.25f;
+    pos2[0] = w->mSecond->mHost->mRotatedX + w->mSecond->mRotatedX + 0.25f;
+    pos2[1] = w->mSecond->mHost->mRotatedY + w->mSecond->mRotatedY + 0.25f;
     pos1[0] = WORLDTOSCREENX(pos1[0]);
     pos1[1] = WORLDTOSCREENY(pos1[1]);
     pos2[0] = WORLDTOSCREENX(pos2[0]);
@@ -379,7 +414,7 @@ int split_wire(int aDoSplit)
         if (!aDoSplit) return 0;
         // start new line from pin 1
         gDragMode = DRAGMODE_WIRE;
-        gWireStartDrag = gWire[wireid]->mFirst;
+        gWireStartDrag = w->mFirst;
         gUIState.activeitem = getChipIdForPad(gWireStartDrag);
     }
     else
@@ -388,26 +423,33 @@ int split_wire(int aDoSplit)
         if (!aDoSplit) return 0;
         // start new line from pin 2
         gDragMode = DRAGMODE_WIRE;
-        gWireStartDrag = gWire[wireid]->mSecond;
+        gWireStartDrag = w->mSecond;
         gUIState.activeitem = getChipIdForPad(gWireStartDrag);
     }
     else
     {
         if (!aDoSplit) return 1;
         // do the split
+        if (gChipFactory.empty() || !gChipFactory[0])
+            return 0;
         save_undo();
         Chip *newpin = gChipFactory[0]->build("Connection Pin");
+        if (!newpin || newpin->mPin.empty() || !newpin->mPin[0])
+        {
+            delete newpin;
+            return 0;
+        }
         gChip.push_back(newpin);
-        gChipName.push_back("Connection Pin");        
-        newpin->mX = worldmousex-0.5;
-        newpin->mY = worldmousey-0.5;
+        gChipName.push_back("Connection Pin");
+        newpin->mX = worldmousex-0.5f;
+        newpin->mY = worldmousey-0.5f;
         newpin->rotate(0);
-        gUIState.mousedownx = gUIState.mousex;
-        gUIState.mousedowny = gUIState.mousey;
-        Pin *second = gWire[wireid]->mSecond;
-        gWire[wireid]->mSecond = newpin->mPin[0];
+        gUIState.mousedownx = (float)gUIState.mousex;
+        gUIState.mousedowny = (float)gUIState.mousey;
+        Pin *second = w->mSecond;
+        w->mSecond = newpin->mPin[0];
         add_wire(newpin->mPin[0], second);
-        gUIState.activeitem = CHIP_ID(0, gChip.size() - 1);
+        gUIState.activeitem = CHIP_ID(0, (int)gChip.size() - 1);
     }
     return 0;
 }
@@ -418,7 +460,7 @@ void multiselect_active()
     if (IS_CHIP_ID(gUIState.kbditem))
     {
         int id = GET_CHIP_ID(gUIState.kbditem);
-        if (gChip[id]->mMultiSelectState == 0)
+        if (id >= 0 && id < (int)gChip.size() && gChip[id] && gChip[id]->mMultiSelectState == 0)
         {
             gMultiSelectChip.push_back(gChip[id]);
             gChip[id]->mMultiSelectState = 1;
@@ -428,7 +470,7 @@ void multiselect_active()
     if (IS_WIRE_ID(gUIState.kbditem))
     {
         int id = GET_WIRE_ID(gUIState.kbditem);
-        if (gWire[id]->mMultiSelectState == 0)
+        if (id >= 0 && id < (int)gWire.size() && gWire[id] && gWire[id]->mMultiSelectState == 0)
         {
             gMultiSelectWire.push_back(gWire[id]);
             gWire[id]->mMultiSelectState = 1;
@@ -438,6 +480,8 @@ void multiselect_active()
 
 void move_chip(Chip *c, int charcode)
 {
+	if (!c)
+		return;
 	switch (charcode)
     {
     case SDLK_LEFT:
@@ -464,9 +508,9 @@ static void draw_screen()
     int tick = SDL_GetTicks();     
     static int slidervalue = 0;
     float worldmousex = ((gUIState.mousex - gConfig.mToolkitWidth) / gZoomFactor) - gWorldOfsX;
-    float worldmousey = ((gUIState.mousey - 40) / gZoomFactor) - gWorldOfsY;
+    float worldmousey = ((gUIState.mousey - UI_TOPBAR_H) / gZoomFactor) - gWorldOfsY;
     float worldmousedownx = ((gUIState.mousedownx - gConfig.mToolkitWidth) / gZoomFactor) - gWorldOfsX;
-    float worldmousedowny = ((gUIState.mousedowny - 40) / gZoomFactor) - gWorldOfsY;
+    float worldmousedowny = ((gUIState.mousedowny - UI_TOPBAR_H) / gZoomFactor) - gWorldOfsY;
     static float physicstick = 0;
     static int lasttick = 0;
     int mousemode = 0;
@@ -567,37 +611,48 @@ static void draw_screen()
     // Rendering
     ////////////////////////////////////
 
+    if (gScreenWidth < 100)
+        gScreenWidth = 100;
+    if (gScreenHeight < 100)
+        gScreenHeight = 100;
     if (gBlackBackground)
-		glClearColor(0,0,0,1.0);
+		glClearColor(0.086f, 0.094f, 0.114f, 1.0f);
 	else
-		glClearColor(0.8,0.8,0.8,1.0);
+		glClearColor(0.941f, 0.945f, 0.957f, 1.0f);
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
 	drawrect(0, 0, gConfig.mToolkitWidth, gScreenHeight, C_MENUBG);
-	drawrect(0, 0, gScreenWidth, 40, C_MENUBG);
+	drawrect(0, 0, gScreenWidth, UI_TOPBAR_H, C_MENUBG);
+	drawrect(gConfig.mToolkitWidth, 0, 1, gScreenHeight, C_MENULINE);
+	drawrect(0, UI_TOPBAR_H, gScreenWidth, 1, C_MENULINE);
 
     imgui_prepare();
 
     glEnable(GL_SCISSOR_TEST);
-    glScissor(0,0,gConfig.mToolkitWidth-20,gScreenHeight - 40);
+    glScissor(0,0,gConfig.mToolkitWidth-20,gScreenHeight - UI_TOPBAR_H);
 
     int loc = -1;
-    if (gUIState.scroll && gUIState.mousex < gConfig.mToolkitWidth && gUIState.mousey > 40)
+    int chipListCount = (int)gAvailableChip[gVisibleChiplist < 0 || gVisibleChiplist > 4 ? 0 : gVisibleChiplist].size();
+    if (gVisibleChiplist < 0 || gVisibleChiplist > 4)
+        gVisibleChiplist = 0;
+    if (gUIState.scroll && gUIState.mousex < gConfig.mToolkitWidth && gUIState.mousey > UI_TOPBAR_H)
     {
-        slidervalue -= gUIState.scroll * 26 * 3;
-        int max = ((signed)gAvailableChip[gVisibleChiplist].size() * 26) - (gScreenHeight - 40);
-        if (slidervalue < 0) slidervalue = 0;
-        if (slidervalue > max) slidervalue = max;
+        slidervalue -= gUIState.scroll * UI_ROW_H * 3;
+        int max = UiTheme::clampSliderMax(chipListCount, UI_ROW_H, gScreenHeight - UI_TOPBAR_H);
+        slidervalue = UiTheme::clampSliderValue(slidervalue, max);
     }
-    if (gUIState.mousex < gConfig.mToolkitWidth-20 && gUIState.mousey > 40)
+    if (gUIState.mousex < gConfig.mToolkitWidth-20 && gUIState.mousey > UI_TOPBAR_H)
     {
-        loc = (gUIState.mousey - 40 + slidervalue) / 26;
+        loc = UiTheme::chipListIndex(gUIState.mousey, UI_TOPBAR_H, slidervalue, UI_ROW_H, chipListCount);
     }    
 
     for (i = 0; i < (signed)gAvailableChip[gVisibleChiplist].size(); i++)
     {
         if (gAvailableChip[gVisibleChiplist][i])
         {
+            float rowY = (float)(UI_TOPBAR_H + i * UI_ROW_H - slidervalue);
+            if (rowY + UI_ROW_H >= UI_TOPBAR_H && rowY <= gScreenHeight)
+            {
             if (loc == i)
             {
                 gUIState.hotitem = NEWCHIP_ID(loc);
@@ -624,21 +679,27 @@ static void draw_screen()
                     gUIState.activeitem = gUIState.hotitem;
                 }
                 if (gUIState.hotitem == gUIState.activeitem)
-                    drawrect(0, 40+i*26-slidervalue, gConfig.mToolkitWidth-20, 26, 0xff000000);
+                    drawrect(0, UI_TOPBAR_H+i*UI_ROW_H-slidervalue, gConfig.mToolkitWidth-20, UI_ROW_H, C_HOTROW);
                 else
-                    drawrect(0, 40+i*26-slidervalue, gConfig.mToolkitWidth-20, 26, 0xff7f7f7f);
+                    drawrect(0, UI_TOPBAR_H+i*UI_ROW_H-slidervalue, gConfig.mToolkitWidth-20, UI_ROW_H, C_WIDGETBG);
+                drawrect(0, (float)(UI_TOPBAR_H+i*UI_ROW_H-slidervalue), 3, UI_ROW_H, C_WIDGETHOT);
+            }
+            else
+            {
+                drawrect(0, (float)(UI_TOPBAR_H+i*UI_ROW_H-slidervalue+UI_ROW_H-1), gConfig.mToolkitWidth-20, 1, C_MENULINE);
             }
             if (!(gVisibleChiplist == 3 && i == 8))
-            fn14.drawstring(gAvailableChip[gVisibleChiplist][i], 0, 46 + i * 26 - slidervalue); 
-        }    
+                fn14.drawstring(gAvailableChip[gVisibleChiplist][i], 8, (float)(UI_TOPBAR_H + 8 + i * UI_ROW_H - slidervalue), C_TEXT);
+            }
+        }
     }
     glDisable(GL_SCISSOR_TEST);    
 
-    imgui_slider(GEN_ID,gConfig.mToolkitWidth-20,40,20,gScreenHeight-40,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,((signed)gAvailableChip[gVisibleChiplist].size() * 26) - (gScreenHeight - 40),slidervalue, (gScreenHeight - 40), 26);
+    imgui_slider(GEN_ID,gConfig.mToolkitWidth-20,UI_TOPBAR_H,20,gScreenHeight-UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,((signed)gAvailableChip[gVisibleChiplist].size() * UI_ROW_H) - (gScreenHeight - UI_TOPBAR_H),slidervalue, (gScreenHeight - UI_TOPBAR_H), UI_ROW_H);
 
 	int xofs = 0;
 
-    if (imgui_button(GEN_ID,fn14,"Base",xofs,0,33,40,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,0xff000000))
+    if (imgui_button(GEN_ID,fn14,"Base",xofs,0,UI_TAB_W,UI_TOPBAR_H,(gVisibleChiplist==0?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         int active = gUIState.kbditem;
         do_cancel();
@@ -646,8 +707,8 @@ static void draw_screen()
         gVisibleChiplist = 0;
         slidervalue = 0;
     }
-	xofs += 33;
-    if (imgui_button(GEN_ID,fn14,"Chips",xofs,0,33,40,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,0xff000000))
+	xofs += UI_TAB_W;
+    if (imgui_button(GEN_ID,fn14,"Chips",xofs,0,UI_TAB_W,UI_TOPBAR_H,(gVisibleChiplist==1?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         int active = gUIState.kbditem;
         do_cancel();
@@ -655,8 +716,8 @@ static void draw_screen()
         gVisibleChiplist = 1;
         slidervalue = 0;
     }
-	xofs += 33;
-    if (imgui_button(GEN_ID,fn14,"In",xofs,0,33,40,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,0xff000000))
+	xofs += UI_TAB_W;
+    if (imgui_button(GEN_ID,fn14,"In",xofs,0,UI_TAB_W,UI_TOPBAR_H,(gVisibleChiplist==2?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         int active = gUIState.kbditem;
         do_cancel();
@@ -664,8 +725,8 @@ static void draw_screen()
         gVisibleChiplist = 2;
         slidervalue = 0;
     }
-	xofs += 33;
-    if (imgui_button(GEN_ID,fn14,"Out",xofs,0,33,40,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,0xff000000))
+	xofs += UI_TAB_W;
+    if (imgui_button(GEN_ID,fn14,"Out",xofs,0,UI_TAB_W,UI_TOPBAR_H,(gVisibleChiplist==3?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         int active = gUIState.kbditem;
         do_cancel();
@@ -673,8 +734,8 @@ static void draw_screen()
         gVisibleChiplist = 3;
         slidervalue = 0;
     }
-	xofs += 33;
-    if (imgui_button(GEN_ID,fn14,"Misc",xofs,0,33,40,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,0xff000000))
+	xofs += UI_TAB_W;
+    if (imgui_button(GEN_ID,fn14,"Misc",xofs,0,UI_TAB_W,UI_TOPBAR_H,(gVisibleChiplist==4?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         int active = gUIState.kbditem;
         do_cancel();
@@ -682,87 +743,88 @@ static void draw_screen()
         gVisibleChiplist = 4;
         slidervalue = 0;
     }
-	xofs += 40;
+    drawrect((float)(gVisibleChiplist * UI_TAB_W), (float)(UI_TOPBAR_H - 3), (float)UI_TAB_W, 3, C_WIDGETHOT);
+	xofs += 16;
 
 	xofs += 20;
 
 
-    if (imgui_button(GEN_ID,fn14,"New\nCtrl-N",xofs,0,40,40,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,0xff000000))
+    if (imgui_button(GEN_ID,fn14,"New\nCtrl-N",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         do_resetdialog();
     }
-	xofs += 40;
-    if (imgui_button(GEN_ID,fn14,"Load\nCtrl-L",xofs,0,40,40,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,0xff000000))
+	xofs += UI_BTN_W;
+    if (imgui_button(GEN_ID,fn14,"Load\nCtrl-L",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         do_loaddialog();
     }
-	xofs += 40;
-    if (imgui_button(GEN_ID,fn14,"Merge\nCtrl-M",xofs,0,40,40,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,0xff000000))
+	xofs += UI_BTN_W;
+    if (imgui_button(GEN_ID,fn14,"Merge\nCtrl-M",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         do_loaddialog(1);
     }
-	xofs += 40;
-    if (imgui_button(GEN_ID,fn14,"Box\nCtrl-B",xofs,0,40,40,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,0xff000000))
+	xofs += UI_BTN_W;
+    if (imgui_button(GEN_ID,fn14,"Box\nCtrl-B",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         do_loaddialog(2);
     }
-	xofs += 40;
-    if (imgui_button(GEN_ID,fn14,"Save\nCtrl-S",xofs,0,40,40,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,0xff000000))
+	xofs += UI_BTN_W;
+    if (imgui_button(GEN_ID,fn14,"Save\nCtrl-S",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         do_savedialog();
     }
-	xofs += 40;
+	xofs += UI_BTN_W;
 
 	xofs += 20;
 
-    if (imgui_button(GEN_ID,fn14,"Undo\nCtrl-Z",xofs,0,40,40,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,0xff000000))
+    if (imgui_button(GEN_ID,fn14,"Undo\nCtrl-Z",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         int active = gUIState.kbditem;
         do_undo();
         gUIState.kbditem = active;
     }
-	xofs += 40;
-    if (imgui_button(GEN_ID,fn14,"Redo\nCtrl-Y",xofs,0,40,40,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,0xff000000))
+	xofs += UI_BTN_W;
+    if (imgui_button(GEN_ID,fn14,"Redo\nCtrl-Y",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         int active = gUIState.kbditem;
         do_redo();
         gUIState.kbditem = active;
     }
-	xofs += 40;
+	xofs += UI_BTN_W;
 
 	xofs += 20;
 
-    if (imgui_button(GEN_ID,fn14,"Home",xofs,0,40,40,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,0xff000000))
+    if (imgui_button(GEN_ID,fn14,"Home",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         do_home();
     }
-	xofs += 40;
+	xofs += UI_BTN_W;
 
-    if (imgui_button(GEN_ID,fn14,"Zoom\next",xofs,0,40,40,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,0xff000000))
+    if (imgui_button(GEN_ID,fn14,"Zoom\next",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         do_zoomext();
     }
-	xofs += 40;
+	xofs += UI_BTN_W;
 
-    if (imgui_button(GEN_ID,fn14,gSnap?"Snap\n(on)":"Snap\n(off)",xofs,0,40,40,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,0xff000000))
+    if (imgui_button(GEN_ID,fn14,gSnap?"Snap\n(on)":"Snap\n(off)",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         gSnap = !gSnap;
     }
-	xofs += 40;
+	xofs += UI_BTN_W;
 
-    if (imgui_button(GEN_ID,fn14,gLiveWires?"View\n(live)":"View\n(grey)",xofs,0,40,40,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,0xff000000))
+    if (imgui_button(GEN_ID,fn14,gLiveWires?"View\n(live)":"View\n(grey)",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         gLiveWires = !gLiveWires;
 		gBlackBackground ^= gLiveWires;
     }
-	xofs += 40;
-    if (imgui_button(GEN_ID,fn14,"PNG it\nCtrl-G",xofs,0,40,40,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,0xff000000))
+	xofs += UI_BTN_W;
+    if (imgui_button(GEN_ID,fn14,"PNG it\nCtrl-G",xofs,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         gSavePNG = 1;
     }
-	xofs += 40;
+	xofs += UI_BTN_W;
 
-    if (imgui_button(GEN_ID,fn14,"Quit",800-42,0,40,40,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,0xff000000))
+    if (imgui_button(GEN_ID,fn14,"Quit",gScreenWidth-UI_BTN_W-6,0,UI_BTN_W,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         if (okcancel("Are you sure you want to exit?\nAny unsaved changes will be lost."))
 		{
@@ -770,18 +832,20 @@ static void draw_screen()
 		}
     }
   
-    if (gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > 40)
+    if (gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > UI_TOPBAR_H)
     {
         if (gDragMode == DRAGMODE_NONE)
         {
             // Check for collisions with wires
             for (i = 0; i < (signed)gWire.size(); i++)
             {
-				if (gWire[i]->mBox != 0)
+				if (!gWire[i] || gWire[i]->mBox != 0)
 					continue;
                 Pin * a, * b;
                 a = gWire[i]->mFirst;
                 b = gWire[i]->mSecond;
+                if (!a || !b || !a->mHost || !b->mHost)
+                    continue;
                 if (line_point_distance(worldmousex,
                                         worldmousey,
                                         a->mHost->mRotatedX + a->mRotatedX + 0.25,
@@ -821,6 +885,8 @@ static void draw_screen()
             // Check collisions with chips
             for (i = 0; i < (signed)gChip.size(); i++)
             {
+                if (!gChip[i] || gChip[i]->mBox != 0)
+                    continue;
                 if (gChip[i]->mBox == 0 &&
 					worldmousex > gChip[i]->mRotatedX &&
                     worldmousey > gChip[i]->mRotatedY &&
@@ -832,6 +898,8 @@ static void draw_screen()
                     int j;
                     for (j = 0; j < (signed)gChip[i]->mPin.size(); j++)
                     {
+                        if (!gChip[i]->mPin[j])
+                            continue;
                         if (worldmousex > gChip[i]->mRotatedX + gChip[i]->mPin[j]->mRotatedX &&
                             worldmousey > gChip[i]->mRotatedY + gChip[i]->mPin[j]->mRotatedY &&
                             worldmousex < gChip[i]->mRotatedX + gChip[i]->mPin[j]->mRotatedX + 0.5 &&
@@ -872,16 +940,34 @@ static void draw_screen()
 
         if (IS_CHIP_ID(gUIState.activeitem))
         {
-            if (GET_PIN_ID(gUIState.activeitem) > 0)
+            int activeChip = GET_CHIP_ID(gUIState.activeitem);
+            int activePin = GET_PIN_ID(gUIState.activeitem);
+            if (activeChip < 0 || activeChip >= (int)gChip.size() || !gChip[activeChip])
             {
-                Pin *hotpin = gChip[GET_CHIP_ID(gUIState.activeitem)]->mPin[GET_PIN_ID(gUIState.activeitem)-1];
+                gUIState.activeitem = 0;
+            }
+            else if (activePin > 0)
+            {
+                if (activePin - 1 >= (int)gChip[activeChip]->mPin.size())
+                {
+                    gUIState.activeitem = 0;
+                }
+                else
+                {
+                Pin *hotpin = gChip[activeChip]->mPin[activePin-1];
+                if (!hotpin)
+                {
+                    gUIState.activeitem = 0;
+                }
+                else
+                {
 
                 if (gDragMode == DRAGMODE_WIRE)
                 {
                     // Accept clicking on a pad to make connection
                     if (gUIState.activeitem == gUIState.hotitem && !gUIState.mousedown)
                     {
-                        if (gWireStartDrag != hotpin)
+                        if (gWireStartDrag && gWireStartDrag != hotpin)
                         {
                             save_undo();
                             add_wire(gWireStartDrag, hotpin);
@@ -891,12 +977,17 @@ static void draw_screen()
                     // Accept drag-end to make connection
                     if (gUIState.activeitem != gUIState.hotitem && !gUIState.mousedown && IS_CHIP_ID(gUIState.hotitem) && GET_PIN_ID(gUIState.hotitem) > 0)
                     {
-                        hotpin = gChip[GET_CHIP_ID(gUIState.hotitem)]->mPin[GET_PIN_ID(gUIState.hotitem)-1];
-                        if (gWireStartDrag != hotpin)
+                        int hotChip = GET_CHIP_ID(gUIState.hotitem);
+                        int hotPin = GET_PIN_ID(gUIState.hotitem);
+                        if (hotChip >= 0 && hotChip < (int)gChip.size() && gChip[hotChip] && hotPin - 1 < (int)gChip[hotChip]->mPin.size())
                         {
-                            save_undo();
-                            add_wire(gWireStartDrag, hotpin);
-                            gDragMode = DRAGMODE_NONE;
+                            Pin *targetPin = gChip[hotChip]->mPin[hotPin-1];
+                            if (targetPin && gWireStartDrag && gWireStartDrag != targetPin)
+                            {
+                                save_undo();
+                                add_wire(gWireStartDrag, targetPin);
+                                gDragMode = DRAGMODE_NONE;
+                            }
                         }
                     }
                 }
@@ -906,10 +997,17 @@ static void draw_screen()
                     gDragMode = DRAGMODE_WIRE;
                     gWireStartDrag = hotpin;
                 }
+                }
+                }
             }
             else
             {
                 i = GET_CHIP_ID(gUIState.activeitem);
+                if (i < 0 || i >= (int)gChip.size() || !gChip[i])
+                {
+                    gUIState.activeitem = 0;
+                }
+                else
                 // Don't actually move a chip if ctrl is pressed
                 if (!(gUIState.mousedownkeymod & gCloneKeyMask))
                 {
@@ -1021,33 +1119,39 @@ static void draw_screen()
         // If wire is being dragged, when far enough, split the wire with pin
         if (gDragMode == DRAGMODE_NONE && IS_WIRE_ID(gUIState.activeitem))
         {
+            int splitId = GET_WIRE_ID(gUIState.activeitem);
+            if (splitId >= 0 && splitId < (int)gWire.size() && gWire[splitId])
+            {
             float dist = sqrt(((float)gUIState.mousex - (float)gUIState.mousedownx) * ((float)gUIState.mousex - (float)gUIState.mousedownx) +
                               ((float)gUIState.mousey - (float)gUIState.mousedowny) * ((float)gUIState.mousey - (float)gUIState.mousedowny));
-            if (dist > gConfig.mLineSplitDragDistance) 
+            if (dist > gConfig.mLineSplitDragDistance)
             {
                 // clear multiselect if any
                 gMultiSelectChip.clear();
                 gMultiSelectWire.clear();
-                gMultiselectDirty = 1;                    
-                // First check if distance from the dragged position to one of the original pins was 
+                gMultiselectDirty = 1;
+                // First check if distance from the dragged position to one of the original pins was
                 // short enough, and draw a new line from said pin instead of splitting the wire.
                 split_wire(1);
+            }
             }
         }
 
         // If a chip is ctrl-dragged, clone the chip
         if (gDragMode == DRAGMODE_NONE && IS_CHIP_ID(gUIState.activeitem) && (gUIState.mousedownkeymod & gCloneKeyMask))
         {
+            int oldchipid = GET_CHIP_ID(gUIState.activeitem);
+            if (oldchipid >= 0 && oldchipid < (int)gChip.size() && gChip[oldchipid] && gChipName[oldchipid])
+            {
             float dist = sqrt(((float)gUIState.mousex - (float)gUIState.mousedownx) * ((float)gUIState.mousex - (float)gUIState.mousedownx) +
                               ((float)gUIState.mousey - (float)gUIState.mousedowny) * ((float)gUIState.mousey - (float)gUIState.mousedowny));
-            if (dist > gConfig.mChipCloneDragDistance) 
+            if (dist > gConfig.mChipCloneDragDistance)
             {
 				save_undo();
                 // clear multiselect if any
                 gMultiSelectChip.clear();
                 gMultiSelectWire.clear();
-                gMultiselectDirty = 1;                    
-                int oldchipid = GET_CHIP_ID(gUIState.activeitem);
+                gMultiselectDirty = 1;
                 gNewChip = NULL;
                 for (i = 0; gNewChip == NULL && i < (signed)gChipFactory.size(); i++)
 				{
@@ -1081,7 +1185,8 @@ static void draw_screen()
                     gUIState.kbditem = gUIState.activeitem;
                     gNewChip = NULL;
                     gNewChipName = NULL;
-				}               
+				}
+            }
             }
         }
 
@@ -1106,7 +1211,7 @@ static void draw_screen()
             }
 
             gWorldOfsX += (gUIState.mousex - gConfig.mToolkitWidth) / gZoomFactor - (gUIState.mousex - gConfig.mToolkitWidth) / oldfactor;
-            gWorldOfsY += (gUIState.mousey - 40) / gZoomFactor - (gUIState.mousey - 40) / oldfactor;
+	gWorldOfsY += (gUIState.mousey - UI_TOPBAR_H) / gZoomFactor - (gUIState.mousey - UI_TOPBAR_H) / oldfactor;
         }
     }
 
@@ -1134,11 +1239,12 @@ static void draw_screen()
             // - delete the first object which has multi-select on
             // - if no such is found, we're done, otherwise start over
             int found = 1;
-            while (found)
+            int guard = 0;
+            while (found && guard++ < 100000)
             {
                 found = 0;
                 i = 0;
-                while (i < (signed)gChip.size() && gChip[i]->mMultiSelectState == 0) i++;
+                while (i < (signed)gChip.size() && (!gChip[i] || gChip[i]->mMultiSelectState == 0)) i++;
                 if (i < (signed)gChip.size())
                 {
                     found = 1;
@@ -1153,7 +1259,7 @@ static void draw_screen()
             // Simpler code leads to fewer bugs though, so optimize only if needed.
             for (i = 0; i < (signed)gWire.size(); i++)
             {
-                if (gWire[i]->mMultiSelectState)
+                if (gWire[i] && gWire[i]->mMultiSelectState)
                 {
                     delete gWire[i];
                     gWire.erase(gWire.begin() + i);
@@ -1175,7 +1281,14 @@ static void draw_screen()
 
         if (IS_CHIP_ID(gUIState.kbditem) && GET_PIN_ID(gUIState.kbditem) == 0)
         {
-            Chip *c = gChip[GET_CHIP_ID(gUIState.kbditem)];
+            int kbdChip = GET_CHIP_ID(gUIState.kbditem);
+            if (kbdChip < 0 || kbdChip >= (int)gChip.size() || !gChip[kbdChip])
+            {
+                gUIState.kbditem = 0;
+            }
+            else
+            {
+            Chip *c = gChip[kbdChip];
 		    switch (gUIState.keyentered)
             {
             case SDLK_LEFT:
@@ -1193,21 +1306,30 @@ static void draw_screen()
                 gUIState.hotitem = 0;
                 break;
             }
+            }
         }
 
         if (IS_WIRE_ID(gUIState.kbditem))
         {
+            int kbdWire = GET_WIRE_ID(gUIState.kbditem);
+            if (kbdWire < 0 || kbdWire >= (int)gWire.size())
+            {
+                gUIState.kbditem = 0;
+            }
+            else
+            {
 		    switch (gUIState.keyentered)
             {
             case SDLK_DELETE:
                 save_undo();
-                delete gWire[GET_WIRE_ID(gUIState.kbditem)];
-                gWire.erase(gWire.begin() + GET_WIRE_ID(gUIState.kbditem));
+                delete gWire[kbdWire];
+                gWire.erase(gWire.begin() + kbdWire);
                 gUIState.kbditem = 0;
                 gUIState.activeitem = 0;
                 gUIState.hotitem = 0;
                 build_nets(); // wire removed, rebuild the nets
                 break;
+            }
             }
         }
     }
@@ -1216,31 +1338,31 @@ static void draw_screen()
     {
         // Reset and set chips' and wires' multiselect states
         for (i = 0; i < (signed)gChip.size(); i++)
-            gChip[i]->mMultiSelectState = 0;
+            if (gChip[i]) gChip[i]->mMultiSelectState = 0;
         for (i = 0; i < (signed)gWire.size(); i++)
-            gWire[i]->mMultiSelectState = 0;
+            if (gWire[i]) gWire[i]->mMultiSelectState = 0;
         for (i = 0; i < (signed)gMultiSelectChip.size(); i++)
-            gMultiSelectChip[i]->mMultiSelectState = 1;
+            if (gMultiSelectChip[i]) gMultiSelectChip[i]->mMultiSelectState = 1;
         for (i = 0; i < (signed)gMultiSelectWire.size(); i++)
-            gMultiSelectWire[i]->mMultiSelectState = 1;
+            if (gMultiSelectWire[i]) gMultiSelectWire[i]->mMultiSelectState = 1;
         gMultiselectDirty = 0;
     }
 
 	do_build_nets();
 
     glEnable(GL_SCISSOR_TEST);
-    glScissor(gConfig.mToolkitWidth,0,gScreenWidth-gConfig.mToolkitWidth,gScreenHeight-40);
+	glScissor(gConfig.mToolkitWidth,0,gScreenWidth-gConfig.mToolkitWidth,gScreenHeight-UI_TOPBAR_H);
 
     glPushMatrix();
-    glTranslatef(gConfig.mToolkitWidth, 40, 0);
+	glTranslatef((float)gConfig.mToolkitWidth, (float)UI_TOPBAR_H, 0);
     glScalef(gZoomFactor, gZoomFactor, 1);
     glTranslatef(gWorldOfsX, gWorldOfsY, 0);
 
     // Draw grid
 	if (gBlackBackground)
-		glColor4f(0.15,0.2,0.15,1);
+		glColor4f(0.188f, 0.216f, 0.278f, 1.0f);
 	else
-		glColor4f(0.75,0.75,0.75,1);
+		glColor4f(0.812f, 0.831f, 0.871f, 1.0f);
     glBegin(GL_LINES);    
     for (i = 0; i < 20; i++)
     {
@@ -1250,19 +1372,19 @@ static void draw_screen()
             glVertex2f(190   , i * 10);
     }
     glEnd();
-    fn.drawstring(TITLE,0.5,0.5,0xff003f00,1);
-    fn.drawstring(gConfig.mUserInfo,0.5,1.5,0xff003f00,1);
-    fn.drawstring("http://iki.fi/sol/",0.5,2.5,0xff003f00,0.5);
+    fn.drawstring(TITLE,0.5,0.5,C_ACCENTTEXT,1);
+    fn.drawstring(gConfig.mUserInfo,0.5,2.0,C_ACCENTTEXT,1);
+    fn.drawstring("http://iki.fi/sol/",0.5,3.2,C_TEXTDIM,0.5);
 
     if (gZoomFactor > 100)
     {
-        fn.drawstring("Congrats, you can zoom.",0.57,2.3,0xff003f00,0.05);
+        fn.drawstring("Congrats, you can zoom.",0.57,2.3,C_ACCENTTEXT,0.05);
         if (gZoomFactor > 1000)
         {
-            fn.drawstring("Far enough.",0.63,2.342,0xff003f00,0.005);
+            fn.drawstring("Far enough.",0.63,2.342,C_ACCENTTEXT,0.005);
             if (gZoomFactor > 10000)
             {
-                fn.drawstring("Are we there yet?",0.6515,2.346,0xff003f00,0.0005);
+                fn.drawstring("Are we there yet?",0.6515,2.346,C_ACCENTTEXT,0.0005);
             }
         }
     }
@@ -1304,7 +1426,7 @@ static void draw_screen()
     for (i = 0; i < (signed)gChip.size(); i++)
     {
 		// Don't draw items in boxes
-		if (gChip[i]->mBox != 0)
+		if (!gChip[i] || gChip[i]->mBox != 0)
 			continue;
         // Render chips rotated with opengl matrices so that all texture stuff etc. works out automatically.
         glPushMatrix();
@@ -1327,6 +1449,8 @@ static void draw_screen()
         int j;
         for (j = 0; j < (signed)gChip[i]->mPin.size(); j++)
         {
+            if (!gChip[i]->mPin[j])
+                continue;
             if (gUIState.hotitem == CHIP_ID(j+1,i))
             {
                 drawrect(gChip[i]->mX + gChip[i]->mPin[j]->mX, 
@@ -1369,11 +1493,18 @@ static void draw_screen()
     for (i = 0; i < (signed)gWire.size(); i++)
     {
 		// Don't draw items in boxes
-		if (gWire[i]->mBox != 0)
+		if (!gWire[i] || gWire[i]->mBox != 0)
 			continue;
+        if (!gWire[i]->mFirst || !gWire[i]->mSecond)
+            continue;
+        if (!gWire[i]->mFirst->mHost || !gWire[i]->mSecond->mHost)
+            continue;
 
 		float rc, bc, gc;
-        switch(gWire[i]->mFirst->mNet->mState)
+        int netState = NETSTATE_NC;
+        if (gWire[i]->mFirst->mNet)
+            netState = gWire[i]->mFirst->mNet->mState;
+        switch(netState)
         {
         case NETSTATE_NC:
             rc = 0.5; gc = 0.5; bc = 0.5;
@@ -1427,10 +1558,10 @@ static void draw_screen()
         a = gWire[i]->mFirst;
         b = gWire[i]->mSecond;
 
-        if (IS_WIRE_ID(gUIState.hotitem) &&
-            gWire[GET_WIRE_ID(gUIState.hotitem)]->mFirst->mNet ==
-            gWire[i]->mFirst->mNet)
-        {           
+        int hotWire = IS_WIRE_ID(gUIState.hotitem) ? GET_WIRE_ID(gUIState.hotitem) : -1;
+        if (hotWire >= 0 && hotWire < (int)gWire.size() && gWire[hotWire] && gWire[hotWire]->mFirst &&
+            gWire[hotWire]->mFirst->mNet == a->mNet && a->mNet)
+        {
             glColor4f(1,1,0,0.5);
         }
 
@@ -1473,10 +1604,13 @@ static void draw_screen()
 
     if (gDragMode == DRAGMODE_WIRE)
     {
+        if (gWireStartDrag && gWireStartDrag->mHost)
+        {
         glColor4f(0.5,1,0.5,1);
         glVertex2f(worldmousex, worldmousey);
-        glVertex2f(gWireStartDrag->mHost->mRotatedX + gWireStartDrag->mRotatedX + 0.25,
-                   gWireStartDrag->mHost->mRotatedY + gWireStartDrag->mRotatedY + 0.25);
+        glVertex2f(gWireStartDrag->mHost->mRotatedX + gWireStartDrag->mRotatedX + 0.25f,
+                   gWireStartDrag->mHost->mRotatedY + gWireStartDrag->mRotatedY + 0.25f);
+        }
     }
     glEnd();
 
@@ -1486,19 +1620,27 @@ static void draw_screen()
         glDisable(GL_LINE_SMOOTH);
     }
 
-    if (gDragMode == DRAGMODE_NEWCHIP && gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > 40 && gUIState.mousedown)
+    if (gDragMode == DRAGMODE_NEWCHIP && gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > UI_TOPBAR_H && gUIState.mousedown)
     {
+        if (gNewChip && gNewChipName)
+        {
         save_undo();
         gChip.push_back(gNewChip);
         gChipName.push_back(gNewChipName);
         gDragMode = DRAGMODE_NONE;
         gNewChip->mX = worldmousex - gNewChip->mW / 2;
         gNewChip->mY = worldmousey - gNewChip->mH / 2;
-        gUIState.mousedownx = gUIState.mousex;
-        gUIState.mousedowny = gUIState.mousey;
-        gUIState.activeitem = CHIP_ID(0, gChip.size() - 1);
+        gUIState.mousedownx = (float)gUIState.mousex;
+        gUIState.mousedowny = (float)gUIState.mousey;
+        gUIState.activeitem = CHIP_ID(0, (int)gChip.size() - 1);
         gUIState.kbditem = gUIState.activeitem;
         gNewChip = NULL;
+        }
+        else
+        {
+            gDragMode = DRAGMODE_NONE;
+            gNewChip = NULL;
+        }
     }
 
     glPopMatrix();
@@ -1509,7 +1651,7 @@ static void draw_screen()
     {
         const char *tooltip = NULL;
 
-        if (loc != -1 && !(gVisibleChiplist == 2 && loc == 8))
+        if (loc != -1 && gVisibleChiplist >= 0 && gVisibleChiplist <= 4 && loc >= 0 && loc < (int)gAvailableChip[gVisibleChiplist].size() && !(gVisibleChiplist == 2 && loc == 8))
         {
             if ((loc | (gVisibleChiplist << 16)) != gSidebarTooltipId)
             {
@@ -1517,8 +1659,12 @@ static void draw_screen()
                 // Now, *this* is quite wasteful.
                 Chip * nChip = NULL;
                 int j;
+                const char *want = gAvailableChip[gVisibleChiplist][loc];
+                if (want)
+                {
                 for (j = 0; nChip == NULL && j < (signed)gChipFactory.size(); j++)
-                    nChip = gChipFactory[j]->build(gAvailableChip[gVisibleChiplist][loc]);
+                    nChip = gChipFactory[j]->build(want);
+                }
                 if (nChip)
                 {
                     delete[] gSidebarTooltip;
@@ -1543,26 +1689,36 @@ static void draw_screen()
 
         if (IS_CHIP_ID(gUIState.hotitem))
         {
-            if (GET_PIN_ID(gUIState.hotitem) == 0)
+            int hc = GET_CHIP_ID(gUIState.hotitem);
+            int hp = GET_PIN_ID(gUIState.hotitem);
+            if (hc >= 0 && hc < (int)gChip.size() && gChip[hc])
             {
-                if (gChip[GET_CHIP_ID(gUIState.hotitem)]->mTooltip == NULL)
+            if (hp == 0)
+            {
+                if (gChip[hc]->mTooltip == NULL)
                 {
-                    tooltip = gChipName[GET_CHIP_ID(gUIState.hotitem)];
+                    tooltip = gChipName[hc];
                 }
                 else
                 {
-                    tooltip = gChip[GET_CHIP_ID(gUIState.hotitem)]->mTooltip;
+                    tooltip = gChip[hc]->mTooltip;
                 }
             }
             else
             {
-                tooltip = gChip[GET_CHIP_ID(gUIState.hotitem)]->mPin[GET_PIN_ID(gUIState.hotitem)-1]->mTooltip;
+                if (hp - 1 < (int)gChip[hc]->mPin.size() && gChip[hc]->mPin[hp-1])
+                    tooltip = gChip[hc]->mPin[hp-1]->mTooltip;
+            }
             }
         }
         if (IS_WIRE_ID(gUIState.hotitem))
         {
-            Wire *w = gWire[GET_WIRE_ID(gUIState.hotitem)];
-            switch (w->mFirst->mNet->mState)
+            int wid = GET_WIRE_ID(gUIState.hotitem);
+            Wire *w = (wid >= 0 && wid < (int)gWire.size()) ? gWire[wid] : NULL;
+            int st = NETSTATE_NC;
+            if (w && w->mFirst && w->mFirst->mNet)
+                st = w->mFirst->mNet->mState;
+            switch (st)
             {
             case NETSTATE_NC:
                 tooltip = "Not connected:\nNet not connected\nto an input";
@@ -1581,10 +1737,36 @@ static void draw_screen()
         if (tooltip)
         {
             float w, h, llw;
+            w = h = llw = 0;
             fn14.stringmetrics(tooltip, w, h, llw);
-            drawrect(gUIState.mousex + 16, gUIState.mousey + 16, w+8, h+8, 0xafcfcf9f);
-            fn14.drawstring(tooltip, gUIState.mousex + 20, gUIState.mousey + 20, 0xff000000);
+            if (w > 0 && h > 0)
+            {
+            float tx = (float)(gUIState.mousex + 16);
+            float ty = (float)(gUIState.mousey + 16);
+            if (tx + w + 8 > gScreenWidth) tx = (float)(gScreenWidth - w - 10);
+            if (ty + h + 8 > gScreenHeight) ty = (float)(gScreenHeight - h - 10);
+            if (tx < 0) tx = 0;
+            if (ty < 0) ty = 0;
+            drawrect(tx, ty, w+8, h+8, C_WIDGETBG);
+            drawrect(tx, ty, w+8, 1, C_MENULINE);
+            fn14.drawstring(tooltip, tx + 4, ty + 4, C_TEXT);
+            }
         }
+    }
+
+    // Status bar: live counts, zoom, mode flags. Screen-space chrome.
+    {
+        const float barH = 24.0f;
+        float barY = (float)(gScreenHeight - barH);
+        drawrect(0, barY, (float)gScreenWidth, 1, C_MENULINE);
+        drawrect(0, barY + 1, (float)gScreenWidth, barH - 1, C_MENUBG);
+        char status[256];
+        snprintf(status, sizeof(status), "Chips:%d  Wires:%d  Nets:%d   Zoom:%.0f   %s   %s",
+            (int)gChip.size(), (int)gWire.size(), (int)gNet.size(),
+            gZoomFactor,
+            gSnap ? "Snap:on" : "Snap:off",
+            gLiveWires ? "Live" : "Grey");
+        fn14.drawstring(status, (float)(gConfig.mToolkitWidth + 10), barY + 6, C_TEXTDIM);
     }
 
     imgui_finish();
@@ -1616,25 +1798,32 @@ static void draw_screen()
 
     if (gDragMode == DRAGMODE_NEWCHIP)
     {
-        int w = gNewChip->mW * gZoomFactor;
-        int h = gNewChip->mH * gZoomFactor;
-        drawrect(gUIState.mousex - w/2, gUIState.mousey - h/2, w, h, 0x7fffffff);
+        if (gNewChip)
+        {
+        int w = (int)(gNewChip->mW * gZoomFactor);
+        int h = (int)(gNewChip->mH * gZoomFactor);
+        drawrect((float)(gUIState.mousex - w/2), (float)(gUIState.mousey - h/2), (float)w, (float)h, 0x7fffffff);
+        }
     }
 
     if (gConfig.mCustomCursors && mousemode != lastmousemode)
     {
         lastmousemode = mousemode;
+        SDL_Cursor *want = cursor_normal;
         switch (mousemode)
         {
         case 1:
-            SDL_SetCursor(cursor_drag);
+            want = cursor_drag ? cursor_drag : cursor_normal;
             break;
         case 2:
-            SDL_SetCursor(cursor_scissors);
+            want = cursor_scissors ? cursor_scissors : cursor_normal;
             break;
         default:
-            SDL_SetCursor(cursor_normal);
+            want = cursor_normal;
+            break;
         }
+        if (want)
+            SDL_SetCursor(want);
     }
 
     SDL_Delay(10);
@@ -1667,9 +1856,14 @@ void initvideo()
     }
     else
     {
-        SDL_SetWindowSize(gMainWindow, gScreenWidth, gScreenHeight);
+        int curW = 0, curH = 0;
+        SDL_GetWindowSize(gMainWindow, &curW, &curH);
+        if (curW != gScreenWidth || curH != gScreenHeight)
+            SDL_SetWindowSize(gMainWindow, gScreenWidth, gScreenHeight);
     }
 
+    if (gScreenWidth < 100) gScreenWidth = 100;
+    if (gScreenHeight < 100) gScreenHeight = 100;
     glViewport(0, 0, gScreenWidth, gScreenHeight);
 
     glMatrixMode(GL_PROJECTION);
@@ -1695,6 +1889,8 @@ void audiomixer(void *userdata, Uint8 *stream, int len)
     for (i = 0; i < n; i++)
     {
         int p = (int)floor(gPlayHead);
+        if (p < 0) p = 0;
+        if (p >= AUDIOBUF_SIZE) p = AUDIOBUF_SIZE - 1;
         int d = (gAudioBuffer[p] - 127) * 250;
         filter = (d + filter * 15) / 16;
         buf[i] = filter;
@@ -1772,6 +1968,7 @@ int main(int argc, char** args)
 
     gScreenWidth = gConfig.mWindowWidth;
     gScreenHeight = gConfig.mWindowHeight;
+    UiTheme::clampWindowSize(gScreenWidth, gScreenHeight);
 
     initvideo();
 
@@ -1786,6 +1983,8 @@ int main(int argc, char** args)
 
     fn.load("data/vera31.fnt");
     fn14.load("data/vera14.fnt");
+    if (fn.pages.pages == 0 || fn14.pages.pages == 0)
+        fprintf(stderr, "Warning: font assets missing in data/; text may not render.\n");
 
 #ifndef __APPLE__ // Use the higher-resolution OSX icon instead
 	int x, y, n;
@@ -1808,7 +2007,8 @@ int main(int argc, char** args)
         cursor_drag = load_cursor("data/cursor_drag.png", 10, 0);
         cursor_scissors = load_cursor("data/cursor_scissors.png", 6, 6);
         cursor_normal = load_cursor("data/cursor_ptr.png", 0, 0);
-        SDL_SetCursor(cursor_normal);
+        if (cursor_normal)
+            SDL_SetCursor(cursor_normal);
     }
 
     gChipFactory.push_back(new BaseChipFactory);

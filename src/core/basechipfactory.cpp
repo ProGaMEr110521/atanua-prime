@@ -587,7 +587,7 @@ Chip * BaseChipFactory::build(const char *aChipId)
 	if (strcmp(switch_shift, aChipId) == 0) return new SwitchChip(SDLK_LSHIFT);
 	if (strcmp(switch_return, aChipId) == 0) return new SwitchChip(SDLK_RETURN);
 	
-	i = strlen(aChipId);
+	i = (int)strlen(aChipId);
 	if (i > 7 && stricmp(aChipId+i-7,".atanua") == 0)
 	{
 		if (gActiveBoxes > gConfig.mMaxActiveBoxes && okcancel("Maximum number of active boxes exceeded.\nContinue loading anyway?\n\nIf you really need more boxes, adjust the limit in atanua.xml") == 0)
