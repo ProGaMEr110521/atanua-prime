@@ -765,6 +765,7 @@ static void draw_screen()
         slidervalue = 0;
     }
     drawrect((float)(gVisibleChiplist * tabW), (float)(UI_TOPBAR_H - 3), (float)tabW, 3, C_WIDGETHOT);
+	xofs += tabW;
 	if (tb.rows == 1)
 	{
 	xofs += tb.gapA;

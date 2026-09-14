@@ -41,10 +41,14 @@ int main()
     {
         UiTheme::TopbarLayout wide = UiTheme::topbarLayout(1920);
         CHECK(wide.rows == 1, "wide screen single row");
-        int btnRight = 5 * wide.tabW + wide.gapA + 5 * wide.btnW + wide.gapB + 2 * wide.btnW + wide.gapC + 5 * wide.btnW;
+        CHECK(wide.tabW == 68, "wide tabs full width");
+        int newX = 5 * wide.tabW + wide.gapA;
+        CHECK(newX == 5 * 68 + 36, "new button starts after full misc tab plus gap");
+        int btnRight = newX + 12 * wide.btnW + wide.gapB + wide.gapC;
         CHECK(btnRight <= wide.quitX - 4, "wide buttons end before quit");
         UiTheme::TopbarLayout desk = UiTheme::topbarLayout(1280);
-        int deskRight = 5 * desk.tabW + desk.gapA + 5 * desk.btnW + desk.gapB + 2 * desk.btnW + desk.gapC + 5 * desk.btnW;
+        int deskNewX = 5 * desk.tabW + desk.gapA;
+        int deskRight = deskNewX + 12 * desk.btnW + desk.gapB + desk.gapC;
         if (desk.rows == 1)
             CHECK(deskRight <= desk.quitX - 4, "desktop buttons end before quit");
         else
