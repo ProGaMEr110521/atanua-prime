@@ -5,6 +5,8 @@ Pure, window-system independent helpers behind the SDL/OpenGL UI.
 #ifndef UI_THEME_H
 #define UI_THEME_H
 
+#include <math.h>
+
 // Modern dark chrome (default). Kept in one place so tests can pin it.
 #define UI_THEME_MENUBG     0xff20242c
 #define UI_THEME_MENULINE   0xff333947
@@ -138,6 +140,29 @@ inline TopbarLayout topbarLayout(int screenW)
 inline int topbarHeight(int screenW)
 {
     return topbarLayout(screenW).topH;
+}
+
+// Wire grabbing in world units, floored to a constant screen size so thin
+// wires stay clickable at any zoom. 6px to grab, 8px end zones.
+inline float wirePickTolerance(float zoom, float configured)
+{
+    if (zoom < 1.0f) zoom = 1.0f;
+    float minTol = 6.0f / zoom;
+    return configured > minTol ? configured : minTol;
+}
+
+inline float wireEndTolerance(float zoom, float configured)
+{
+    if (zoom < 1.0f) zoom = 1.0f;
+    float minTol = 8.0f / zoom;
+    return configured > minTol ? configured : minTol;
+}
+
+// Snap a world coordinate to the 0.5 placement grid used everywhere else.
+inline float snapWorld(float v, bool snapOn)
+{
+    if (!snapOn) return v;
+    return floorf(v * 2.0f + 0.5f) / 2.0f;
 }
 
 } // namespace UiTheme

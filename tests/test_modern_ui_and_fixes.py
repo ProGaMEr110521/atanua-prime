@@ -94,8 +94,18 @@ def test_main_interaction_guards():
         "topbarLayout",
         "gTopbarH",
         "compactLabels",
+        "split_wire_middle_at",
+        "wirePickTolerance",
+        "sClickWire",
+        "drops a bend point",
     ]:
         assert needle in main, f"main guard missing: {needle}"
+
+
+def test_wire_bend_helpers():
+    theme = read(THEME_H)
+    for token in ["wirePickTolerance", "wireEndTolerance", "snapWorld"]:
+        assert token in theme, f"bend helper missing: {token}"
 
 
 def test_circuits_parse_and_wire_indices_valid():
@@ -175,6 +185,7 @@ if __name__ == "__main__":
     test_sim_crash_guards()
     test_fileio_roundtrip_guards()
     test_main_interaction_guards()
+    test_wire_bend_helpers()
     test_circuits_parse_and_wire_indices_valid()
     test_binary_and_assets_present()
     test_cpp_theme_harness()

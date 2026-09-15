@@ -363,10 +363,13 @@ int getChipIdForPad(Pin *p)
     return 0;
 }
 
+static int split_wire_middle_at(float worldx, float worldy, int wireid);
+
 int split_wire(int aDoSplit)
 {
     if (gZoomFactor < 1.0f)
         gZoomFactor = 1.0f;
+    float endTol = UiTheme::wireEndTolerance(gZoomFactor, gConfig.mLineEndTolerance);
     float worldmousex = ((gUIState.mousex - gConfig.mToolkitWidth) / gZoomFactor) - gWorldOfsX;
     float worldmousey = ((gUIState.mousey - gTopbarH) / gZoomFactor) - gWorldOfsY;
     float pos1[2], pos2[2], pos3[2];
@@ -411,7 +414,7 @@ int split_wire(int aDoSplit)
     float p1dist = sqrt((pos1[0]-pos3[0])*(pos1[0]-pos3[0]) + (pos1[1]-pos3[1])*(pos1[1]-pos3[1]));
     float p2dist = sqrt((pos2[0]-pos3[0])*(pos2[0]-pos3[0]) + (pos2[1]-pos3[1])*(pos2[1]-pos3[1]));
         
-    if (p1dist < wirelen * gConfig.mLineEndTolerance)
+    if (p1dist < wirelen * endTol)
     {
         if (!aDoSplit) return 0;
         // start new line from pin 1
@@ -420,7 +423,7 @@ int split_wire(int aDoSplit)
         gUIState.activeitem = getChipIdForPad(gWireStartDrag);
     }
     else
-    if (p2dist < wirelen * gConfig.mLineEndTolerance)
+    if (p2dist < wirelen * endTol)
     {
         if (!aDoSplit) return 0;
         // start new line from pin 2
@@ -432,28 +435,42 @@ int split_wire(int aDoSplit)
     {
         if (!aDoSplit) return 1;
         // do the split
-        if (gChipFactory.empty() || !gChipFactory[0])
-            return 0;
-        save_undo();
-        Chip *newpin = gChipFactory[0]->build("Connection Pin");
-        if (!newpin || newpin->mPin.empty() || !newpin->mPin[0])
-        {
-            delete newpin;
-            return 0;
-        }
-        gChip.push_back(newpin);
-        gChipName.push_back("Connection Pin");
-        newpin->mX = worldmousex-0.5f;
-        newpin->mY = worldmousey-0.5f;
-        newpin->rotate(0);
-        gUIState.mousedownx = (float)gUIState.mousex;
-        gUIState.mousedowny = (float)gUIState.mousey;
-        Pin *second = w->mSecond;
-        w->mSecond = newpin->mPin[0];
-        add_wire(newpin->mPin[0], second);
-        gUIState.activeitem = CHIP_ID(0, (int)gChip.size() - 1);
+        split_wire_middle_at(worldmousex, worldmousey, wireid);
     }
     return 0;
+}
+// Split wire[wireid] with a Connection Pin at (worldx, worldy), rewiring the
+// second half through the new pin so the wire gains a bend point.
+// Returns the new chip index, or -1 on failure.
+static int split_wire_middle_at(float worldx, float worldy, int wireid)
+{
+    if (wireid < 0 || wireid >= (int)gWire.size())
+        return -1;
+    Wire *w = gWire[wireid];
+    if (!w || !w->mFirst || !w->mSecond || !w->mFirst->mHost || !w->mSecond->mHost)
+        return -1;
+    if (gChipFactory.empty() || !gChipFactory[0])
+        return -1;
+    save_undo();
+    Chip *newpin = gChipFactory[0]->build("Connection Pin");
+    if (!newpin || newpin->mPin.empty() || !newpin->mPin[0])
+    {
+        delete newpin;
+        return -1;
+    }
+    gChip.push_back(newpin);
+    gChipName.push_back("Connection Pin");
+    newpin->mX = UiTheme::snapWorld(worldx, gSnap) - 0.5f;
+    newpin->mY = UiTheme::snapWorld(worldy, gSnap) - 0.5f;
+    newpin->rotate(0);
+    gUIState.mousedownx = (float)gUIState.mousex;
+    gUIState.mousedowny = (float)gUIState.mousey;
+    Pin *second = w->mSecond;
+    w->mSecond = newpin->mPin[0];
+    add_wire(newpin->mPin[0], second);
+    gUIState.activeitem = CHIP_ID(0, (int)gChip.size() - 1);
+    gUIState.kbditem = gUIState.activeitem;
+    return (int)gChip.size() - 1;
 }
 
 
@@ -922,6 +939,7 @@ static void draw_screen()
         if (gDragMode == DRAGMODE_NONE)
         {
             // Check for collisions with wires
+            float pickTol = UiTheme::wirePickTolerance(gZoomFactor, gConfig.mLinePickTolerance);
             for (i = 0; i < (signed)gWire.size(); i++)
             {
 				if (!gWire[i] || gWire[i]->mBox != 0)
@@ -936,7 +954,7 @@ static void draw_screen()
                                         a->mHost->mRotatedX + a->mRotatedX + 0.25,
                                         a->mHost->mRotatedY + a->mRotatedY + 0.25,
                                         b->mHost->mRotatedX + b->mRotatedX + 0.25,
-                                        b->mHost->mRotatedY + b->mRotatedY + 0.25) < gConfig.mLinePickTolerance)
+                                        b->mHost->mRotatedY + b->mRotatedY + 0.25) < pickTol)
                 {
                     gUIState.hotitem = WIRE_ID(i);
                     int newly_multiselected = 0;
@@ -1220,6 +1238,58 @@ static void draw_screen()
                 split_wire(1);
             }
             }
+        }
+
+        // Click (press and release without dragging) on the middle of a wire
+        // drops a bend point there. Dragging still splits or rewires instead,
+        // and shift-click still multi-selects.
+        {
+            static int sPrevDown = 0;
+            static int sClickWire = -1;
+            if (gUIState.mousedown && !sPrevDown)
+            {
+                sClickWire = -1;
+                if (gDragMode == DRAGMODE_NONE && IS_WIRE_ID(gUIState.hotitem) &&
+                    !(gUIState.keymod & gSelectKeyMask))
+                {
+                    int hid = GET_WIRE_ID(gUIState.hotitem);
+                    if (hid >= 0 && hid < (int)gWire.size() && gWire[hid])
+                        sClickWire = hid;
+                }
+            }
+            if (!gUIState.mousedown && sPrevDown && sClickWire >= 0)
+            {
+                int wid = sClickWire;
+                sClickWire = -1;
+                float dx = (float)gUIState.mousex - gUIState.mousedownx;
+                float dy = (float)gUIState.mousey - gUIState.mousedowny;
+                float moved = sqrtf(dx * dx + dy * dy);
+                if (gDragMode == DRAGMODE_NONE && wid < (int)gWire.size() && gWire[wid] &&
+                    gWire[wid]->mFirst && gWire[wid]->mSecond &&
+                    gWire[wid]->mFirst->mHost && gWire[wid]->mSecond->mHost &&
+                    gUIState.activeitem == WIRE_ID(wid) &&
+                    moved < gConfig.mLineSplitDragDistance &&
+                    !(gUIState.keymod & gSelectKeyMask))
+                {
+                    Pin *a = gWire[wid]->mFirst;
+                    Pin *b = gWire[wid]->mSecond;
+                    float tol = UiTheme::wirePickTolerance(gZoomFactor, gConfig.mLinePickTolerance);
+                    if (line_point_distance(worldmousex, worldmousey,
+                            a->mHost->mRotatedX + a->mRotatedX + 0.25f,
+                            a->mHost->mRotatedY + a->mRotatedY + 0.25f,
+                            b->mHost->mRotatedX + b->mRotatedX + 0.25f,
+                            b->mHost->mRotatedY + b->mRotatedY + 0.25f) < tol)
+                    {
+                        int savedHot = gUIState.hotitem;
+                        gUIState.hotitem = WIRE_ID(wid);
+                        int middle = split_wire(0);
+                        gUIState.hotitem = savedHot;
+                        if (middle)
+                            split_wire_middle_at(worldmousex, worldmousey, wid);
+                    }
+                }
+            }
+            sPrevDown = gUIState.mousedown ? 1 : 0;
         }
 
         // If a chip is ctrl-dragged, clone the chip
@@ -1676,6 +1746,13 @@ static void draw_screen()
 
                 mousemode = 2;
 
+                // Preview marker: cross exactly where a click would drop
+                // the bend point (snapped like the real placement).
+                float mx = UiTheme::snapWorld(worldmousex, gSnap);
+                float my = UiTheme::snapWorld(worldmousey, gSnap);
+                float ms = 10.0f / gZoomFactor;
+                glVertex2f(mx - ms, my); glVertex2f(mx + ms, my);
+                glVertex2f(mx, my - ms); glVertex2f(mx, my + ms);
             }
             glColor4f(1,1,0,1);
         }

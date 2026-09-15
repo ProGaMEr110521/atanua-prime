@@ -37,7 +37,7 @@ AtanuaConfig::AtanuaConfig()
     mWindowWidth = 1280;
     mWindowHeight = 800;
     mTooltipDelay = 1500;
-    mLinePickTolerance = 0.05f;
+    mLinePickTolerance = 0.12f;
     mLineEndTolerance = 0.2f;
     mLineSplitDragDistance = 10;
     mCustomCursors = 1;

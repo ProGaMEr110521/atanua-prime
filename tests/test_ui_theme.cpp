@@ -61,6 +61,13 @@ int main()
         CHECK(UiTheme::topbarHeight(640) == 96, "small topbar height 96");
     }
 
+    CHECK(UiTheme::wirePickTolerance(20.0f, 0.05f) == 6.0f / 20.0f, "pick floors to 6px at default zoom");
+    CHECK(UiTheme::wirePickTolerance(20.0f, 0.5f) == 0.5f, "large configured pick kept");
+    CHECK(UiTheme::wirePickTolerance(200.0f, 0.12f) == 0.12f, "zoomed-in pick uses configured value");
+    CHECK(UiTheme::wireEndTolerance(20.0f, 0.2f) == 8.0f / 20.0f, "end zone floors to 8px");
+    CHECK(UiTheme::snapWorld(1.26f, true) == 1.5f, "snap rounds to halves");
+    CHECK(UiTheme::snapWorld(1.26f, false) == 1.26f, "snap off keeps value");
+
     if (failures == 0)
         printf("ALL UI THEME TESTS PASSED\n");
     return failures;
