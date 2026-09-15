@@ -191,6 +191,12 @@ inline float pinGrabPad(float zoom)
     return px > 0.15f ? px : 0.15f;
 }
 
+// Keyboard-nudge undo coalescing: one undo step per burst of arrow moves.
+inline int shouldSaveNudge(int nowTick, int lastTick)
+{
+    return (nowTick - lastTick > 500) ? 1 : 0;
+}
+
 } // namespace UiTheme
 
 #endif

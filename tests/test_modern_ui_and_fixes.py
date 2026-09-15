@@ -96,6 +96,10 @@ def test_main_interaction_guards():
         "gTopbarH",
         "compactLabels",
         "split_wire_middle_at",
+        "drop_routing_anchor_at",
+        "sMoveUndoSaved",
+        "shouldSaveNudge",
+        "Undo:%d Redo:%d",
         "wirePickTolerance",
         "pinGrabPad",
         "sClickWire",
@@ -106,8 +110,15 @@ def test_main_interaction_guards():
 
 def test_wire_bend_helpers():
     theme = read(THEME_H)
-    for token in ["wirePickTolerance", "wireEndTolerance", "snapWorld", "anchorGrabPad", "anchorHotZone", "pinGrabPad"]:
+    for token in ["wirePickTolerance", "wireEndTolerance", "snapWorld", "anchorGrabPad", "anchorHotZone", "pinGrabPad", "shouldSaveNudge"]:
         assert token in theme, f"bend helper missing: {token}"
+
+
+def test_reset_saves_only_on_confirm():
+    sim = read(SRC_SIM)
+    i = sim.index("void do_resetdialog")
+    block = sim[i:i + 400]
+    assert block.index("okcancel") < block.index("save_undo"), "reset must save only after confirm"
 
 
 def test_anchor_visible_and_magnetic():
@@ -199,6 +210,7 @@ if __name__ == "__main__":
     test_fileio_roundtrip_guards()
     test_main_interaction_guards()
     test_wire_bend_helpers()
+    test_reset_saves_only_on_confirm()
     test_anchor_visible_and_magnetic()
     test_circuits_parse_and_wire_indices_valid()
     test_binary_and_assets_present()

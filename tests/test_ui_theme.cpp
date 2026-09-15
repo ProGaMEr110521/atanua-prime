@@ -76,6 +76,9 @@ int main()
     CHECK(UiTheme::pinGrabPad(20.0f) == 0.25f, "pin pad is 5px at default zoom");
     CHECK(UiTheme::pinGrabPad(4.0f) == 5.0f / 4.0f, "pin pad grows zoomed out");
     CHECK(UiTheme::pinGrabPad(200.0f) == 0.15f, "pin pad floors zoomed in");
+    CHECK(UiTheme::shouldSaveNudge(1000, 0) == 1, "first nudge saves");
+    CHECK(UiTheme::shouldSaveNudge(1200, 1000) == 0, "rapid nudges coalesce");
+    CHECK(UiTheme::shouldSaveNudge(1600, 1000) == 1, "paused nudges save again");
 
     if (failures == 0)
         printf("ALL UI THEME TESTS PASSED\n");

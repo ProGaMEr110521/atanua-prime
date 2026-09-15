@@ -770,9 +770,9 @@ void do_loaddialog(int merge, const char *aFilename)
 
 void do_resetdialog()
 {
-    save_undo();
     if (okcancel("Are you sure you want to reset?\nAny unsaved changes will be lost."))
 	{
+		save_undo();
 		resetfilename();
         do_reset();
 	}

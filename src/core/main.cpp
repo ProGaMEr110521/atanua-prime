@@ -364,6 +364,7 @@ int getChipIdForPad(Pin *p)
 }
 
 static int split_wire_middle_at(float worldx, float worldy, int wireid);
+static int drop_routing_anchor_at(float worldx, float worldy);
 
 int split_wire(int aDoSplit)
 {
@@ -473,6 +474,42 @@ static int split_wire_middle_at(float worldx, float worldy, int wireid)
     return (int)gChip.size() - 1;
 }
 
+// While routing (DRAGMODE_WIRE), releasing over empty canvas drops an anchor
+// at the release point and keeps routing from it. Releases within a world
+// unit of the drag origin count as plain clicks and do nothing.
+static int drop_routing_anchor_at(float worldx, float worldy)
+{
+    if (!gWireStartDrag || !gWireStartDrag->mHost)
+        return -1;
+    if (gChipFactory.empty() || !gChipFactory[0])
+        return -1;
+    float sx = gWireStartDrag->mHost->mRotatedX + gWireStartDrag->mRotatedX + 0.25f;
+    float sy = gWireStartDrag->mHost->mRotatedY + gWireStartDrag->mRotatedY + 0.25f;
+    float dx = worldx - sx;
+    float dy = worldy - sy;
+    if (sqrtf(dx * dx + dy * dy) <= 1.0f)
+        return -1;
+    save_undo();
+    Chip *newpin = gChipFactory[0]->build("Connection Pin");
+    if (!newpin || newpin->mPin.empty() || !newpin->mPin[0])
+    {
+        delete newpin;
+        return -1;
+    }
+    gChip.push_back(newpin);
+    gChipName.push_back("Connection Pin");
+    newpin->mX = UiTheme::snapWorld(worldx, gSnap) - 0.5f;
+    newpin->mY = UiTheme::snapWorld(worldy, gSnap) - 0.5f;
+    newpin->rotate(0);
+    add_wire(gWireStartDrag, newpin->mPin[0]);
+    gWireStartDrag = newpin->mPin[0];
+    gUIState.mousedownx = (float)gUIState.mousex;
+    gUIState.mousedowny = (float)gUIState.mousey;
+    gUIState.activeitem = CHIP_ID(0, (int)gChip.size() - 1);
+    gUIState.kbditem = gUIState.activeitem;
+    return (int)gChip.size() - 1;
+}
+
 
 void multiselect_active()
 {
@@ -536,6 +573,11 @@ static void draw_screen()
     static int lasttick = 0;
     int mousemode = 0;
     static int lastmousemode = 0;
+    static int sMoveUndoSaved = 0;
+    static int sPrevDown_Move = 0;
+    if (gUIState.mousedown && !sPrevDown_Move)
+        sMoveUndoSaved = 0;
+    sPrevDown_Move = gUIState.mousedown ? 1 : 0;
 
 
 	if (gSavePNG)
@@ -1113,6 +1155,20 @@ static void draw_screen()
                             }
                         }
                     }
+                    // Release mid-drag over empty canvas (or a wire, but no
+                    // pin): drop an anchor here and keep routing from it.
+                    // Edge-triggered so one release drops exactly one anchor.
+                    {
+                        static int sWireWasDown = 0;
+                        if (gUIState.mousedown)
+                            sWireWasDown = 1;
+                        if (!gUIState.mousedown && sWireWasDown &&
+                            !(IS_CHIP_ID(gUIState.hotitem) && GET_PIN_ID(gUIState.hotitem) > 0))
+                        {
+                            sWireWasDown = 0;
+                            drop_routing_anchor_at(worldmousex, worldmousey);
+                        }
+                    }
                 }
                 else
                 if (gDragMode == DRAGMODE_NONE)
@@ -1144,6 +1200,13 @@ static void draw_screen()
                         float newy = floor((gChip[i]->mY+movey)*2+0.5)/2;
                         movex = newx - gChip[i]->mX;
                         movey = newy - gChip[i]->mY;
+                    }
+                    // Snapshot once per drag so Undo restores the pre-move
+                    // positions instead of skipping to an older action.
+                    if (!sMoveUndoSaved && (movex != 0.0f || movey != 0.0f))
+                    {
+                        save_undo();
+                        sMoveUndoSaved = 1;
                     }
                     if (!gMultiSelectChip.empty())
                     {
@@ -1391,6 +1454,7 @@ static void draw_screen()
     }
 
     // Handle keyboard events for selected objects
+    static int sLastNudgeTick = 0;
     if ((!gMultiSelectChip.empty()) || (!gMultiSelectWire.empty()))
     {    
         // multiselect mode
@@ -1399,6 +1463,10 @@ static void draw_screen()
             gUIState.keyentered == SDLK_UP ||
             gUIState.keyentered == SDLK_DOWN)
         {
+            // One undo step per burst of nudges, not one per keypress.
+            if (UiTheme::shouldSaveNudge(tick, sLastNudgeTick))
+                save_undo();
+            sLastNudgeTick = tick;
             for (i = 0; i < (signed)gMultiSelectChip.size(); i++)
                 move_chip(gMultiSelectChip[i], gUIState.keyentered);
         }
@@ -1470,6 +1538,9 @@ static void draw_screen()
             case SDLK_RIGHT:
             case SDLK_UP:
             case SDLK_DOWN:
+                if (UiTheme::shouldSaveNudge(tick, sLastNudgeTick))
+                    save_undo();
+                sLastNudgeTick = tick;
                 move_chip(c, gUIState.keyentered);
                 break;
             case SDLK_DELETE:
@@ -1949,11 +2020,12 @@ static void draw_screen()
         drawrect(0, barY, (float)gScreenWidth, 1, C_MENULINE);
         drawrect(0, barY + 1, (float)gScreenWidth, barH - 1, C_MENUBG);
         char status[256];
-        snprintf(status, sizeof(status), "Chips:%d  Wires:%d  Nets:%d   Zoom:%.0f   %s   %s",
+        snprintf(status, sizeof(status), "Chips:%d  Wires:%d  Nets:%d   Zoom:%.0f   %s   %s   Undo:%d Redo:%d",
             (int)gChip.size(), (int)gWire.size(), (int)gNet.size(),
             gZoomFactor,
             gSnap ? "Snap:on" : "Snap:off",
-            gLiveWires ? "Live" : "Grey");
+            gLiveWires ? "Live" : "Grey",
+            (int)gUndoStack.size(), (int)gRedoStack.size());
         fn14.drawstring(status, (float)(gConfig.mToolkitWidth + 10), barY + 6, C_TEXTDIM);
     }
 
