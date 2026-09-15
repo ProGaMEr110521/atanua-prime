@@ -105,7 +105,7 @@ def test_main_interaction_guards():
 
 def test_wire_bend_helpers():
     theme = read(THEME_H)
-    for token in ["wirePickTolerance", "wireEndTolerance", "snapWorld", "anchorGrabPad"]:
+    for token in ["wirePickTolerance", "wireEndTolerance", "snapWorld", "anchorGrabPad", "anchorHotZone"]:
         assert token in theme, f"bend helper missing: {token}"
 
 
@@ -116,6 +116,8 @@ def test_anchor_visible_and_magnetic():
     pin = read(SRC_EXTRAPIN)
     assert "anchor dot" in pin, "always-on anchor marker missing"
     assert "UI_THEME_ACCENTTEXT" in pin, "anchor hover accent missing"
+    assert "ANCHOR_WIRE_GREEN" in pin, "inner wire-start square missing"
+    assert "Outer ring" in pin, "outer move ring missing"
 
 
 def test_circuits_parse_and_wire_indices_valid():

@@ -21,8 +21,11 @@ misrepresented as being the original software.
 distribution.
 */
 #include "atanua.h"
+#include "atanua_internal.h"
 #include "extrapin.h"
 #include "ui_theme.h"
+
+#define ANCHOR_WIRE_GREEN 0xff2fbf5f
 
 ExtraPin::ExtraPin()
 {
@@ -35,16 +38,36 @@ ExtraPin::ExtraPin()
 
 void ExtraPin::render(int aChipId)
 {
-    int hot = (gUIState.hotitem == aChipId);
-    if (hot)
+    int hotBody = (gUIState.hotitem == aChipId);
+    int hotPin = (IS_CHIP_ID(gUIState.hotitem) &&
+        GET_CHIP_ID(gUIState.hotitem) == GET_CHIP_ID(aChipId) &&
+        GET_PIN_ID(gUIState.hotitem) > 0);
+    if (hotBody || hotPin)
         drawrect(mX,mY,mW,mH,0x7f3f3f7f);
-    // Always-on anchor dot so bend points stay findable on dark and
-    // light canvas: dark ring plus bright core, accent core on hover.
-    float cx = mX + mW / 2;
-    float cy = mY + mH / 2;
-    drawrect(cx - 0.18f, cy - 0.18f, 0.36f, 0.36f, UI_THEME_MENUBG);
-    drawrect(cx - 0.10f, cy - 0.10f, 0.20f, 0.20f,
-        hot ? UI_THEME_ACCENTTEXT : UI_THEME_TEXT);
+    if (hotPin)
+    {
+        // Inner square: grab here to start another connection.
+        drawrect(mX + 0.25f, mY + 0.25f, 0.5f, 0.5f, ANCHOR_WIRE_GREEN);
+        drawrect(mX + 0.4f, mY + 0.4f, 0.2f, 0.2f, UI_THEME_TEXT);
+    }
+    else
+    {
+        if (hotBody)
+        {
+            // Outer ring: grab here (outside the inner square) to move it.
+            drawrect(mX, mY, mW, 0.1f, UI_THEME_ACCENTTEXT);
+            drawrect(mX, mY + mH - 0.1f, mW, 0.1f, UI_THEME_ACCENTTEXT);
+            drawrect(mX, mY, 0.1f, mH, UI_THEME_ACCENTTEXT);
+            drawrect(mX + mW - 0.1f, mY, 0.1f, mH, UI_THEME_ACCENTTEXT);
+        }
+        // Always-on anchor dot so bend points stay findable on dark and
+        // light canvas: dark ring plus bright core, accent core on hover.
+        float cx = mX + mW / 2;
+        float cy = mY + mH / 2;
+        drawrect(cx - 0.18f, cy - 0.18f, 0.36f, 0.36f, UI_THEME_MENUBG);
+        drawrect(cx - 0.10f, cy - 0.10f, 0.20f, 0.20f,
+            hotBody ? UI_THEME_ACCENTTEXT : UI_THEME_TEXT);
+    }
 }
 
 void ExtraPin::update(float aTick) 

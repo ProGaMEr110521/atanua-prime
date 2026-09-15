@@ -174,6 +174,14 @@ inline float anchorGrabPad(float zoom)
     return px > 0.5f ? px : 0.5f;
 }
 
+// Anchor hover zones, measured from the pin center: 1 = inner wire-start
+// square (0.8 x 0.8 around the pin), 0 = outer move area.
+inline int anchorHotZone(float dx, float dy)
+{
+    const float h = 0.4f;
+    return (dx >= -h && dx <= h && dy >= -h && dy <= h) ? 1 : 0;
+}
+
 } // namespace UiTheme
 
 #endif

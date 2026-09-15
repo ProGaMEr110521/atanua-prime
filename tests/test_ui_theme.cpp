@@ -69,6 +69,10 @@ int main()
     CHECK(UiTheme::snapWorld(1.26f, false) == 1.26f, "snap off keeps value");
     CHECK(UiTheme::anchorGrabPad(20.0f) == 0.5f, "anchor pad floors to half world unit");
     CHECK(UiTheme::anchorGrabPad(4.0f) == 7.0f / 4.0f, "anchor pad grows to 7px zoomed out");
+    CHECK(UiTheme::anchorHotZone(0.0f, 0.0f) == 1, "pin center is wire zone");
+    CHECK(UiTheme::anchorHotZone(0.39f, -0.39f) == 1, "inner square edge is wire zone");
+    CHECK(UiTheme::anchorHotZone(0.41f, 0.0f) == 0, "outside square is move zone");
+    CHECK(UiTheme::anchorHotZone(2.0f, 2.0f) == 0, "far corner is move zone");
 
     if (failures == 0)
         printf("ALL UI THEME TESTS PASSED\n");

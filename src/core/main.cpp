@@ -992,8 +992,9 @@ static void draw_screen()
                     continue;
                 // Tiny anchor chips get a padded grab area so 1x1 bend
                 // points stay clickable at any zoom.
+                int tinyAnchor = (gChip[i]->mRotatedW < 2.0f || gChip[i]->mRotatedH < 2.0f) ? 1 : 0;
                 float grabPad = 0.0f;
-                if (gChip[i]->mRotatedW < 2.0f || gChip[i]->mRotatedH < 2.0f)
+                if (tinyAnchor)
                     grabPad = UiTheme::anchorGrabPad(gZoomFactor);
                 if (gChip[i]->mBox == 0 &&
 					worldmousex > gChip[i]->mRotatedX - grabPad &&
@@ -1008,10 +1009,18 @@ static void draw_screen()
                     {
                         if (!gChip[i]->mPin[j])
                             continue;
-                        if (worldmousex > gChip[i]->mRotatedX + gChip[i]->mPin[j]->mRotatedX - grabPad &&
-                            worldmousey > gChip[i]->mRotatedY + gChip[i]->mPin[j]->mRotatedY - grabPad &&
-                            worldmousex < gChip[i]->mRotatedX + gChip[i]->mPin[j]->mRotatedX + 0.5 + grabPad &&
-                            worldmousey < gChip[i]->mRotatedY + gChip[i]->mPin[j]->mRotatedY + 0.5 + grabPad)
+                        if (tinyAnchor)
+                        {
+                            // Inner square starts a connection, outer area moves.
+                            float pcx = gChip[i]->mRotatedX + gChip[i]->mPin[j]->mRotatedX + 0.25f;
+                            float pcy = gChip[i]->mRotatedY + gChip[i]->mPin[j]->mRotatedY + 0.25f;
+                            if (UiTheme::anchorHotZone(worldmousex - pcx, worldmousey - pcy))
+                                gUIState.hotitem = CHIP_ID(j + 1, i);
+                        }
+                        else if (worldmousex > gChip[i]->mRotatedX + gChip[i]->mPin[j]->mRotatedX &&
+                            worldmousey > gChip[i]->mRotatedY + gChip[i]->mPin[j]->mRotatedY &&
+                            worldmousex < gChip[i]->mRotatedX + gChip[i]->mPin[j]->mRotatedX + 0.5 &&
+                            worldmousey < gChip[i]->mRotatedY + gChip[i]->mPin[j]->mRotatedY + 0.5)
                         {
                             gUIState.hotitem = CHIP_ID(j + 1, i);
                         }
