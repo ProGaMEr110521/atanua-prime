@@ -97,6 +97,7 @@ def test_main_interaction_guards():
         "compactLabels",
         "split_wire_middle_at",
         "wirePickTolerance",
+        "pinGrabPad",
         "sClickWire",
         "drops a bend point",
     ]:
@@ -105,7 +106,7 @@ def test_main_interaction_guards():
 
 def test_wire_bend_helpers():
     theme = read(THEME_H)
-    for token in ["wirePickTolerance", "wireEndTolerance", "snapWorld", "anchorGrabPad", "anchorHotZone"]:
+    for token in ["wirePickTolerance", "wireEndTolerance", "snapWorld", "anchorGrabPad", "anchorHotZone", "pinGrabPad"]:
         assert token in theme, f"bend helper missing: {token}"
 
 

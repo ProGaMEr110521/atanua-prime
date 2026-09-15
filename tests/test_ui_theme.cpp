@@ -73,6 +73,9 @@ int main()
     CHECK(UiTheme::anchorHotZone(0.39f, -0.39f) == 1, "inner square edge is wire zone");
     CHECK(UiTheme::anchorHotZone(0.41f, 0.0f) == 0, "outside square is move zone");
     CHECK(UiTheme::anchorHotZone(2.0f, 2.0f) == 0, "far corner is move zone");
+    CHECK(UiTheme::pinGrabPad(20.0f) == 0.25f, "pin pad is 5px at default zoom");
+    CHECK(UiTheme::pinGrabPad(4.0f) == 5.0f / 4.0f, "pin pad grows zoomed out");
+    CHECK(UiTheme::pinGrabPad(200.0f) == 0.15f, "pin pad floors zoomed in");
 
     if (failures == 0)
         printf("ALL UI THEME TESTS PASSED\n");

@@ -1017,12 +1017,18 @@ static void draw_screen()
                             if (UiTheme::anchorHotZone(worldmousex - pcx, worldmousey - pcy))
                                 gUIState.hotitem = CHIP_ID(j + 1, i);
                         }
-                        else if (worldmousex > gChip[i]->mRotatedX + gChip[i]->mPin[j]->mRotatedX &&
-                            worldmousey > gChip[i]->mRotatedY + gChip[i]->mPin[j]->mRotatedY &&
-                            worldmousex < gChip[i]->mRotatedX + gChip[i]->mPin[j]->mRotatedX + 0.5 &&
-                            worldmousey < gChip[i]->mRotatedY + gChip[i]->mPin[j]->mRotatedY + 0.5)
+                        else
                         {
-                            gUIState.hotitem = CHIP_ID(j + 1, i);
+                            // Padded connection zone: grabbing a pin beats
+                            // nearby wires, the body around it still moves.
+                            float pp = UiTheme::pinGrabPad(gZoomFactor);
+                            if (worldmousex > gChip[i]->mRotatedX + gChip[i]->mPin[j]->mRotatedX - pp &&
+                                worldmousey > gChip[i]->mRotatedY + gChip[i]->mPin[j]->mRotatedY - pp &&
+                                worldmousex < gChip[i]->mRotatedX + gChip[i]->mPin[j]->mRotatedX + 0.5 + pp &&
+                                worldmousey < gChip[i]->mRotatedY + gChip[i]->mPin[j]->mRotatedY + 0.5 + pp)
+                            {
+                                gUIState.hotitem = CHIP_ID(j + 1, i);
+                            }
                         }
                     }
                     if (gUIState.keymod & gSelectKeyMask && gUIState.mousedown && gChip[i]->mMultiSelectState == 0)
@@ -1616,15 +1622,21 @@ static void draw_screen()
 
 
         int j;
+        int tinyPins = (gChip[i]->mRotatedW < 2.0f || gChip[i]->mRotatedH < 2.0f) ? 1 : 0;
+        int anchorDraw = (gChipName[i] && stricmp(gChipName[i], "Connection Pin") == 0) ? 1 : 0;
+        float pinPad = tinyPins ? 0.0f : UiTheme::pinGrabPad(gZoomFactor);
         for (j = 0; j < (signed)gChip[i]->mPin.size(); j++)
         {
             if (!gChip[i]->mPin[j])
                 continue;
+            if (anchorDraw)
+                continue; // anchor chip draws its own hover zones
             if (gUIState.hotitem == CHIP_ID(j+1,i))
             {
-                drawrect(gChip[i]->mX + gChip[i]->mPin[j]->mX, 
-                         gChip[i]->mY + gChip[i]->mPin[j]->mY, 0.5, 0.5, color_hotitem1);
-                drawrect(gChip[i]->mX + gChip[i]->mPin[j]->mX + 0.1, 
+                drawrect(gChip[i]->mX + gChip[i]->mPin[j]->mX - pinPad,
+                         gChip[i]->mY + gChip[i]->mPin[j]->mY - pinPad,
+                         0.5f + 2 * pinPad, 0.5f + 2 * pinPad, color_hotitem1);
+                drawrect(gChip[i]->mX + gChip[i]->mPin[j]->mX + 0.1,
                          gChip[i]->mY + gChip[i]->mPin[j]->mY + 0.1, 0.3, 0.3, color_hotitem2);
             }
             else

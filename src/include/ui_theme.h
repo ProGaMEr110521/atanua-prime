@@ -182,6 +182,15 @@ inline int anchorHotZone(float dx, float dy)
     return (dx >= -h && dx <= h && dy >= -h && dy <= h) ? 1 : 0;
 }
 
+// Pin connection zone (world units, per side) so grabbing a pin to start a
+// wire beats nearby wires: the 0.5 pin box grows to ~5 screen px each side.
+inline float pinGrabPad(float zoom)
+{
+    if (zoom < 1.0f) zoom = 1.0f;
+    float px = 5.0f / zoom;
+    return px > 0.15f ? px : 0.15f;
+}
+
 } // namespace UiTheme
 
 #endif
