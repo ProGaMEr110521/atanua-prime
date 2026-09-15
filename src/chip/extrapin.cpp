@@ -22,6 +22,7 @@ distribution.
 */
 #include "atanua.h"
 #include "extrapin.h"
+#include "ui_theme.h"
 
 ExtraPin::ExtraPin()
 {
@@ -34,8 +35,16 @@ ExtraPin::ExtraPin()
 
 void ExtraPin::render(int aChipId)
 {
-    if (gUIState.hotitem == aChipId)
+    int hot = (gUIState.hotitem == aChipId);
+    if (hot)
         drawrect(mX,mY,mW,mH,0x7f3f3f7f);
+    // Always-on anchor dot so bend points stay findable on dark and
+    // light canvas: dark ring plus bright core, accent core on hover.
+    float cx = mX + mW / 2;
+    float cy = mY + mH / 2;
+    drawrect(cx - 0.18f, cy - 0.18f, 0.36f, 0.36f, UI_THEME_MENUBG);
+    drawrect(cx - 0.10f, cy - 0.10f, 0.20f, 0.20f,
+        hot ? UI_THEME_ACCENTTEXT : UI_THEME_TEXT);
 }
 
 void ExtraPin::update(float aTick) 

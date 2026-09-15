@@ -165,6 +165,15 @@ inline float snapWorld(float v, bool snapOn)
     return floorf(v * 2.0f + 0.5f) / 2.0f;
 }
 
+// Grab padding (world units, per side) for tiny anchor chips so a 1x1 bend
+// point stays clickable: at least half a world unit, at least ~7 screen px.
+inline float anchorGrabPad(float zoom)
+{
+    if (zoom < 1.0f) zoom = 1.0f;
+    float px = 7.0f / zoom;
+    return px > 0.5f ? px : 0.5f;
+}
+
 } // namespace UiTheme
 
 #endif

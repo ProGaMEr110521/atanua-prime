@@ -67,6 +67,8 @@ int main()
     CHECK(UiTheme::wireEndTolerance(20.0f, 0.2f) == 8.0f / 20.0f, "end zone floors to 8px");
     CHECK(UiTheme::snapWorld(1.26f, true) == 1.5f, "snap rounds to halves");
     CHECK(UiTheme::snapWorld(1.26f, false) == 1.26f, "snap off keeps value");
+    CHECK(UiTheme::anchorGrabPad(20.0f) == 0.5f, "anchor pad floors to half world unit");
+    CHECK(UiTheme::anchorGrabPad(4.0f) == 7.0f / 4.0f, "anchor pad grows to 7px zoomed out");
 
     if (failures == 0)
         printf("ALL UI THEME TESTS PASSED\n");

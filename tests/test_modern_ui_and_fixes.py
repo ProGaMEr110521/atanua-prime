@@ -11,6 +11,7 @@ SRC_SIM = os.path.join(REPO, "src", "core", "simutils.cpp")
 SRC_FILEIO = os.path.join(REPO, "src", "core", "fileio.cpp")
 SRC_FILEUTILS = os.path.join(REPO, "src", "core", "fileutils.cpp")
 SRC_TOOLKIT = os.path.join(REPO, "src", "basecode", "toolkit.cpp")
+SRC_EXTRAPIN = os.path.join(REPO, "src", "chip", "extrapin.cpp")
 SRC_FONT = os.path.join(REPO, "src", "basecode", "angelcodefont.cpp")
 THEME_H = os.path.join(REPO, "src", "include", "ui_theme.h")
 BUILD_EXE = os.path.join(REPO, "build", "Release", "atanua.exe")
@@ -104,8 +105,17 @@ def test_main_interaction_guards():
 
 def test_wire_bend_helpers():
     theme = read(THEME_H)
-    for token in ["wirePickTolerance", "wireEndTolerance", "snapWorld"]:
+    for token in ["wirePickTolerance", "wireEndTolerance", "snapWorld", "anchorGrabPad"]:
         assert token in theme, f"bend helper missing: {token}"
+
+
+def test_anchor_visible_and_magnetic():
+    main = read(SRC_MAIN)
+    assert "anchorGrabPad" in main, "magnetic anchor hit-test missing"
+    assert "mRotatedW < 2.0f" in main, "tiny-chip-only padding missing"
+    pin = read(SRC_EXTRAPIN)
+    assert "anchor dot" in pin, "always-on anchor marker missing"
+    assert "UI_THEME_ACCENTTEXT" in pin, "anchor hover accent missing"
 
 
 def test_circuits_parse_and_wire_indices_valid():
@@ -186,6 +196,7 @@ if __name__ == "__main__":
     test_fileio_roundtrip_guards()
     test_main_interaction_guards()
     test_wire_bend_helpers()
+    test_anchor_visible_and_magnetic()
     test_circuits_parse_and_wire_indices_valid()
     test_binary_and_assets_present()
     test_cpp_theme_harness()
