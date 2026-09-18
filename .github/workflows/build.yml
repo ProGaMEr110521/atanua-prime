@@ -16,6 +16,30 @@ jobs:
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
       - name: Build
         run: cmake --build build --config Release
+      - name: Stage windows package
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          $bindir = "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin"
+          New-Item -ItemType Directory -Force -Path dist/atanua-windows | Out-Null
+          Copy-Item build/Release/atanua.exe dist/atanua-windows/
+          foreach ($dll in @("SDL2.dll", "tinyxml2.dll")) {
+            $p = Join-Path $bindir $dll
+            if (!(Test-Path $p)) { throw "missing runtime $dll" }
+            Copy-Item $p dist/atanua-windows/
+          }
+          if (!(Test-Path data)) { throw "data/ missing from checkout" }
+          Copy-Item -Recurse data dist/atanua-windows/
+          Copy-Item readme.md dist/atanua-windows/
+      - name: Zip windows package
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          Compress-Archive -Path dist/atanua-windows -DestinationPath artifacts/atanua-windows-x64.zip
+      - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          name: atanua-windows
+          path: artifacts/atanua-windows-x64.zip
 
   ubuntu:
     runs-on: ubuntu-latest
@@ -29,3 +53,38 @@ jobs:
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_PACKAGE_PREFER_CONFIG=OFF
       - name: Build
         run: cmake --build build
+      - name: Stage linux package
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          [ -d data ] || { echo "data/ missing from checkout"; exit 1; }
+          mkdir -p dist/atanua-linux artifacts
+          cp build/atanua dist/atanua-linux/
+          cp readme.md dist/atanua-linux/
+          cp -r data dist/atanua-linux/
+          tar -czf artifacts/atanua-linux-x86_64.tar.gz -C dist atanua-linux
+      - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          name: atanua-linux
+          path: artifacts/atanua-linux-x86_64.tar.gz
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, ubuntu]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: atanua-windows
+          path: artifacts
+      - uses: actions/download-artifact@v4
+        with:
+          name: atanua-linux
+          path: artifacts
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" --title "${{ github.ref_name }}" --generate-notes artifacts/atanua-windows-x64.zip artifacts/atanua-linux-x86_64.tar.gz

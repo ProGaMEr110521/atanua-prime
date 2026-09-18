@@ -127,6 +127,18 @@ def test_ubuntu_ci_has_gtk():
     assert "gtk" in cmake.lower(), "CMake missing GTK wiring for Linux"
 
 
+def test_workflow_publishes_tagged_releases():
+    # Tag pushes must package both platforms and publish a release;
+    # plain pushes must stay build-only. data/ must ship (app won't run).
+    wf = read(WORKFLOW)
+    assert "refs/tags/v" in wf, "no tag gate for releases"
+    assert "gh release create" in wf, "no release publish step"
+    assert "upload-artifact" in wf, "builds not uploaded for release"
+    assert "atanua.exe" in wf and "data" in wf, "windows package incomplete"
+    assert os.path.isfile(os.path.join(REPO, "data", "vera14.fnt")), "data assets missing from checkout"
+    assert os.path.isfile(os.path.join(REPO, "data", "vera31.fnt")), "data assets missing from checkout"
+
+
 def test_reset_saves_only_on_confirm():
     sim = read(SRC_SIM)
     i = sim.index("void do_resetdialog")
@@ -224,6 +236,7 @@ if __name__ == "__main__":
     test_main_interaction_guards()
     test_wire_bend_helpers()
     test_ubuntu_ci_has_gtk()
+    test_workflow_publishes_tagged_releases()
     test_reset_saves_only_on_confirm()
     test_anchor_visible_and_magnetic()
     test_circuits_parse_and_wire_indices_valid()
