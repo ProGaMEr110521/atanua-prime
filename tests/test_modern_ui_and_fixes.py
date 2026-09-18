@@ -133,6 +133,7 @@ def test_workflow_publishes_tagged_releases():
     wf = read(WORKFLOW)
     assert "refs/tags/v" in wf, "no tag gate for releases"
     assert "gh release create" in wf, "no release publish step"
+    assert wf.count("actions/checkout@v4") >= 3, "release job needs its own checkout for notes"
     assert "upload-artifact" in wf, "builds not uploaded for release"
     assert "atanua.exe" in wf and "data" in wf, "windows package incomplete"
     assert "dumpbin" in wf, "windows package must resolve runtime DLLs, not hardcode vcpkg paths"
