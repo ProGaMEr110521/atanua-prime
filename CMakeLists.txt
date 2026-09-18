@@ -154,6 +154,13 @@ if(WIN32)
   set_target_properties(atanua PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
 
+# Linux file dialogs (nativefunctions.cpp) use GTK unconditionally.
+if(UNIX AND NOT APPLE)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
+  target_link_libraries(atanua PRIVATE PkgConfig::GTK)
+endif()
+
 # Runtime assets (fonts, textures) live in data/ next to the exe.
 # data/ is git-ignored; copy it there if present (e.g. from a release zip).
 if(EXISTS "${CMAKE_SOURCE_DIR}/data")

@@ -14,6 +14,8 @@ SRC_TOOLKIT = os.path.join(REPO, "src", "basecode", "toolkit.cpp")
 SRC_EXTRAPIN = os.path.join(REPO, "src", "chip", "extrapin.cpp")
 SRC_FONT = os.path.join(REPO, "src", "basecode", "angelcodefont.cpp")
 THEME_H = os.path.join(REPO, "src", "include", "ui_theme.h")
+CMAKE_LISTS = os.path.join(REPO, "CMakeLists.txt")
+WORKFLOW = os.path.join(REPO, ".github", "workflows", "build.yml")
 BUILD_EXE = os.path.join(REPO, "build", "Release", "atanua.exe")
 DATA_DIR = os.path.join(REPO, "data")
 def _circuit(name):
@@ -116,6 +118,15 @@ def test_wire_bend_helpers():
         assert token in theme, f"bend helper missing: {token}"
 
 
+def test_ubuntu_ci_has_gtk():
+    # nativefunctions.cpp includes <gtk/gtk.h> on Linux, so CI must
+    # install it and CMake must wire its flags, or ubuntu stays red.
+    wf = read(WORKFLOW)
+    assert "libgtk-3-dev" in wf or "libgtk2.0-dev" in wf, "workflow missing GTK dev package"
+    cmake = read(CMAKE_LISTS)
+    assert "gtk" in cmake.lower(), "CMake missing GTK wiring for Linux"
+
+
 def test_reset_saves_only_on_confirm():
     sim = read(SRC_SIM)
     i = sim.index("void do_resetdialog")
@@ -212,6 +223,7 @@ if __name__ == "__main__":
     test_fileio_roundtrip_guards()
     test_main_interaction_guards()
     test_wire_bend_helpers()
+    test_ubuntu_ci_has_gtk()
     test_reset_saves_only_on_confirm()
     test_anchor_visible_and_magnetic()
     test_circuits_parse_and_wire_indices_valid()
