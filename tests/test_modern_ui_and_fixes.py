@@ -135,6 +135,7 @@ def test_workflow_publishes_tagged_releases():
     assert "gh release create" in wf, "no release publish step"
     assert "upload-artifact" in wf, "builds not uploaded for release"
     assert "atanua.exe" in wf and "data" in wf, "windows package incomplete"
+    assert "dumpbin" in wf, "windows package must resolve runtime DLLs, not hardcode vcpkg paths"
     assert os.path.isfile(os.path.join(REPO, "data", "vera14.fnt")), "data assets missing from checkout"
     assert os.path.isfile(os.path.join(REPO, "data", "vera31.fnt")), "data assets missing from checkout"
 
