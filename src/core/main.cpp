@@ -363,6 +363,38 @@ int getChipIdForPad(Pin *p)
     return 0;
 }
 
+// Nearest connectable pin within radius world units of the release point,
+// ignoring boxed internals. Lets a slightly-off release still land on its
+// clearly-intended pin instead of dropping a stray anchor beside it.
+static Pin *find_release_pin(float worldx, float worldy, float radius)
+{
+    Pin *best = NULL;
+    float best2 = radius * radius;
+    for (size_t i = 0; i < gChip.size(); i++)
+    {
+        Chip *c = gChip[i];
+        if (!c || c->mBox != 0)
+            continue;
+        for (size_t j = 0; j < c->mPin.size(); j++)
+        {
+            Pin *p = c->mPin[j];
+            if (!p)
+                continue;
+            float px = c->mRotatedX + p->mRotatedX + 0.25f;
+            float py = c->mRotatedY + p->mRotatedY + 0.25f;
+            float dx = worldx - px;
+            float dy = worldy - py;
+            float d2 = dx * dx + dy * dy;
+            if (d2 < best2)
+            {
+                best2 = d2;
+                best = p;
+            }
+        }
+    }
+    return best;
+}
+
 static int split_wire_middle_at(float worldx, float worldy, int wireid);
 static int drop_routing_anchor_at(float worldx, float worldy);
 
@@ -1166,7 +1198,21 @@ static void draw_screen()
                             !(IS_CHIP_ID(gUIState.hotitem) && GET_PIN_ID(gUIState.hotitem) > 0))
                         {
                             sWireWasDown = 0;
-                            drop_routing_anchor_at(worldmousex, worldmousey);
+                            // A release near (but not exactly on) a pin still
+                            // means that pin: finish there instead of
+                            // stranding an anchor beside it.
+                            float snapR = UiTheme::wireFinishSnap(gZoomFactor, gConfig.mLineEndTolerance);
+                            Pin *target = find_release_pin(worldmousex, worldmousey, snapR);
+                            if (target && gWireStartDrag && target != gWireStartDrag)
+                            {
+                                save_undo();
+                                add_wire(gWireStartDrag, target);
+                                gDragMode = DRAGMODE_NONE;
+                            }
+                            else if (!target)
+                            {
+                                drop_routing_anchor_at(worldmousex, worldmousey);
+                            }
                         }
                     }
                 }

@@ -79,6 +79,8 @@ int main()
     CHECK(UiTheme::shouldSaveNudge(1000, 0) == 1, "first nudge saves");
     CHECK(UiTheme::shouldSaveNudge(1200, 1000) == 0, "rapid nudges coalesce");
     CHECK(UiTheme::shouldSaveNudge(1600, 1000) == 1, "paused nudges save again");
+    CHECK(UiTheme::wireFinishSnap(20.0f, 0.2f) == 12.0f / 20.0f, "finish snaps to 12px");
+    CHECK(UiTheme::wireFinishSnap(20.0f, 0.8f) == 0.8f, "large end zone kept");
 
     if (failures == 0)
         printf("ALL UI THEME TESTS PASSED\n");

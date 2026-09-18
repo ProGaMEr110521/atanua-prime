@@ -97,6 +97,7 @@ def test_main_interaction_guards():
         "compactLabels",
         "split_wire_middle_at",
         "drop_routing_anchor_at",
+        "find_release_pin",
         "sMoveUndoSaved",
         "shouldSaveNudge",
         "Undo:%d Redo:%d",
@@ -110,7 +111,7 @@ def test_main_interaction_guards():
 
 def test_wire_bend_helpers():
     theme = read(THEME_H)
-    for token in ["wirePickTolerance", "wireEndTolerance", "snapWorld", "anchorGrabPad", "anchorHotZone", "pinGrabPad", "shouldSaveNudge"]:
+    for token in ["wirePickTolerance", "wireEndTolerance", "snapWorld", "anchorGrabPad", "anchorHotZone", "pinGrabPad", "shouldSaveNudge", "wireFinishSnap"]:
         assert token in theme, f"bend helper missing: {token}"
 
 

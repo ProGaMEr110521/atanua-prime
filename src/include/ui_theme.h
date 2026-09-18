@@ -191,6 +191,15 @@ inline float pinGrabPad(float zoom)
     return px > 0.15f ? px : 0.15f;
 }
 
+// Release-to-finish snap radius while routing: letting go near a pin
+// finishes the wire there instead of stranding an anchor next to it.
+inline float wireFinishSnap(float zoom, float endTol)
+{
+    if (zoom < 1.0f) zoom = 1.0f;
+    float px = 12.0f / zoom;
+    return endTol > px ? endTol : px;
+}
+
 // Keyboard-nudge undo coalescing: one undo step per burst of arrow moves.
 inline int shouldSaveNudge(int nowTick, int lastTick)
 {
