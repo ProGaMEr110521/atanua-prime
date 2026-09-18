@@ -98,6 +98,7 @@ def test_main_interaction_guards():
         "split_wire_middle_at",
         "drop_routing_anchor_at",
         "find_release_pin",
+        "find_anchor_near",
         "sMoveUndoSaved",
         "shouldSaveNudge",
         "Undo:%d Redo:%d",

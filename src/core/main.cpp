@@ -395,6 +395,40 @@ static Pin *find_release_pin(float worldx, float worldy, float radius)
     return best;
 }
 
+// Existing bend-point anchor near (worldx, worldy), if any: dropping another
+// one on top (double-clicks, jitter) must reuse it instead of stacking.
+static Chip *find_anchor_near(float worldx, float worldy)
+{
+    const float r = 0.5f;
+    for (size_t i = 0; i < gChip.size(); i++)
+    {
+        Chip *c = gChip[i];
+        if (!c || c->mBox != 0)
+            continue;
+        if (!gChipName[i] || stricmp(gChipName[i], "Connection Pin") != 0)
+            continue;
+        float cx = c->mRotatedX + c->mRotatedW / 2.0f;
+        float cy = c->mRotatedY + c->mRotatedH / 2.0f;
+        float dx = worldx - cx;
+        float dy = worldy - cy;
+        if (dx * dx + dy * dy < r * r)
+            return c;
+    }
+    return NULL;
+}
+
+static int chip_index_of(Chip *c)
+{
+    if (!c)
+        return -1;
+    for (size_t i = 0; i < gChip.size(); i++)
+    {
+        if (gChip[i] == c)
+            return (int)i;
+    }
+    return -1;
+}
+
 static int split_wire_middle_at(float worldx, float worldy, int wireid);
 static int drop_routing_anchor_at(float worldx, float worldy);
 
@@ -482,6 +516,25 @@ static int split_wire_middle_at(float worldx, float worldy, int wireid)
     Wire *w = gWire[wireid];
     if (!w || !w->mFirst || !w->mSecond || !w->mFirst->mHost || !w->mSecond->mHost)
         return -1;
+    // Reuse a bend point that is already here instead of stacking a duplicate.
+    Chip *reuse = find_anchor_near(worldx, worldy);
+    if (reuse && !reuse->mPin.empty() && reuse->mPin[0])
+    {
+        int idx = chip_index_of(reuse);
+        if (w->mFirst == reuse->mPin[0] || w->mSecond == reuse->mPin[0])
+        {
+            gUIState.activeitem = CHIP_ID(0, idx);
+            gUIState.kbditem = gUIState.activeitem;
+            return idx;
+        }
+        save_undo();
+        Pin *second = w->mSecond;
+        w->mSecond = reuse->mPin[0];
+        add_wire(reuse->mPin[0], second);
+        gUIState.activeitem = CHIP_ID(0, idx);
+        gUIState.kbditem = gUIState.activeitem;
+        return idx;
+    }
     if (gChipFactory.empty() || !gChipFactory[0])
         return -1;
     save_undo();
@@ -521,6 +574,22 @@ static int drop_routing_anchor_at(float worldx, float worldy)
     float dy = worldy - sy;
     if (sqrtf(dx * dx + dy * dy) <= 1.0f)
         return -1;
+    // Reuse a bend point that is already here instead of stacking a duplicate.
+    Chip *reuse = find_anchor_near(worldx, worldy);
+    if (reuse && !reuse->mPin.empty() && reuse->mPin[0])
+    {
+        int idx = chip_index_of(reuse);
+        if (gWireStartDrag == reuse->mPin[0])
+            return idx;
+        save_undo();
+        add_wire(gWireStartDrag, reuse->mPin[0]);
+        gWireStartDrag = reuse->mPin[0];
+        gUIState.mousedownx = (float)gUIState.mousex;
+        gUIState.mousedowny = (float)gUIState.mousey;
+        gUIState.activeitem = CHIP_ID(0, idx);
+        gUIState.kbditem = gUIState.activeitem;
+        return idx;
+    }
     save_undo();
     Chip *newpin = gChipFactory[0]->build("Connection Pin");
     if (!newpin || newpin->mPin.empty() || !newpin->mPin[0])
