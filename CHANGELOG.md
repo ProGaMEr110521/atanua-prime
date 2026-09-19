@@ -9,6 +9,8 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 ### Added / Добавлено
 - Top bar and chip sidebar drawn with Dear ImGui: buttons and rows auto-size to their labels (nothing can overflow), toggle states highlighted, tooltips with shortcuts, responsive one/two-row top bar by measured need; DejaVu 17/15px chrome fonts.
 - Верхняя панель и список микросхем на Dear ImGui: кнопки и строки сами подстраиваются под подписи (ничего не вылезает), включённые состояния подсвечены, подсказки с хоткеями, верхняя панель в одну или две строки по измеренной ширине; шрифты DejaVu 17/15px.
+- Status bar, hover tooltips, update progress and perf overlay drawn with Dear ImGui; the homegrown button/slider/textfield widgets are deleted, bitmap Vera fonts remain only for zoomable canvas chip graphics.
+- Статус-бар, всплывающие подсказки, прогресс обновления и оверлей производительности на Dear ImGui; самописные виджеты удалены, растровые шрифты Vera остались только для масштабируемых надписей на схеме.
 - Settings panel now drawn with Dear ImGui (vendored v1.92.9b) and DejaVu Sans TTF: the window auto-sizes to any label length, so translated strings can never overflow their controls; keyboard navigation enabled.
 - Панель настроек теперь рисуется через Dear ImGui (в составе v1.92.9b) шрифтом DejaVu Sans TTF: окно само подстраивается под длину подписей, и переводы больше не вылезают из элементов; включена навигация с клавиатуры.
 - Settings panel in the top bar: interface language (English/Русский applied live), theme variant (Dark/Contrast), tooltip delay, and sound on/off — every choice persists in atanua.xml across restarts.

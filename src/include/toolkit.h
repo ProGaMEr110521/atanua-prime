@@ -215,9 +215,6 @@ int rect_line_collide(float x0a, float y0a, float x1a, float y1a, float x0b, flo
 
 void rotate2d(float &x, float &y, float angle);
 
-int imgui_button(int id, ACFont &font, const char *text, float x, float y, float w, float h, int base, int face, int hot, int textcolor);
-int imgui_slider(int id, float x, float y, float w, float h, int bg, int thumb, int hot, int max, int &value, int screenful, int keyboardcontrolvalue);
-int imgui_textfield(int id, ACFont &font, int x, int y, int w, int h, char *buffer, int maxlen, int base, int face, int hot, int textcolor);
 void imgui_prepare();
 void imgui_finish();
 

@@ -1048,6 +1048,34 @@ static void draw_sidebar_imgui(int *locOut)
     ImGui::End();
 }
 
+static void draw_statusbar_imgui()
+{
+    ImGui::SetNextWindowPos(ImVec2(0, (float)(gScreenHeight - 24)));
+    ImGui::SetNextWindowSize(ImVec2((float)gScreenWidth, 0));
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar |
+        ImGuiWindowFlags_HorizontalScrollbar;
+    if (!ImGui::Begin("##statusbar", NULL, flags))
+    {
+        ImGui::End();
+        return;
+    }
+    if (gSmallFont)
+        ImGui::PushFont(gSmallFont);
+    char status[256];
+    snprintf(status, sizeof(status), "Chips:%d  Wires:%d  Nets:%d   Zoom:%.0f   %s   %s   Undo:%d Redo:%d",
+        (int)gChip.size(), (int)gWire.size(), (int)gNet.size(),
+        gZoomFactor,
+        gSnap ? "Snap:on" : "Snap:off",
+        gLiveWires ? "Live" : "Grey",
+        (int)gUndoStack.size(), (int)gRedoStack.size());
+    ImGui::TextUnformatted(status);
+    if (gSmallFont)
+        ImGui::PopFont();
+    ImGui::End();
+}
+
 static void draw_screen()
 {
     int i;
@@ -1061,6 +1089,7 @@ static void draw_screen()
     draw_topbar_imgui(lang, cAccent);
     int loc = -1;
     draw_sidebar_imgui(&loc);
+    draw_statusbar_imgui();
     float worldmousex = ((gUIState.mousex - gConfig.mToolkitWidth) / gZoomFactor) - gWorldOfsX;
     float worldmousey = ((gUIState.mousey - gTopbarH) / gZoomFactor) - gWorldOfsY;
     float worldmousedownx = ((gUIState.mousedownx - gConfig.mToolkitWidth) / gZoomFactor) - gWorldOfsX;
@@ -2147,10 +2176,6 @@ static void draw_screen()
         int pct = -1;
         if (AppUpdate_DownloadActive(&pct))
         {
-            float pw = 380.0f;
-            float ph = 132.0f;
-            float px = ((float)gScreenWidth - pw) / 2.0f;
-            float py = ((float)gScreenHeight - ph) / 2.0f;
             char line[96];
             if (pct == -2)
                 snprintf(line, sizeof(line), "Extracting update...");
@@ -2158,20 +2183,19 @@ static void draw_screen()
                 snprintf(line, sizeof(line), "Downloading update...");
             else
                 snprintf(line, sizeof(line), "Downloading update... %d%%", pct);
-            drawrect(px, py, pw, ph, C_MENUBG);
-            drawrect(px, py, pw, 1, C_MENULINE);
-            drawrect(px, py + ph - 1, pw, 1, C_MENULINE);
-            fn14.drawstring("Updating Atanua", px + 16, py + 14, C_TEXT);
-            fn14.drawstring(line, px + 16, py + 40, C_TEXTDIM);
-            drawrect(px + 16, py + 66, pw - 32, 14, C_WIDGETBG);
-            if (pct >= 0)
+            ImGui::SetNextWindowPos(ImVec2((float)gScreenWidth * 0.5f, (float)gScreenHeight * 0.5f),
+                ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+            ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
+                ImGuiWindowFlags_AlwaysAutoResize;
+            if (ImGui::Begin("Updating Atanua", NULL, flags))
             {
-                float fill = (pw - 32.0f) * (float)pct / 100.0f;
-                if (fill > 0.0f)
-                    drawrect(px + 16, py + 66, fill, 14, C_WIDGETHOT);
+                ImGui::TextUnformatted(line);
+                if (pct >= 0)
+                    ImGui::ProgressBar((float)pct / 100.0f, ImVec2(280, 0));
+                if (ImGui::Button("Cancel", ImVec2(120, 0)))
+                    AppUpdate_CancelDownload();
             }
-            if (imgui_button(GEN_ID, fn14, "Cancel", px + (pw - 120.0f) / 2.0f, py + 90.0f, 120, 30, C_WIDGETBG, C_WIDGETTHUMB, C_WIDGETHOT, C_TEXT))
-                AppUpdate_CancelDownload();
+            ImGui::End();
         }
     }
     {
@@ -2191,14 +2215,14 @@ static void draw_screen()
         }
         if (sRestartFrames > 0)
         {
-            float tw, th, tlw;
             sRestartFrames--;
-            fn14.stringmetrics(sRestartMsg, tw, th, tlw);
-            drawrect(((float)gScreenWidth - tw - 24.0f) / 2.0f,
-                ((float)gScreenHeight - 52.0f) / 2.0f, tw + 24.0f, 52.0f, C_MENUBG);
-            fn14.drawstring(sRestartMsg,
-                (((float)gScreenWidth - tw) / 2.0f),
-                (((float)gScreenHeight - th) / 2.0f), C_TEXT);
+            ImGui::SetNextWindowPos(ImVec2((float)gScreenWidth * 0.5f, (float)gScreenHeight * 0.5f),
+                ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+            ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
+                ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar;
+            if (ImGui::Begin("##restart", NULL, flags))
+                ImGui::TextUnformatted(sRestartMsg);
+            ImGui::End();
             if (sRestartFrames == 0)
             {
                 SDL_Event ev;
@@ -2295,40 +2319,8 @@ static void draw_screen()
                 break;
             }
         }
-        if (tooltip)
-        {
-            float w, h, llw;
-            w = h = llw = 0;
-            fn14.stringmetrics(tooltip, w, h, llw);
-            if (w > 0 && h > 0)
-            {
-            float tx = (float)(gUIState.mousex + 16);
-            float ty = (float)(gUIState.mousey + 16);
-            if (tx + w + 8 > gScreenWidth) tx = (float)(gScreenWidth - w - 10);
-            if (ty + h + 8 > gScreenHeight) ty = (float)(gScreenHeight - h - 10);
-            if (tx < 0) tx = 0;
-            if (ty < 0) ty = 0;
-            drawrect(tx, ty, w+8, h+8, C_WIDGETBG);
-            drawrect(tx, ty, w+8, 1, C_MENULINE);
-            fn14.drawstring(tooltip, tx + 4, ty + 4, C_TEXT);
-            }
-        }
-    }
-
-    // Status bar: live counts, zoom, mode flags. Screen-space chrome.
-    {
-        const float barH = 24.0f;
-        float barY = (float)(gScreenHeight - barH);
-        drawrect(0, barY, (float)gScreenWidth, 1, C_MENULINE);
-        drawrect(0, barY + 1, (float)gScreenWidth, barH - 1, C_MENUBG);
-        char status[256];
-        snprintf(status, sizeof(status), "Chips:%d  Wires:%d  Nets:%d   Zoom:%.0f   %s   %s   Undo:%d Redo:%d",
-            (int)gChip.size(), (int)gWire.size(), (int)gNet.size(),
-            gZoomFactor,
-            gSnap ? "Snap:on" : "Snap:off",
-            gLiveWires ? "Live" : "Grey",
-            (int)gUndoStack.size(), (int)gRedoStack.size());
-        fn14.drawstring(status, (float)(gConfig.mToolkitWidth + 10), barY + 6, C_TEXTDIM);
+        if (tooltip && tooltip[0])
+            ImGui::SetTooltip("%s", tooltip);
     }
 
     imgui_finish();
@@ -2347,11 +2339,19 @@ static void draw_screen()
         float mspf = (float)(perf_data1[perf_idx] - perf_data1[(perf_idx+1) % PERF_FRAMES]) / PERF_FRAMES;
         float ppf = (float)(perf_data2[perf_idx] - perf_data2[(perf_idx+1) % PERF_FRAMES]) / PERF_FRAMES;
 		sprintf(perf_temp, "%3.0f%%rt, %3.0ffps, %3.0fmspf, %dms phys", ppf*fps / 10.0f / gConfig.mPhysicsKHz, fps, mspf, physms);
-        fn.drawstring(perf_temp, gConfig.mToolkitWidth+10, gScreenHeight - 40,0x3fffffff,32);
-        sprintf(perf_temp, "font1:%d/%d, font2:%d/%d",fn.mFontCacheTrashed,fn.mFontCacheUse,fn14.mFontCacheTrashed,fn14.mFontCacheUse);
-        fn.drawstring(perf_temp, gConfig.mToolkitWidth+10, gScreenHeight - 72,0x3fffffff,32);
-		sprintf(perf_temp, "Chips:%d Wires:%d Nets:%d",(int)gChip.size(), (int)gWire.size(), (int)gNet.size());
-        fn.drawstring(perf_temp, gConfig.mToolkitWidth+10, gScreenHeight - 104,0x3fffffff,32);
+        ImGui::SetNextWindowPos(ImVec2((float)gScreenWidth - 8.0f, (float)(gScreenHeight - 120)),
+            ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+        ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar;
+        if (ImGui::Begin("##perf", NULL, flags))
+        {
+            ImGui::TextUnformatted(perf_temp);
+            sprintf(perf_temp, "font1:%d/%d, font2:%d/%d",fn.mFontCacheTrashed,fn.mFontCacheUse,fn14.mFontCacheTrashed,fn14.mFontCacheUse);
+            ImGui::TextUnformatted(perf_temp);
+            sprintf(perf_temp, "Chips:%d Wires:%d Nets:%d",(int)gChip.size(), (int)gWire.size(), (int)gNet.size());
+            ImGui::TextUnformatted(perf_temp);
+        }
+        ImGui::End();
         perf_idx++;
         perf_idx %= PERF_FRAMES;
 	}

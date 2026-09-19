@@ -60,7 +60,9 @@ def test_modern_theme_is_default():
 def test_toolkit_and_font_guards():
     toolkit = read(SRC_TOOLKIT)
     assert "if (!aString)" in toolkit, "mystrdup null guard missing"
-    assert "if (!buffer || maxlen <= 0)" in toolkit, "textfield guard missing"
+    for dead in ["int imgui_button(", "int imgui_slider(", "int imgui_textfield(",
+                 "regionhit"]:
+        assert dead not in toolkit, f"dead widget leftover: {dead}"
     font = read(SRC_FONT)
     assert "if (!string" in font, "font null guard missing"
     assert "findcharblock" in font and "return NULL" in font
@@ -399,7 +401,7 @@ def test_settings_wired_into_app():
     for token in ["ImGui::CreateContext", "ImGui_ImplSDL2_ProcessEvent",
                   "ImGui_ImplSDL2_NewFrame", "ImGui_ImplOpenGL2_RenderDrawData",
                   "GetGlyphRangesCyrillic", "settings_radio", "ImGui::Begin",
-                  "AlwaysAutoResize"]:
+                  "AlwaysAutoResize", "##statusbar", "SetTooltip", "ProgressBar"]:
         assert token in main, f"imgui wiring missing: {token}"
     assert "settings_opt" not in main, "old fixed-pixel panel helper still present"
     cmake = read(CMAKE_LISTS)
