@@ -152,12 +152,12 @@ def test_workflow_publishes_tagged_releases():
     assert "dumpbin" in wf, "windows package must resolve runtime DLLs, not hardcode vcpkg paths"
     assert "CHANGELOG.md" in wf, "release must publish changelog notes"
     assert "--notes" in wf, "release must prefer changelog notes over generated ones"
+    assert "ATANUAVERSION" in wf, "release must verify version matches tag"
     assert os.path.isfile(os.path.join(REPO, "data", "vera14.fnt")), "data assets missing from checkout"
     assert os.path.isfile(os.path.join(REPO, "data", "vera31.fnt")), "data assets missing from checkout"
 
 
-def test_readme_and_changelog():
-    # Front page is bilingual and documents the shipped features;
+def test_readme_and_changelog():    # Front page is bilingual and documents the shipped features;
     # the changelog carries an Unreleased section plus tag sections
     # so every tagged release page shows real notes.
     readme = read(os.path.join(REPO, "README.md"))
@@ -428,6 +428,26 @@ def test_cpp_theme_harness():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def parse_dotted(s):
+    return tuple(int(p) for p in s.strip().split("."))
+
+
+def test_builtin_version_monotonic():
+    # The built-in version must never fall behind any CHANGELOG tag, or
+    # releases ship stale versions and the updater nags forever.
+    import re
+    internal = read(os.path.join(REPO, "src", "include", "atanua_internal.h"))
+    m = re.search(r'#define ATANUAVERSION "([^"]+)"', internal)
+    assert m, "ATANUAVERSION missing"
+    code = parse_dotted(m.group(1))
+    changelog = read(os.path.join(REPO, "CHANGELOG.md"))
+    tags = re.findall(r"^## \[(v[\d.]+)\]", changelog, re.M)
+    assert tags, "no tag sections in changelog"
+    for tag in tags:
+        ver = parse_dotted(tag.lstrip("vV"))
+        assert code >= ver, f"built-in {m.group(1)} predates changelog tag {tag}"
+
+
 if __name__ == "__main__":
     test_modern_theme_is_default()
     test_toolkit_and_font_guards()
@@ -443,6 +463,7 @@ if __name__ == "__main__":
     test_ubuntu_ci_has_gtk()
     test_workflow_publishes_tagged_releases()
     test_readme_and_changelog()
+    test_builtin_version_monotonic()
     test_reset_saves_only_on_confirm()
     test_anchor_visible_and_magnetic()
     test_circuits_parse_and_wire_indices_valid()

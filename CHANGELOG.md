@@ -7,8 +7,16 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 ## [Unreleased] / [В разработке]
 
 ### Added / Добавлено
-- Nothing yet — upcoming changes will be listed here.
-- Пока пусто — будущие изменения появятся здесь.
+- Full auto-update: Yes downloads the release archive with a progress bar and Cancel, then installs, restarts the app automatically, and reports failures plainly.
+- Полное автообновление: Yes скачивает архив релиза с прогресс-баром и кнопкой Cancel, затем устанавливает, перезапускает приложение и понятно сообщает об ошибках.
+- Automatic update prompt on launch when a newer tag exists on `atanua-prime` (quiet otherwise), with the version and download link.
+- Автоматическое предложение обновиться при запуске, если на `atanua-prime` есть тег новее (иначе тихо), с версией и ссылкой.
+- Bilingual README and changelog-driven release notes (`## [vX]` sections publish as release pages).
+- Двуязычные README и примечания к релизам из changelog (секции `## [vX]` публикуются на страницах релизов).
+
+### Fixed / Исправлено
+- Undo/redo restoring empty designs: snapshot names are actually written and read now; first undo after boot no longer wipes the canvas; rotates and drags record history (up to 100 steps).
+- Undo/redo, очищавшие всё: имена снапшотов теперь реально пишутся и читаются; первое undo после запуска больше не стирает холст; повороты и перемещения записываются в историю (до 100 шагов).
 
 ## [v1.3.141223] - 2026-09-18
 
