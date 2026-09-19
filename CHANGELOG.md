@@ -25,6 +25,8 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 ### Fixed / Исправлено
 - Undo/redo restoring empty designs: snapshot names are actually written and read now; first undo after boot no longer wipes the canvas; rotates and drags record history (up to 100 steps).
 - Undo/redo, очищавшие всё: имена снапшотов теперь реально пишутся и читаются; первое undo после запуска больше не стирает холст; повороты и перемещения записываются в историю (до 100 шагов).
+- Status bar overlapping the sidebar: the sidebar now ends above the measured status strip; dead color defines, widget ID macro and homegrown widgets removed.
+- Статус-бар больше не перекрывает боковую панель: панель заканчивается над измеренной полосой статуса; удалены мёртвые цвета, макрос ID и самописные виджеты.
 
 ## [v1.3.141223] - 2026-09-18
 

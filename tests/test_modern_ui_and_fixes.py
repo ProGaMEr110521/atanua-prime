@@ -41,9 +41,14 @@ def read(p):
 def test_modern_theme_is_default():
     main = read(SRC_MAIN)
     theme = read(THEME_H)
-    for token in ["0xff20242c", "UI_TOPBAR_H",
-                  "C_MENULINE", "C_TEXT", "C_HOTROW", "C_ACCENTTEXT"]:
+    for token in ["UI_TOPBAR_H", "C_TEXTDIM", "C_ACCENTTEXT",
+                  "themeAccent", "toImVec", "gStatusH"]:
         assert token in main, f"modern theme token missing: {token}"
+    for gone in ["#define C_MENUBG", "#define C_WIDGETBG", "#define C_WIDGETHOT",
+                 "#define C_HOTROW", "#define GEN_ID"]:
+        assert gone not in main, f"dead chrome token leftover: {gone}"
+    toolkit = read(os.path.join(REPO, "src", "include", "toolkit.h"))
+    assert "GEN_ID" not in toolkit, "dead widget ID macro leftover"
     assert "0xff3f4f4f" not in main, "old 2008 menubg still active"
     assert "UI_THEME_MENUBG" in theme and "UiTheme" in theme
     assert "UiTheme::wirePickTolerance" in main, "canvas theme helpers not used"

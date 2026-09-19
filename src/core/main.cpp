@@ -34,14 +34,7 @@ distribution.
 
 #include "stb/stb_image_write.h"
 
-#define C_MENUBG 0xff20242c
-#define C_MENULINE 0xff333947
-#define C_WIDGETBG 0xff2c313c
-#define C_WIDGETTHUMB 0xff59637a
-#define C_WIDGETHOT 0xff4c8dff
-#define C_TEXT 0xffeef1f6
 #define C_TEXTDIM 0xff8b93a7
-#define C_HOTROW 0xff31406b
 #define C_ACCENTTEXT 0xff7ddf8a
 
 #define UI_TOPBAR_H 48
@@ -80,6 +73,7 @@ int gMultiselectDirty = 1;
 AtanuaConfig gConfig;
 int gVisibleChiplist = 0;
 int gSettingsOpen = 0;
+int gStatusH = 24;
 static ImFont *gSmallFont = NULL;
 static ImFont *gTopFont = NULL;
 
@@ -986,7 +980,7 @@ static void draw_sidebar_imgui(int *locOut)
 {
     ImGui::SetNextWindowPos(ImVec2(0, (float)gTopbarH));
     ImGui::SetNextWindowSize(ImVec2((float)gConfig.mToolkitWidth,
-        (float)(gScreenHeight - gTopbarH)));
+        (float)(gScreenHeight - gTopbarH - gStatusH)));
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
         ImGuiWindowFlags_AlwaysAutoResize;
@@ -1061,6 +1055,7 @@ static void draw_statusbar_imgui()
         ImGui::End();
         return;
     }
+    gStatusH = (int)ImGui::GetWindowSize().y;
     if (gSmallFont)
         ImGui::PushFont(gSmallFont);
     char status[256];
@@ -1087,9 +1082,9 @@ static void draw_screen()
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
     draw_topbar_imgui(lang, cAccent);
+    draw_statusbar_imgui();
     int loc = -1;
     draw_sidebar_imgui(&loc);
-    draw_statusbar_imgui();
     float worldmousex = ((gUIState.mousex - gConfig.mToolkitWidth) / gZoomFactor) - gWorldOfsX;
     float worldmousey = ((gUIState.mousey - gTopbarH) / gZoomFactor) - gWorldOfsY;
     float worldmousedownx = ((gUIState.mousedownx - gConfig.mToolkitWidth) / gZoomFactor) - gWorldOfsX;
