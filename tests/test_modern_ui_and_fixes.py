@@ -305,6 +305,76 @@ def test_fileutils_roundtrip():
                      "ALL FILEUTILS TESTS PASSED")
 
 
+def test_settings_units():
+    # Compiles the SHIPPED settings/language header and drives language
+    # mapping, EN/RU lookup, validation and config field round-trip.
+    _compile_and_run(os.path.join(REPO, "tests", "test_settings.cpp"),
+                     [],
+                     "ALL SETTINGS TESTS PASSED")
+
+
+def test_settings_wired_into_app():
+    # Language + settings must flow through the real paths: config fields
+    # with save(), localized topbar labels, a settings panel that
+    # persists, UTF-8 font decoding and a shipped Cyrillic glyph page.
+    main = read(SRC_MAIN)
+    assert '#include "app_settings.h"' in main, "settings header not included"
+    assert "gSettingsOpen" in main, "settings open flag missing"
+    assert "AppSettings::text(AppSettings::S_NEW" in main, "action labels not localized"
+    assert "AppSettings::text(AppSettings::S_BASE" in main, "tabs not localized"
+    assert "S_SETTINGS" in main and "tb.settingsX" in main, "no settings entry point in topbar"
+    assert "draw_settings_panel" in main, "settings panel missing"
+    assert "gConfig.save()" in main, "panel never persists"
+    assert "S_SOUND_RESTART_NOTE" in main, "restart note missing"
+    assert "gSettingsOpen = 0" in main, "panel has no close path"
+    font = read(os.path.join(REPO, "src", "basecode", "angelcodefont.cpp"))
+    assert "acfont_nextcode" in font, "font has no UTF-8 decoder"
+    cfg = read(os.path.join(REPO, "src", "core", "AtanuaConfig.cpp"))
+    assert "mLanguage" in cfg and "mThemeVariant" in cfg, "config fields missing"
+    assert "void AtanuaConfig::save()" in cfg, "config save() missing"
+    assert '"Language"' in cfg and '"ThemeVariant"' in cfg, "new XML elements missing"
+    assert "isKnownConfigElement" in cfg, "save() must preserve unknown elements"
+    header = read(os.path.join(REPO, "src", "include", "atanua.h"))
+    assert "void save();" in header and "mLanguage;" in header, "config decl missing"
+    theme = read(THEME_H)
+    assert "settingsX" in theme and "settingsW" in theme, "topbar has no settings slot"
+    # The shipped font must carry Cyrillic glyphs the RU strings need
+    # (the original page was Latin-only). They live on the same single
+    # texture page so the cached draw path stays on one texture.
+    import struct as _struct
+    with open(os.path.join(DATA_DIR, "vera14.fnt"), "rb") as f:
+        blob = f.read()
+    assert blob[:3] == b"BMF", "font magic broken"
+    assert b"vera14_01.png" not in blob, "font must stay single-page for the text cache"
+    p = 4
+    assert blob[p] == 1
+    isz = _struct.unpack("<i", blob[p + 1:p + 5])[0]
+    p += 5 + (isz - 4)
+    assert blob[p] == 2
+    csz = _struct.unpack("<i", blob[p + 1:p + 5])[0]
+    scalew = _struct.unpack("<H", blob[p + 5 + 4:p + 5 + 6])[0]
+    assert scalew == 256, f"cyrillic page not folded in, scaleW={scalew}"
+    p += 5 + (csz - 4)
+    assert blob[p] == 3
+    psz = _struct.unpack("<i", blob[p + 1:p + 5])[0]
+    assert blob[p + 5:p + 5 + (psz - 4)] == b"vera14_00.png\x00", "font page renamed"
+    p += 5 + (psz - 4)
+    assert blob[p] == 4
+    hsz = _struct.unpack("<i", blob[p + 1:p + 5])[0]
+    p += 5
+    n = (hsz - 4) // 18
+    assert n == 284, f"expected 218 latin + 66 cyrillic glyphs, got {n}"
+    pages = set()
+    cyr = 0
+    for j in range(n):
+        e = _struct.unpack("<hhhhhhhhBB", blob[p + j * 18:p + j * 18 + 18])
+        pages.add(e[8])
+        if 0x400 <= e[0] <= 0x45F:
+            cyr += 1
+    assert pages == {0}, f"glyphs span pages: {pages}"
+    assert cyr == 66, f"cyrillic coverage lost: {cyr}"
+
+
 def test_updatecheck_units():
     # Compiles the SHIPPED update logic header and drives version compare
     # plus newest-release selection on representative payloads.

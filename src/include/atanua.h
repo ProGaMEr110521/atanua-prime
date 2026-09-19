@@ -177,6 +177,7 @@ public:
     AtanuaConfig();
     ~AtanuaConfig();
     void load();
+    void save();
     int mToolkitWidth;
     int mPropagateInvalidState;
     int mAntialiasedLines;
@@ -205,6 +206,8 @@ public:
 	int mAutosaveEnable;
 	int mAutosaveCount;
 	int mAutosaveInterval;
+    int mLanguage;
+    int mThemeVariant;
 };
 
 extern AtanuaConfig gConfig;

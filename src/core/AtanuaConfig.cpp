@@ -22,6 +22,7 @@ distribution.
 */
 #include "atanua.h"
 #include "atanua_internal.h"
+#include "app_settings.h"
 #include <tinyxml2.h>
 #include <time.h>
 
@@ -57,6 +58,8 @@ AtanuaConfig::AtanuaConfig()
 	mAutosaveCount = 10;
 	mAutosaveEnable = 1;
 	mAutosaveInterval = 5;
+    mLanguage = AppSettings::LANG_EN;
+    mThemeVariant = AppSettings::THEME_DARK;
 }
 
 AtanuaConfig::~AtanuaConfig()
@@ -179,6 +182,14 @@ void AtanuaConfig::load()
 		element->SetAttribute("SaveCount", mAutosaveCount);
 		element->SetAttribute("Interval", mAutosaveInterval);
 
+        element = doc.NewElement("Language");
+        topelement->InsertEndChild(element);
+        element->SetAttribute("value", mLanguage);
+
+        element = doc.NewElement("ThemeVariant");
+        topelement->InsertEndChild(element);
+        element->SetAttribute("value", mThemeVariant);
+
         f = fopen("atanua.xml", "wb");
         if (f)
         {
@@ -246,6 +257,28 @@ void AtanuaConfig::load()
             if (stricmp(part->Value(), "AudioEnable") == 0)
             {
                 part->QueryIntAttribute("value", &mAudioEnable);
+            }
+            else
+            if (stricmp(part->Value(), "Language") == 0)
+            {
+                int lang = mLanguage;
+                const char *asText = part->Attribute("value");
+                // Accept both numeric ("0"/"1") and code ("en"/"ru") forms.
+                if (asText && (asText[0] == 'r' || asText[0] == 'R' ||
+                               asText[0] == 'e' || asText[0] == 'E'))
+                    mLanguage = AppSettings::parseLang(asText);
+                else
+                {
+                    part->QueryIntAttribute("value", &lang);
+                    mLanguage = AppSettings::clampLang(lang);
+                }
+            }
+            else
+            if (stricmp(part->Value(), "ThemeVariant") == 0)
+            {
+                int theme = mThemeVariant;
+                part->QueryIntAttribute("value", &theme);
+                mThemeVariant = AppSettings::clampTheme(theme);
             }
             else
             if (stricmp(part->Value(), "ToolkitWidth") == 0)
@@ -340,5 +373,140 @@ void AtanuaConfig::load()
 				}
 			}
         }
+    }
+}
+
+static int isKnownConfigElement(const char *name)
+{
+    static const char *known[] = {
+        "PropagateInvalidState", "CustomCursors", "PerformanceIndicators",
+        "SwapShiftAndCtrl", "WireFry", "AudioEnable", "ToolkitWidth",
+        "MaxPhysicsMs", "InitialWindow", "TooltipDelay", "LinePickTolerance",
+        "LineEndTolerance", "LineSplitDragDistance", "ChipCloneDragDistance",
+        "User", "FontSystem", "PerformanceOptions", "Limits", "LED",
+        "Autosave", "Language", "ThemeVariant", 0
+    };
+    if (!name)
+        return 0;
+    for (int i = 0; known[i]; i++)
+        if (stricmp(name, known[i]) == 0)
+            return 1;
+    return 0;
+}
+
+static XMLElement *findOrCreateChild(XMLElement *root, XMLDocument &doc, const char *name)
+{
+    for (XMLElement *e = root->FirstChildElement(); e != 0; e = e->NextSiblingElement())
+        if (stricmp(e->Value(), name) == 0)
+            return e;
+    XMLElement *el = doc.NewElement(name);
+    root->InsertEndChild(el);
+    return el;
+}
+
+void AtanuaConfig::save()
+{
+    // Persist current values to atanua.xml, refreshing known elements in
+    // place so unknown ones (e.g. Plugin entries) survive.
+    mLanguage = AppSettings::clampLang(mLanguage);
+    mThemeVariant = AppSettings::clampTheme(mThemeVariant);
+    mTooltipDelay = AppSettings::clampTooltipMs(mTooltipDelay);
+    mAudioEnable = AppSettings::clampAudio(mAudioEnable);
+
+    XMLDocument doc;
+    int haveDoc = 0;
+    FILE *f = fopen("atanua.xml", "rb");
+    if (f)
+    {
+        haveDoc = (doc.LoadFile(f) == XML_SUCCESS);
+        fclose(f);
+    }
+    XMLElement *root = haveDoc ? doc.FirstChildElement("AtanuaConfig") : 0;
+    if (!root)
+    {
+        doc.Clear();
+        XMLNode *decl = doc.NewDeclaration();
+        doc.InsertFirstChild(decl);
+        root = doc.NewElement("AtanuaConfig");
+        doc.InsertEndChild(root);
+    }
+    root->SetAttribute("GeneratedWith", TITLE);
+
+    XMLElement *el;
+    el = findOrCreateChild(root, doc, "PropagateInvalidState");
+    el->SetAttribute("value", mPropagateInvalidState == PINSTATE_PROPAGATE_INVALID);
+    el = findOrCreateChild(root, doc, "CustomCursors");
+    el->SetAttribute("value", mCustomCursors);
+    el = findOrCreateChild(root, doc, "PerformanceIndicators");
+    el->SetAttribute("value", mPerformanceIndicators);
+    el = findOrCreateChild(root, doc, "SwapShiftAndCtrl");
+    el->SetAttribute("value", mSwapShiftAndCtrl);
+    el = findOrCreateChild(root, doc, "WireFry");
+    el->SetAttribute("value", mWireFry);
+    el = findOrCreateChild(root, doc, "AudioEnable");
+    el->SetAttribute("value", mAudioEnable);
+    el = findOrCreateChild(root, doc, "ToolkitWidth");
+    el->SetAttribute("value", mToolkitWidth);
+    el = findOrCreateChild(root, doc, "MaxPhysicsMs");
+    el->SetAttribute("value", mMaxPhysicsMs);
+    el = findOrCreateChild(root, doc, "InitialWindow");
+    el->SetAttribute("width", mWindowWidth);
+    el->SetAttribute("height", mWindowHeight);
+    el = findOrCreateChild(root, doc, "TooltipDelay");
+    el->SetAttribute("value", mTooltipDelay);
+    el = findOrCreateChild(root, doc, "LinePickTolerance");
+    el->SetAttribute("value", mLinePickTolerance);
+    el = findOrCreateChild(root, doc, "LineEndTolerance");
+    el->SetAttribute("value", mLineEndTolerance);
+    el = findOrCreateChild(root, doc, "LineSplitDragDistance");
+    el->SetAttribute("value", mLineSplitDragDistance);
+    el = findOrCreateChild(root, doc, "ChipCloneDragDistance");
+    el->SetAttribute("value", mChipCloneDragDistance);
+    el = findOrCreateChild(root, doc, "User");
+    el->SetAttribute("name", mUserInfo ? mUserInfo : "[No user name set]");
+    el = findOrCreateChild(root, doc, "FontSystem");
+    el->SetAttribute("CacheKeys", mFontCacheMax);
+    el->SetAttribute("VBO", mUseVBOs);
+    el->SetAttribute("SafeMode", mUseOldFontSystem);
+    el = findOrCreateChild(root, doc, "PerformanceOptions");
+    el->SetAttribute("Blending", mUseBlending);
+    el->SetAttribute("AntialiasedLines", mAntialiasedLines);
+    el = findOrCreateChild(root, doc, "Limits");
+    el->SetAttribute("MaxBoxes", mMaxActiveBoxes);
+    el->SetAttribute("PhysicsKHz", mPhysicsKHz);
+    el = findOrCreateChild(root, doc, "LED");
+    el->SetAttribute("Samples", mLEDSamples);
+    el = findOrCreateChild(root, doc, "Autosave");
+    el->SetAttribute("Directory", mAutosaveDir ? mAutosaveDir : "");
+    el->SetAttribute("Enable", mAutosaveEnable);
+    el->SetAttribute("SaveCount", mAutosaveCount);
+    el->SetAttribute("Interval", mAutosaveInterval);
+    el = findOrCreateChild(root, doc, "Language");
+    el->SetAttribute("value", mLanguage);
+    el = findOrCreateChild(root, doc, "ThemeVariant");
+    el->SetAttribute("value", mThemeVariant);
+
+    // Drop duplicate known elements from hand edits, keep unknowns.
+    XMLElement *child = root->FirstChildElement();
+    while (child != 0)
+    {
+        XMLElement *next = child->NextSiblingElement();
+        int dup = 0;
+        for (XMLElement *e = root->FirstChildElement(); e != child; e = e->NextSiblingElement())
+            if (stricmp(e->Value(), child->Value()) == 0)
+            {
+                dup = 1;
+                break;
+            }
+        if (dup && isKnownConfigElement(child->Value()))
+            root->DeleteChild(child);
+        child = next;
+    }
+
+    f = fopen("atanua.xml", "wb");
+    if (f)
+    {
+        doc.SaveFile(f);
+        fclose(f);
     }
 }

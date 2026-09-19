@@ -26,6 +26,33 @@ distribution.
 #include "toolkit.h"
 #include "fileutils.h"
 
+// Decode one UTF-8 sequence into a codepoint for glyph lookup, so the
+// Cyrillic supplement page resolves. ASCII (including '\n') passes
+// through unchanged; invalid sequences yield the raw lead byte.
+static int acfont_nextcode(const char *s, int *advOut)
+{
+    unsigned char c = (unsigned char)s[0];
+    if (c < 0x80)
+    {
+        *advOut = 1;
+        return c;
+    }
+    if ((c & 0xE0) == 0xC0 && ((unsigned char)s[1] & 0xC0) == 0x80)
+    {
+        *advOut = 2;
+        return ((c & 0x1F) << 6) | ((unsigned char)s[1] & 0x3F);
+    }
+    if ((c & 0xF0) == 0xE0 && ((unsigned char)s[1] & 0xC0) == 0x80 &&
+        ((unsigned char)s[2] & 0xC0) == 0x80)
+    {
+        *advOut = 3;
+        return ((c & 0x0F) << 12) | ((((unsigned char)s[1]) & 0x3F) << 6) |
+            ((unsigned char)s[2] & 0x3F);
+    }
+    *advOut = 1;
+    return c;
+}
+
 void ACFontInfoBlock::load(File * f)
 {
     int blocksize = f->readint() - 4;
@@ -288,8 +315,10 @@ void ACFont::drawstring(const char * string, float x, float y, int color, float 
     {
         h ^= string[l];
         h = (h << 5) | (h >> (32-5));
-        if (string[l] != '\n')
-			len++;   
+        // Count glyphs, not bytes, so multi-byte sequences size the
+        // cached strip correctly; continuation bytes add no vertices.
+        if (string[l] != '\n' && (((unsigned char)string[l] & 0xC0) != 0x80))
+			len++;
 		l++;
     }
     h ^= *(unsigned int*)&scalefactor;
@@ -389,9 +418,10 @@ void ACFont::drawstring(const char * string, float x, float y, int color, float 
             int lastid = 0;
             while (*string)
             {
-
-                xofs += findkern(lastid, *string) * scalefactor;
-                lastid = *string;
+                int adv = 1;
+                int ch = acfont_nextcode(string, &adv);
+                xofs += findkern(lastid, ch) * scalefactor;
+                lastid = ch;
                 if (*string == '\n')
                 {
                     xofs = 0;
@@ -399,17 +429,17 @@ void ACFont::drawstring(const char * string, float x, float y, int color, float 
                 }
                 else
                 {
-                    ACFontCharBlock *curr = findcharblock(*string);
+                    ACFontCharBlock *curr = findcharblock(ch);
                     if (!curr)
                     {
-                        string++;
+                        string += adv;
                         continue;
                     }
                     if (curr->page != currentpage)
                     {
                         if (curr->page < 0 || curr->page >= pages.pages)
                         {
-                            string++;
+                            string += adv;
                             continue;
                         }
                         currentpage = curr->page;
@@ -473,7 +503,7 @@ void ACFont::drawstring(const char * string, float x, float y, int color, float 
 
                     xofs += curr->xadvance * scalefactor;
                 }
-                string++;
+                string += adv;
             }
             str = lru;
         }
@@ -512,9 +542,10 @@ void ACFont::drawstring(const char * string, float x, float y, int color, float 
         int lastid = 0;
         while (*string)
         {
-
-            xofs += findkern(lastid, *string) * scalefactor;
-            lastid = *string;
+            int adv = 1;
+            int ch = acfont_nextcode(string, &adv);
+            xofs += findkern(lastid, ch) * scalefactor;
+            lastid = ch;
             if (*string == '\n')
             {
                 xofs = x;
@@ -522,17 +553,17 @@ void ACFont::drawstring(const char * string, float x, float y, int color, float 
             }
             else
             {
-                ACFontCharBlock *curr = findcharblock(*string);
+                ACFontCharBlock *curr = findcharblock(ch);
                 if (!curr)
                 {
-                    string++;
+                    string += adv;
                     continue;
                 }
                 if (curr->page != currentpage)
                 {
                     if (curr->page < 0 || curr->page >= pages.pages)
                     {
-                        string++;
+                        string += adv;
                         continue;
                     }
                     currentpage = curr->page;
@@ -555,7 +586,7 @@ void ACFont::drawstring(const char * string, float x, float y, int color, float 
 
                 xofs += curr->xadvance * scalefactor;
             }
-            string++;
+            string += adv;
         }
     }
     glDisable(GL_TEXTURE_2D);
@@ -597,8 +628,10 @@ void ACFont::stringmetrics(const char * string, float &w, float &h, float &lastl
     int lastid = 0;
     while (*string)
     {
-        xofs += findkern(lastid, *string) * scalefactor;
-        lastid = *string;
+        int adv = 1;
+        int ch = acfont_nextcode(string, &adv);
+        xofs += findkern(lastid, ch) * scalefactor;
+        lastid = ch;
         if (*string == '\n')
         {
             xofs = 0;
@@ -606,12 +639,12 @@ void ACFont::stringmetrics(const char * string, float &w, float &h, float &lastl
         }
         else
         {
-            ACFontCharBlock *curr = findcharblock(*string);
+            ACFontCharBlock *curr = findcharblock(ch);
             if (curr)
                 xofs += curr->xadvance * scalefactor;
         }
         if (maxx < xofs) maxx = xofs;
-        string++;
+        string += adv;
     }
     lastlinew = xofs;
     w = maxx;

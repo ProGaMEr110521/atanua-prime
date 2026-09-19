@@ -24,6 +24,7 @@ distribution.
 #include "atanua_internal.h"
 #include "fileutils.h"
 #include "ui_theme.h"
+#include "app_settings.h"
 
 #include "basechipfactory.h"
 #include "pluginchipfactory.h"
@@ -78,6 +79,7 @@ int gMultiselectDirty = 1;
 
 AtanuaConfig gConfig;
 int gVisibleChiplist = 0;
+int gSettingsOpen = 0;
 
 Chip * gNewChip = NULL;
 const char * gNewChipName = NULL;
@@ -131,6 +133,7 @@ void handle_key(int keysym, int down)
     case SDLK_ESCAPE:
         if (down)
         {
+            gSettingsOpen = 0;
             do_cancel();
         }
         break;        
@@ -660,6 +663,100 @@ void move_chip(Chip *c, int charcode)
 
 void do_build_nets();
 
+static int settings_opt(int id, const char *label, float x, float y, float w, int selected, int cAccent)
+{
+    return imgui_button(id, fn14, label, x, y, w, 30,
+        selected ? cAccent : C_WIDGETBG, C_WIDGETTHUMB, cAccent, C_TEXT);
+}
+
+static void draw_settings_panel(int lang, int cMenubg, int cMenuline, int cAccent)
+{
+    float pw = 480.0f;
+    float ph = 380.0f;
+    float px = ((float)gScreenWidth - pw) / 2.0f;
+    float py = ((float)gScreenHeight - ph) / 2.0f;
+    if (px < 8.0f) px = 8.0f;
+    if (py < (float)gTopbarH + 8.0f) py = (float)gTopbarH + 8.0f;
+    drawrect(px, py, pw, ph, cMenubg);
+    drawrect(px, py, pw, 1, cMenuline);
+    drawrect(px, py + ph - 1, pw, 1, cMenuline);
+    drawrect(px, py, 1, ph, cMenuline);
+    drawrect(px + pw - 1, py, 1, ph, cMenuline);
+    fn14.drawstring(AppSettings::text(AppSettings::S_SETTINGS, lang, 0), px + 16, py + 12, C_TEXT);
+
+    float labX = px + 16.0f;
+    float optX = px + 150.0f;
+    float optW = pw - 150.0f - 16.0f;
+    float rowY = py + 48.0f;
+
+    fn14.drawstring(AppSettings::text(AppSettings::S_LANGUAGE, lang, 0), labX, rowY + 8, C_TEXT);
+    float half = (optW - 8.0f) / 2.0f;
+    if (settings_opt(GEN_ID, AppSettings::langName(AppSettings::LANG_EN, lang), optX, rowY, half,
+        AppSettings::clampLang(gConfig.mLanguage) == AppSettings::LANG_EN, cAccent))
+    {
+        gConfig.mLanguage = AppSettings::LANG_EN;
+        gConfig.save();
+    }
+    if (settings_opt(GEN_ID, AppSettings::langName(AppSettings::LANG_RU, lang), optX + half + 8.0f, rowY, half,
+        AppSettings::clampLang(gConfig.mLanguage) == AppSettings::LANG_RU, cAccent))
+    {
+        gConfig.mLanguage = AppSettings::LANG_RU;
+        gConfig.save();
+    }
+    rowY += 42.0f;
+
+    fn14.drawstring(AppSettings::text(AppSettings::S_THEME, lang, 0), labX, rowY + 8, C_TEXT);
+    if (settings_opt(GEN_ID, AppSettings::text(AppSettings::S_THEME_DARK, lang, 0), optX, rowY, half,
+        AppSettings::clampTheme(gConfig.mThemeVariant) == AppSettings::THEME_DARK, cAccent))
+    {
+        gConfig.mThemeVariant = AppSettings::THEME_DARK;
+        gConfig.save();
+    }
+    if (settings_opt(GEN_ID, AppSettings::text(AppSettings::S_THEME_CONTRAST, lang, 0), optX + half + 8.0f, rowY, half,
+        AppSettings::clampTheme(gConfig.mThemeVariant) == AppSettings::THEME_CONTRAST, cAccent))
+    {
+        gConfig.mThemeVariant = AppSettings::THEME_CONTRAST;
+        gConfig.save();
+    }
+    rowY += 42.0f;
+
+    fn14.drawstring(AppSettings::text(AppSettings::S_TOOLTIPS, lang, 0), labX, rowY + 8, C_TEXT);
+    float q = (optW - 24.0f) / 4.0f;
+    int cur = AppSettings::tooltipPresetIndex(gConfig.mTooltipDelay);
+    const int ttKey[4] = { AppSettings::S_TT_OFF, AppSettings::S_TT_SHORT,
+        AppSettings::S_TT_NORMAL, AppSettings::S_TT_LONG };
+    for (int i = 0; i < 4; i++)
+    {
+        if (settings_opt(GEN_ID + i, AppSettings::text(ttKey[i], lang, 0), optX + i * (q + 8.0f), rowY, q,
+            cur == i, cAccent))
+        {
+            gConfig.mTooltipDelay = AppSettings::tooltipPreset(i);
+            gConfig.save();
+        }
+    }
+    rowY += 42.0f;
+
+    fn14.drawstring(AppSettings::text(AppSettings::S_SOUND, lang, 0), labX, rowY + 8, C_TEXT);
+    if (settings_opt(GEN_ID, AppSettings::text(AppSettings::S_ON, lang, 0), optX, rowY, half,
+        AppSettings::clampAudio(gConfig.mAudioEnable) == 1, cAccent))
+    {
+        gConfig.mAudioEnable = 1;
+        gConfig.save();
+    }
+    if (settings_opt(GEN_ID, AppSettings::text(AppSettings::S_OFF, lang, 0), optX + half + 8.0f, rowY, half,
+        AppSettings::clampAudio(gConfig.mAudioEnable) == 0, cAccent))
+    {
+        gConfig.mAudioEnable = 0;
+        gConfig.save();
+    }
+    rowY += 36.0f;
+    fn14.drawstring(AppSettings::text(AppSettings::S_SOUND_RESTART_NOTE, lang, 0), labX, rowY, C_TEXTDIM);
+    rowY += 28.0f;
+    fn14.drawstring(AppSettings::text(AppSettings::S_SAVED_NOTE, lang, 0), labX, rowY + 8, C_TEXTDIM);
+    if (settings_opt(GEN_ID, AppSettings::text(AppSettings::S_CLOSE, lang, 0), px + pw - 136.0f, rowY, 120.0f, 0, cAccent))
+        gSettingsOpen = 0;
+}
+
 static void draw_screen()
 {
     int i;
@@ -667,6 +764,12 @@ static void draw_screen()
     static int slidervalue = 0;
     UiTheme::TopbarLayout tb = UiTheme::topbarLayout(gScreenWidth);
     gTopbarH = tb.topH;
+    int lang = AppSettings::clampLang(gConfig.mLanguage);
+    int theme = AppSettings::clampTheme(gConfig.mThemeVariant);
+    int cMenubg = AppSettings::themeMenuBg(theme);
+    int cMenuline = AppSettings::themeMenuLine(theme);
+    int cHotrow = AppSettings::themeHotRow(theme);
+    int cAccent = AppSettings::themeAccent(theme);
     float worldmousex = ((gUIState.mousex - gConfig.mToolkitWidth) / gZoomFactor) - gWorldOfsX;
     float worldmousey = ((gUIState.mousey - gTopbarH) / gZoomFactor) - gWorldOfsY;
     float worldmousedownx = ((gUIState.mousedownx - gConfig.mToolkitWidth) / gZoomFactor) - gWorldOfsX;
@@ -786,10 +889,10 @@ static void draw_screen()
 		glClearColor(0.941f, 0.945f, 0.957f, 1.0f);
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
-	drawrect(0, 0, gConfig.mToolkitWidth, gScreenHeight, C_MENUBG);
-	drawrect(0, 0, gScreenWidth, gTopbarH, C_MENUBG);
-	drawrect(gConfig.mToolkitWidth, 0, 1, gScreenHeight, C_MENULINE);
-	drawrect(0, gTopbarH, gScreenWidth, 1, C_MENULINE);
+	drawrect(0, 0, gConfig.mToolkitWidth, gScreenHeight, cMenubg);
+	drawrect(0, 0, gScreenWidth, gTopbarH, cMenubg);
+	drawrect(gConfig.mToolkitWidth, 0, 1, gScreenHeight, cMenuline);
+	drawrect(0, gTopbarH, gScreenWidth, 1, cMenuline);
 
     imgui_prepare();
 
@@ -818,7 +921,7 @@ static void draw_screen()
             float rowY = (float)(gTopbarH + i * UI_ROW_H - slidervalue);
             if (rowY + UI_ROW_H >= gTopbarH && rowY <= gScreenHeight)
             {
-            if (loc == i)
+            if (loc == i && !gSettingsOpen)
             {
                 gUIState.hotitem = NEWCHIP_ID(loc);
                 if(gDragMode == DRAGMODE_NEWCHIP && gUIState.activeitem == 0 && gUIState.mousedown)
@@ -844,10 +947,10 @@ static void draw_screen()
                     gUIState.activeitem = gUIState.hotitem;
                 }
                 if (gUIState.hotitem == gUIState.activeitem)
-                    drawrect(0, gTopbarH+i*UI_ROW_H-slidervalue, gConfig.mToolkitWidth-20, UI_ROW_H, C_HOTROW);
+                    drawrect(0, gTopbarH+i*UI_ROW_H-slidervalue, gConfig.mToolkitWidth-20, UI_ROW_H, cHotrow);
                 else
                     drawrect(0, gTopbarH+i*UI_ROW_H-slidervalue, gConfig.mToolkitWidth-20, UI_ROW_H, C_WIDGETBG);
-                drawrect(0, (float)(gTopbarH+i*UI_ROW_H-slidervalue), 3, UI_ROW_H, C_WIDGETHOT);
+                drawrect(0, (float)(gTopbarH+i*UI_ROW_H-slidervalue), 3, UI_ROW_H, cAccent);
             }
             else
             {
@@ -868,20 +971,21 @@ static void draw_screen()
 	int btnW = tb.btnW;
 	int quitW = tb.quitW;
 	int actionY = (tb.rows == 1) ? 0 : UI_TOPBAR_H;
-	const char *lblNew = tb.compactLabels ? "New" : "New\nCtrl-N";
-	const char *lblLoad = tb.compactLabels ? "Load" : "Load\nCtrl-L";
-	const char *lblMerge = tb.compactLabels ? "Merge" : "Merge\nCtrl-M";
-	const char *lblBox = tb.compactLabels ? "Box" : "Box\nCtrl-B";
-	const char *lblSave = tb.compactLabels ? "Save" : "Save\nCtrl-S";
-	const char *lblUndo = tb.compactLabels ? "Undo" : "Undo\nCtrl-Z";
-	const char *lblRedo = tb.compactLabels ? "Redo" : "Redo\nCtrl-Y";
-	const char *lblZoom = tb.compactLabels ? "Zoom" : "Zoom\next";
-	const char *lblSnap = tb.compactLabels ? (gSnap ? "Snap" : "Snap") : (gSnap ? "Snap\n(on)" : "Snap\n(off)");
-	const char *lblView = tb.compactLabels ? "View" : (gLiveWires ? "View\n(live)" : "View\n(grey)");
-	const char *lblPng = tb.compactLabels ? "PNG" : "PNG it\nCtrl-G";
+	int compact = tb.compactLabels ? 1 : 0;
+	const char *lblNew = AppSettings::text(AppSettings::S_NEW, lang, compact);
+	const char *lblLoad = AppSettings::text(AppSettings::S_LOAD, lang, compact);
+	const char *lblMerge = AppSettings::text(AppSettings::S_MERGE, lang, compact);
+	const char *lblBox = AppSettings::text(AppSettings::S_BOX, lang, compact);
+	const char *lblSave = AppSettings::text(AppSettings::S_SAVE, lang, compact);
+	const char *lblUndo = AppSettings::text(AppSettings::S_UNDO, lang, compact);
+	const char *lblRedo = AppSettings::text(AppSettings::S_REDO, lang, compact);
+	const char *lblZoom = AppSettings::text(AppSettings::S_ZOOM, lang, compact);
+	const char *lblSnap = AppSettings::text(gSnap ? AppSettings::S_SNAP_ON : AppSettings::S_SNAP_OFF, lang, compact);
+	const char *lblView = AppSettings::text(gLiveWires ? AppSettings::S_VIEW_LIVE : AppSettings::S_VIEW_GREY, lang, compact);
+	const char *lblPng = AppSettings::text(AppSettings::S_PNG, lang, compact);
 	int xofs = 0;
 
-    if (imgui_button(GEN_ID,fn14,"Base",xofs,0,tabW,UI_TOPBAR_H,(gVisibleChiplist==0?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    if (imgui_button(GEN_ID,fn14,AppSettings::text(AppSettings::S_BASE, lang, 0),xofs,0,tabW,UI_TOPBAR_H,(gVisibleChiplist==0?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         int active = gUIState.kbditem;
         do_cancel();
@@ -890,7 +994,7 @@ static void draw_screen()
         slidervalue = 0;
     }
 	xofs += tabW;
-    if (imgui_button(GEN_ID,fn14,"Chips",xofs,0,tabW,UI_TOPBAR_H,(gVisibleChiplist==1?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    if (imgui_button(GEN_ID,fn14,AppSettings::text(AppSettings::S_CHIPS, lang, 0),xofs,0,tabW,UI_TOPBAR_H,(gVisibleChiplist==1?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         int active = gUIState.kbditem;
         do_cancel();
@@ -899,7 +1003,7 @@ static void draw_screen()
         slidervalue = 0;
     }
 	xofs += tabW;
-    if (imgui_button(GEN_ID,fn14,"In",xofs,0,tabW,UI_TOPBAR_H,(gVisibleChiplist==2?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    if (imgui_button(GEN_ID,fn14,AppSettings::text(AppSettings::S_IN, lang, 0),xofs,0,tabW,UI_TOPBAR_H,(gVisibleChiplist==2?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         int active = gUIState.kbditem;
         do_cancel();
@@ -908,7 +1012,7 @@ static void draw_screen()
         slidervalue = 0;
     }
 	xofs += tabW;
-    if (imgui_button(GEN_ID,fn14,"Out",xofs,0,tabW,UI_TOPBAR_H,(gVisibleChiplist==3?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    if (imgui_button(GEN_ID,fn14,AppSettings::text(AppSettings::S_OUT, lang, 0),xofs,0,tabW,UI_TOPBAR_H,(gVisibleChiplist==3?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         int active = gUIState.kbditem;
         do_cancel();
@@ -917,7 +1021,7 @@ static void draw_screen()
         slidervalue = 0;
     }
 	xofs += tabW;
-    if (imgui_button(GEN_ID,fn14,"Misc",xofs,0,tabW,UI_TOPBAR_H,(gVisibleChiplist==4?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    if (imgui_button(GEN_ID,fn14,AppSettings::text(AppSettings::S_MISC, lang, 0),xofs,0,tabW,UI_TOPBAR_H,(gVisibleChiplist==4?C_WIDGETHOT:C_WIDGETBG),C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         int active = gUIState.kbditem;
         do_cancel();
@@ -925,7 +1029,7 @@ static void draw_screen()
         gVisibleChiplist = 4;
         slidervalue = 0;
     }
-    drawrect((float)(gVisibleChiplist * tabW), (float)(UI_TOPBAR_H - 3), (float)tabW, 3, C_WIDGETHOT);
+    drawrect((float)(gVisibleChiplist * tabW), (float)(UI_TOPBAR_H - 3), (float)tabW, 3, cAccent);
 	xofs += tabW;
 	if (tb.rows == 1)
 	{
@@ -971,7 +1075,7 @@ static void draw_screen()
     }
 	xofs += btnW;
 	xofs += tb.gapC;
-    if (imgui_button(GEN_ID,fn14,"Home",xofs,0,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    if (imgui_button(GEN_ID,fn14,AppSettings::text(AppSettings::S_HOME, lang, compact),xofs,0,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         do_home();
     }
@@ -1042,7 +1146,7 @@ static void draw_screen()
     }
 	xofs += btnW;
 	xofs += tb.gapC;
-    if (imgui_button(GEN_ID,fn14,"Home",xofs,actionY,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    if (imgui_button(GEN_ID,fn14,AppSettings::text(AppSettings::S_HOME, lang, compact),xofs,actionY,btnW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         do_home();
     }
@@ -1070,7 +1174,11 @@ static void draw_screen()
 	xofs += btnW;
 	}
 
-    if (imgui_button(GEN_ID,fn14,"Quit",tb.quitX,0,quitW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
+    if (imgui_button(GEN_ID,fn14,AppSettings::text(AppSettings::S_SETTINGS, lang, 0),tb.settingsX,0,tb.settingsW,UI_TOPBAR_H,gSettingsOpen ? cAccent : C_WIDGETBG,C_WIDGETTHUMB,cAccent,C_TEXT))
+    {
+        gSettingsOpen = !gSettingsOpen;
+    }
+    if (imgui_button(GEN_ID,fn14,AppSettings::text(AppSettings::S_QUIT, lang, compact),tb.quitX,0,quitW,UI_TOPBAR_H,C_WIDGETBG,C_WIDGETTHUMB,C_WIDGETHOT,C_TEXT))
     {
         if (okcancel("Are you sure you want to exit?\nAny unsaved changes will be lost."))
 		{
@@ -1078,7 +1186,7 @@ static void draw_screen()
 		}
     }
   
-    if (gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > gTopbarH)
+    if (!gSettingsOpen && gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > gTopbarH)
     {
         if (gDragMode == DRAGMODE_NONE)
         {
@@ -1995,7 +2103,7 @@ static void draw_screen()
         glDisable(GL_LINE_SMOOTH);
     }
 
-    if (gDragMode == DRAGMODE_NEWCHIP && gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > gTopbarH && gUIState.mousedown)
+    if (!gSettingsOpen && gDragMode == DRAGMODE_NEWCHIP && gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > gTopbarH && gUIState.mousedown)
     {
         if (gNewChip && gNewChipName)
         {
@@ -2103,6 +2211,8 @@ static void draw_screen()
             }
         }
     }
+    if (gSettingsOpen)
+        draw_settings_panel(lang, cMenubg, cMenuline, cAccent);
     // Tooltips
     if (gUIState.activeitem == 0 && gUIState.hotitem != 0 && (tick - gUIState.lasthottick) > gConfig.mTooltipDelay)
     {

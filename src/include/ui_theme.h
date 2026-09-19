@@ -87,6 +87,8 @@ struct TopbarLayout {
     int tabW;
     int btnW;
     int quitW;
+    int settingsW;
+    int settingsX;
     int gapA;
     int gapB;
     int gapC;
@@ -98,14 +100,17 @@ inline TopbarLayout topbarLayout(int screenW)
 {
     TopbarLayout L;
     const int fullTab = UI_THEME_TAB_W;
-    const int fullBtn = 64;
+    const int fullBtn = 60;
     const int fullQuit = UI_THEME_BTN_W;
-    const int fullGapA = 36;
-    const int fullGapB = 20;
-    const int fullGapC = 20;
+    const int settingsW = 76;
+    const int fullGapA = 24;
+    const int fullGapB = 16;
+    const int fullGapC = 16;
     const int rightMargin = 6;
     const int quitGap = 8;
-    int singleNeed = 5 * fullTab + 12 * fullBtn + fullQuit + fullGapA + fullGapB + fullGapC + rightMargin + quitGap;
+    const int settingsGap = 8;
+    const int actionToSettings = 4;
+    int singleNeed = 5 * fullTab + 12 * fullBtn + fullGapA + fullGapB + fullGapC + actionToSettings + settingsGap + settingsW + fullQuit + rightMargin;
     if (screenW >= singleNeed)
     {
         L.rows = 1;
@@ -113,14 +118,16 @@ inline TopbarLayout topbarLayout(int screenW)
         L.tabW = fullTab;
         L.btnW = fullBtn;
         L.quitW = fullQuit;
+        L.settingsW = settingsW;
         L.gapA = fullGapA;
         L.gapB = fullGapB;
         L.gapC = fullGapC;
         L.quitX = screenW - fullQuit - rightMargin;
+        L.settingsX = L.quitX - settingsGap - settingsW;
         L.compactLabels = false;
         return L;
     }
-    // Two rows: tabs + quit on row 0, 12 actions on row 1 shrunk to fit.
+    // Two rows: tabs + settings + quit on row 0, 12 actions on row 1 shrunk to fit.
     L.rows = 2;
     L.topH = UI_THEME_TOPBAR_H * 2;
     L.tabW = fullTab;
@@ -130,6 +137,10 @@ inline TopbarLayout topbarLayout(int screenW)
     if (screenW < 700)
         L.quitW = 56;
     L.quitX = screenW - L.quitW - rightMargin;
+    L.settingsW = settingsW;
+    if (screenW < 700)
+        L.settingsW = 64;
+    L.settingsX = L.quitX - settingsGap - L.settingsW;
     L.gapA = 12;
     L.gapB = 8;
     L.gapC = 8;

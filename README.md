@@ -23,6 +23,7 @@ Grab the latest build from [**Releases**](https://github.com/ProGaMEr110521/atan
 - **Findable, magnetic anchors** — bend points render as permanent two-tone dots, grab magnetically, and split hover into an inner green square (start another wire) and an outer ring (move the anchor).
 - **Confident pins** — every pin has a padded connection zone that wins over nearby wires, so starting a wire from a busy pin grabs the pin, not the wire.
 - **Undo/redo that keeps its promises** — full snapshot history (up to 100 steps), moves and rotations recorded, live Undo/Redo depth in the status bar, safe no-ops on empty stacks.
+- **Settings with Russian** — the top-bar Settings panel switches the whole chrome between English and Русский live, plus theme variant (Dark/Contrast), tooltip delay, and sound; everything persists in `atanua.xml`.
 - **Auto-update** — on launch the app quietly checks `atanua-prime` releases and shows a one-time dialog with the new version and download link when you're behind; silent otherwise (never installs anything by itself).
 - **CI you can trust** — every push builds on Windows and Ubuntu; version tags additionally publish tested release archives; scripted UI trials drive the real app and verify wiring/undo end to end.
 
@@ -92,6 +93,7 @@ Atanua Prime — симулятор цифровой логики в реаль�
 - **Заметные, магнитные якоря** — точки изгиба всегда видны (двухцветные точки), легко хватаются, а при наведении делятся на внутренний зелёный квадрат (начать новый провод) и внешнее кольцо (переместить якорь).
 - **Уверенные пины** — у каждого вывода есть расширенная зона соединения, которая побеждает соседние провода: начиная провод от занятого пина, вы схватите пин, а не провод.
 - **Честные undo/redo** — полная история снапшотов (до 100 шагов), перемещения и повороты записываются, глубина Undo/Redo видна в строке состояния, пустые стеки безопасны.
+- **Настройки с русским языком** — панель Settings в верхней строке переключает весь интерфейс между English и Русский на лету, плюс вариант темы (Тёмная/Контрастная), задержка подсказок и звук; всё сохраняется в `atanua.xml`.
 - **Автообновление** — при запуске приложение тихо проверяет релизы `atanua-prime` и один раз показывает диалог с новой версией и ссылкой, если вы отстали; иначе молчит (само ничего не устанавливает).
 - **CI, которому можно верить** — каждый пуш собирается под Windows и Ubuntu; версионные теги дополнительно публикуют проверенные архивы; скриптовые UI-тесты гоняют настоящее приложение и проверяют соединения и undo end-to-end.
 
