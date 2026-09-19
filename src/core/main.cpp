@@ -795,7 +795,9 @@ static ImVec4 toImVec(int c)
 }
 
 // Top-bar button: auto-sized single-line label, full two-line label as the
-// hover tooltip. highlighted renders with the theme accent.
+// hover tooltip. highlighted renders with the theme accent. The ### suffix
+// keeps the ImGui ID unique even when two languages give different buttons
+// the same visible text (e.g. RU "Выход" is both the Out tab and Quit).
 static bool topbar_btn(int strKey, int lang, int highlighted, int cAccent)
 {
     if (highlighted)
@@ -804,7 +806,10 @@ static bool topbar_btn(int strKey, int lang, int highlighted, int cAccent)
         ImGui::PushStyleColor(ImGuiCol_Button, acc);
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, acc);
     }
-    bool hit = ImGui::Button(AppSettings::text(strKey, lang, 1));
+    char idlabel[64];
+    snprintf(idlabel, sizeof(idlabel), "%s###tb%d",
+        AppSettings::text(strKey, lang, 1), strKey);
+    bool hit = ImGui::Button(idlabel);
     if (highlighted)
         ImGui::PopStyleColor(2);
     if (ImGui::IsItemHovered())
@@ -886,7 +891,9 @@ static void draw_topbar_right(int lang, int cAccent)
         gSettingsOpen = !gSettingsOpen;
     ImGui::SameLine();
     {
-        bool hit = ImGui::Button(quitLbl);
+        char quitId[64];
+        snprintf(quitId, sizeof(quitId), "%s###tb%d", quitLbl, AppSettings::S_QUIT);
+        bool hit = ImGui::Button(quitId);
         if (ImGui::IsItemHovered())
             ImGui::SetItemTooltip("%s", AppSettings::text(AppSettings::S_QUIT, lang, 0));
         if (hit && okcancel("Are you sure you want to exit?\nAny unsaved changes will be lost."))
@@ -1005,8 +1012,11 @@ static void draw_sidebar_imgui(int *locOut)
             snprintf(blank, sizeof(blank), "##chiplist-%d", i);
             label = blank;
         }
+        ImGui::PushID(i);
         ImGui::Selectable(label, false);
-        if (ImGui::IsItemHovered())
+        bool hovered = ImGui::IsItemHovered();
+        ImGui::PopID();
+        if (hovered)
         {
             *locOut = i;
             gUIState.hotitem = NEWCHIP_ID(i);

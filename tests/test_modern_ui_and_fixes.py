@@ -49,7 +49,8 @@ def test_modern_theme_is_default():
     assert "UiTheme::wirePickTolerance" in main, "canvas theme helpers not used"
     assert "Status bar" in main or "Chips:%d" in main
     for token in ["draw_topbar_imgui", "draw_sidebar_imgui", "ImGui::Selectable",
-                  "AlwaysAutoResize", "GetGlyphRangesCyrillic"]:
+                  "AlwaysAutoResize", "GetGlyphRangesCyrillic", "###tb",
+                  "settings_radio", "PushID"]:
         assert token in main, f"imgui chrome missing: {token}"
     for gone in ["topbarLayout", "TopbarLayout", "topbarHeight", "compactLabels",
                  "slidervalue", "tb.settingsX", "xofs += tabW", "xofs += btnW"]:
