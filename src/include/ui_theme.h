@@ -81,82 +81,8 @@ inline size_t undoMaxBytes()
     return 64 * 1024 * 1024;
 }
 
-struct TopbarLayout {
-    int rows;
-    int topH;
-    int tabW;
-    int btnW;
-    int quitW;
-    int settingsW;
-    int settingsX;
-    int gapA;
-    int gapB;
-    int gapC;
-    int quitX;
-    bool compactLabels;
-};
-
-inline TopbarLayout topbarLayout(int screenW)
-{
-    TopbarLayout L;
-    const int fullTab = UI_THEME_TAB_W;
-    const int fullBtn = 60;
-    const int fullQuit = UI_THEME_BTN_W;
-    const int settingsW = 76;
-    const int fullGapA = 24;
-    const int fullGapB = 16;
-    const int fullGapC = 16;
-    const int rightMargin = 6;
-    const int quitGap = 8;
-    const int settingsGap = 8;
-    const int actionToSettings = 4;
-    int singleNeed = 5 * fullTab + 12 * fullBtn + fullGapA + fullGapB + fullGapC + actionToSettings + settingsGap + settingsW + fullQuit + rightMargin;
-    if (screenW >= singleNeed)
-    {
-        L.rows = 1;
-        L.topH = UI_THEME_TOPBAR_H;
-        L.tabW = fullTab;
-        L.btnW = fullBtn;
-        L.quitW = fullQuit;
-        L.settingsW = settingsW;
-        L.gapA = fullGapA;
-        L.gapB = fullGapB;
-        L.gapC = fullGapC;
-        L.quitX = screenW - fullQuit - rightMargin;
-        L.settingsX = L.quitX - settingsGap - settingsW;
-        L.compactLabels = false;
-        return L;
-    }
-    // Two rows: tabs + settings + quit on row 0, 12 actions on row 1 shrunk to fit.
-    L.rows = 2;
-    L.topH = UI_THEME_TOPBAR_H * 2;
-    L.tabW = fullTab;
-    if (screenW < 5 * fullTab + fullQuit + rightMargin + quitGap + 40)
-        L.tabW = 52;
-    L.quitW = fullQuit;
-    if (screenW < 700)
-        L.quitW = 56;
-    L.quitX = screenW - L.quitW - rightMargin;
-    L.settingsW = settingsW;
-    if (screenW < 700)
-        L.settingsW = 64;
-    L.settingsX = L.quitX - settingsGap - L.settingsW;
-    L.gapA = 12;
-    L.gapB = 8;
-    L.gapC = 8;
-    int avail = screenW - L.gapA - L.gapB - L.gapC - 8;
-    int w = avail / 12;
-    if (w > fullBtn) w = fullBtn;
-    if (w < 44) w = 44;
-    L.btnW = w;
-    L.compactLabels = (w < 60);
-    return L;
-}
-
-inline int topbarHeight(int screenW)
-{
-    return topbarLayout(screenW).topH;
-}
+// Top-bar and sidebar chrome are Dear ImGui windows now: buttons and rows
+// auto-size to their labels, so no manual layout math lives here anymore.
 
 // Wire grabbing in world units, floored to a constant screen size so thin
 // wires stay clickable at any zoom. 6px to grab, 8px end zones.

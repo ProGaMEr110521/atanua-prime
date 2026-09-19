@@ -41,15 +41,19 @@ def read(p):
 def test_modern_theme_is_default():
     main = read(SRC_MAIN)
     theme = read(THEME_H)
-    for token in ["0xff20242c", "UI_TOPBAR_H", "UI_TAB_W", "UI_BTN_W", "UI_ROW_H",
+    for token in ["0xff20242c", "UI_TOPBAR_H",
                   "C_MENULINE", "C_TEXT", "C_HOTROW", "C_ACCENTTEXT"]:
         assert token in main, f"modern theme token missing: {token}"
     assert "0xff3f4f4f" not in main, "old 2008 menubg still active"
     assert "UI_THEME_MENUBG" in theme and "UiTheme" in theme
-    assert "UiTheme::clampSliderMax" in main or "clampSliderMax" in main
+    assert "UiTheme::wirePickTolerance" in main, "canvas theme helpers not used"
     assert "Status bar" in main or "Chips:%d" in main
-    for token in ["topbarLayout", "TopbarLayout", "topbarHeight", "compactLabels"]:
-        assert token in theme, f"responsive topbar helper missing: {token}"
+    for token in ["draw_topbar_imgui", "draw_sidebar_imgui", "ImGui::Selectable",
+                  "AlwaysAutoResize", "GetGlyphRangesCyrillic"]:
+        assert token in main, f"imgui chrome missing: {token}"
+    for gone in ["topbarLayout", "TopbarLayout", "topbarHeight", "compactLabels",
+                 "slidervalue", "tb.settingsX", "xofs += tabW", "xofs += btnW"]:
+        assert gone not in main and gone not in theme, f"manual layout leftover: {gone}"
 
 
 def test_toolkit_and_font_guards():
@@ -99,7 +103,6 @@ def test_main_interaction_guards():
     main = read(SRC_MAIN)
     for needle in [
         "if (wireid < 0 || wireid >= (int)gWire.size())",
-        "UiTheme::chipListIndex",
         "if (!w || !w->mFirst",
         "GET_WIRE_ID(gUIState.hotitem) : -1",
         "if (kbdWire < 0 || kbdWire >= (int)gWire.size())",
@@ -107,9 +110,9 @@ def test_main_interaction_guards():
         "if (want)",
         "cursor_normal",
         "font assets missing",
-        "topbarLayout",
         "gTopbarH",
-        "compactLabels",
+        "draw_topbar_imgui",
+        "draw_sidebar_imgui",
         "split_wire_middle_at",
         "drop_routing_anchor_at",
         "find_release_pin",
@@ -320,9 +323,9 @@ def test_settings_wired_into_app():
     main = read(SRC_MAIN)
     assert '#include "app_settings.h"' in main, "settings header not included"
     assert "gSettingsOpen" in main, "settings open flag missing"
-    assert "AppSettings::text(AppSettings::S_NEW" in main, "action labels not localized"
-    assert "AppSettings::text(AppSettings::S_BASE" in main, "tabs not localized"
-    assert "S_SETTINGS" in main and "tb.settingsX" in main, "no settings entry point in topbar"
+    assert "topbar_btn(AppSettings::S_NEW" in main, "action labels not localized"
+    assert "AppSettings::S_BASE" in main, "tabs not localized"
+    assert "S_SETTINGS" in main and "draw_topbar_imgui" in main, "no settings entry point in topbar"
     assert "draw_settings_panel" in main, "settings panel missing"
     assert "gConfig.save()" in main, "panel never persists"
     assert "S_SOUND_RESTART_NOTE" in main, "restart note missing"
@@ -337,7 +340,9 @@ def test_settings_wired_into_app():
     header = read(os.path.join(REPO, "src", "include", "atanua.h"))
     assert "void save();" in header and "mLanguage;" in header, "config decl missing"
     theme = read(THEME_H)
-    assert "settingsX" in theme and "settingsW" in theme, "topbar has no settings slot"
+    assert "TopbarLayout" not in theme and "topbarLayout" not in theme, \
+        "manual topbar math must stay deleted"
+    assert "draw_topbar_need" in main, "no measured row wrap"
     # The shipped font must carry Cyrillic glyphs the RU strings need
     # (the original page was Latin-only). They live on the same single
     # texture page so the cached draw path stays on one texture.

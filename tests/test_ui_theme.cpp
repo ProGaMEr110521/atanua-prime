@@ -37,30 +37,9 @@ int main()
     CHECK(UiTheme::undoMaxEntries() == 100, "deep undo history kept");
     CHECK(UiTheme::undoMaxBytes() == 64u * 1024u * 1024u, "undo memory capped");
 
-    {
-        UiTheme::TopbarLayout wide = UiTheme::topbarLayout(1920);
-        CHECK(wide.rows == 1, "wide screen single row");
-        CHECK(wide.tabW == 68, "wide tabs full width");
-        CHECK(wide.btnW == 60, "action buttons fit settings slot");
-        int newX = 5 * wide.tabW + wide.gapA;
-        CHECK(newX == 5 * 68 + 24, "new button starts after full misc tab plus gap");
-        int btnRight = newX + 12 * wide.btnW + wide.gapB + wide.gapC;
-        CHECK(btnRight <= wide.settingsX - 4, "wide buttons end before settings");
-        CHECK(wide.settingsX + wide.settingsW + 8 + wide.quitW + 6 == 1920, "settings and quit pack the right edge");
-        UiTheme::TopbarLayout desk = UiTheme::topbarLayout(1280);
-        CHECK(desk.rows == 1, "default window keeps a single row");
-        int deskNewX = 5 * desk.tabW + desk.gapA;
-        int deskRight = deskNewX + 12 * desk.btnW + desk.gapB + desk.gapC;
-        CHECK(deskRight <= desk.settingsX - 4, "desktop buttons end before settings");
-        CHECK(desk.settingsX + desk.settingsW + 8 + desk.quitW + 6 == 1280, "desktop right edge packed");
-        UiTheme::TopbarLayout small = UiTheme::topbarLayout(640);
-        CHECK(small.rows == 2, "small screen wraps to two rows");
-        CHECK(12 * small.btnW + small.gapA + small.gapB + small.gapC <= 640, "wrapped actions fit small");
-        CHECK(small.quitX + small.quitW <= 640, "quit inside small screen");
-        CHECK(small.settingsX + small.settingsW <= small.quitX - 4, "settings sits left of quit");
-        CHECK(UiTheme::topbarHeight(1920) == 48, "wide topbar height 48");
-        CHECK(UiTheme::topbarHeight(640) == 96, "small topbar height 96");
-    }
+    // Top-bar/sidebar chrome is Dear ImGui windows now: buttons and rows
+    // auto-size to their labels, so there is no manual layout math left
+    // to pin here. Canvas helpers below are still hand-rolled and tested.
 
     CHECK(UiTheme::wirePickTolerance(20.0f, 0.05f) == 6.0f / 20.0f, "pick floors to 6px at default zoom");
     CHECK(UiTheme::wirePickTolerance(20.0f, 0.5f) == 0.5f, "large configured pick kept");
