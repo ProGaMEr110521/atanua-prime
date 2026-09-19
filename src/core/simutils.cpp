@@ -508,6 +508,7 @@ void do_cancel()
     gUIState.activeitem = 0;
     gUIState.kbditem = 0;
     gUIState.hotitem = 0;
+    gWireStartDrag = NULL;
     if (gDragMode == DRAGMODE_NEWCHIP)
     {
         delete gNewChip;
@@ -521,18 +522,24 @@ void do_cancel()
 static int gSaveCycle = 0;
 static int gSaveInterval = 0;
 
-static const int kMaxUndoDepth = 50;
-
-static int UndoDepthForCurrentDesign()
+static size_t snapshotBytes(File *f)
 {
-    return UiTheme::undoDepthForDesign((unsigned int)gChip.size(), (unsigned int)gWire.size());
+    MemoryFile *mf = dynamic_cast<MemoryFile *>(f);
+    return mf ? mf->mData.size() : 0;
 }
 
+// History keeps up to undoMaxEntries() steps and undoMaxBytes() total;
+// trimming drops the oldest first so recent work is never lost early.
 static void trim_stack(vector<File *> &stack)
 {
-    int limit = UndoDepthForCurrentDesign();
-    while ((int)stack.size() > limit)
+    size_t maxEntries = (size_t)UiTheme::undoMaxEntries();
+    size_t maxBytes = UiTheme::undoMaxBytes();
+    size_t bytes = 0;
+    for (size_t i = 0; i < stack.size(); i++)
+        bytes += snapshotBytes(stack[i]);
+    while (stack.size() > maxEntries || (bytes > maxBytes && stack.size() > 1))
     {
+        bytes -= snapshotBytes(stack.front());
         delete stack.front();
         stack.erase(stack.begin());
     }
@@ -597,16 +604,31 @@ void do_undo()
     if (!gUndoStack.empty())
     {
         do_cancel();
-        File * state = new MemoryFile();
-        do_savebinary(state);
-        gRedoStack.push_back(state);
-        trim_stack(gRedoStack);
-        state = gUndoStack.back();
-        gUndoStack.pop_back();
-        state->seek(0);
-        do_reset();
-        do_loadbinary(state);
-        delete state;
+        try
+        {
+            MemoryFile *state = new MemoryFile();
+            try
+            {
+                do_savebinary(state);
+            }
+            catch (...)
+            {
+                delete state;
+                return;
+            }
+            gRedoStack.push_back(state);
+            trim_stack(gRedoStack);
+            File *restore = gUndoStack.back();
+            gUndoStack.pop_back();
+            restore->seek(0);
+            do_reset();
+            do_loadbinary(restore);
+            delete restore;
+        }
+        catch (...)
+        {
+            return;
+        }
     }
 }
 
@@ -615,16 +637,31 @@ void do_redo()
     if (!gRedoStack.empty())
     {
         do_cancel();
-        File * state = new MemoryFile();
-        do_savebinary(state);
-        gUndoStack.push_back(state);
-        trim_stack(gUndoStack);
-        state = gRedoStack.back();
-        gRedoStack.pop_back();
-        state->seek(0);
-        do_reset();
-        do_loadbinary(state);
-        delete state;
+        try
+        {
+            MemoryFile *state = new MemoryFile();
+            try
+            {
+                do_savebinary(state);
+            }
+            catch (...)
+            {
+                delete state;
+                return;
+            }
+            gUndoStack.push_back(state);
+            trim_stack(gUndoStack);
+            File *restore = gRedoStack.back();
+            gRedoStack.pop_back();
+            restore->seek(0);
+            do_reset();
+            do_loadbinary(restore);
+            delete restore;
+        }
+        catch (...)
+        {
+            return;
+        }
     }
 }
 

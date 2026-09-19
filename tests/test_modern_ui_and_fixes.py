@@ -70,9 +70,20 @@ def test_sim_crash_guards():
     sim = read(SRC_SIM)
     assert "if (!c)" in sim and "if (idx < 0)" in sim, "delete_chip guard missing"
     assert "gFryList.clear()" in sim, "fry list reset missing"
-    assert "UndoDepthForCurrentDesign" in sim, "adaptive undo missing"
+    assert "undoMaxEntries" in sim and "snapshotBytes" in sim, "memory-bounded history missing"
+    assert "gWireStartDrag = NULL" in sim, "stale drag pin must clear on cancel"
     assert "try" in sim and "clear_stack(gRedoStack)" in sim
     assert "while (i < gChip.size())" in sim, "optimize_box safe loop missing"
+
+
+def test_undo_covers_every_mutation():
+    main = read(SRC_MAIN)
+    i = main.index("void do_rotate()")
+    assert "save_undo()" in main[i:i + 600], "rotate must record undo"
+    assert "sMoveUndoSaved" in main, "drag moves must record undo"
+    assert "shouldSaveNudge" in main, "nudge coalescing missing"
+    sim = read(SRC_SIM)
+    assert "save_undo();" in sim[sim.index("void do_resetdialog"):sim.index("void do_resetdialog") + 400]
 
 
 def test_fileio_roundtrip_guards():
@@ -114,7 +125,7 @@ def test_main_interaction_guards():
 
 def test_wire_bend_helpers():
     theme = read(THEME_H)
-    for token in ["wirePickTolerance", "wireEndTolerance", "snapWorld", "anchorGrabPad", "anchorHotZone", "pinGrabPad", "shouldSaveNudge", "wireFinishSnap"]:
+    for token in ["wirePickTolerance", "wireEndTolerance", "snapWorld", "anchorGrabPad", "anchorHotZone", "pinGrabPad", "shouldSaveNudge", "wireFinishSnap", "undoMaxEntries", "undoMaxBytes"]:
         assert token in theme, f"bend helper missing: {token}"
 
 
@@ -237,6 +248,7 @@ if __name__ == "__main__":
     test_fileio_roundtrip_guards()
     test_main_interaction_guards()
     test_wire_bend_helpers()
+    test_undo_covers_every_mutation()
     test_ubuntu_ci_has_gtk()
     test_workflow_publishes_tagged_releases()
     test_reset_saves_only_on_confirm()

@@ -145,6 +145,7 @@ void do_rotate()
         int id = GET_CHIP_ID(gUIState.kbditem);
         if (id < 0 || id >= (int)gChip.size() || !gChip[id])
             return;
+        save_undo();
         gChip[id]->mAngleIn90DegreeSteps++;
         gChip[id]->mAngleIn90DegreeSteps &= 0x03;
         gChip[id]->rotate(gChip[id]->mAngleIn90DegreeSteps);

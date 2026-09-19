@@ -6,6 +6,7 @@ Pure, window-system independent helpers behind the SDL/OpenGL UI.
 #define UI_THEME_H
 
 #include <math.h>
+#include <stddef.h>
 
 // Modern dark chrome (default). Kept in one place so tests can pin it.
 #define UI_THEME_MENUBG     0xff20242c
@@ -68,12 +69,16 @@ inline void clampWindowSize(int &w, int &h)
     if (h > 2160) h = 2160;
 }
 
-inline int undoDepthForDesign(unsigned int chips, unsigned int wires)
+// Undo history bounds: keep plenty of steps; cap total snapshot bytes so
+// huge designs cannot grow memory without bound. Trimming drops oldest first.
+inline int undoMaxEntries()
 {
-    unsigned int total = chips + wires;
-    if (total > 2000) return 10;
-    if (total > 800) return 20;
-    return 50;
+    return 100;
+}
+
+inline size_t undoMaxBytes()
+{
+    return 64 * 1024 * 1024;
 }
 
 struct TopbarLayout {

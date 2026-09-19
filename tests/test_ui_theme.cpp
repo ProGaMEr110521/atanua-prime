@@ -34,9 +34,8 @@ int main()
     UiTheme::clampWindowSize(w, h);
     CHECK(w == 3840 && h == 2160, "huge window clamped down");
 
-    CHECK(UiTheme::undoDepthForDesign(10, 10) == 50, "small design full undo");
-    CHECK(UiTheme::undoDepthForDesign(500, 400) == 20, "medium design reduced undo");
-    CHECK(UiTheme::undoDepthForDesign(1500, 1000) == 10, "heavy design minimal undo");
+    CHECK(UiTheme::undoMaxEntries() == 100, "deep undo history kept");
+    CHECK(UiTheme::undoMaxBytes() == 64u * 1024u * 1024u, "undo memory capped");
 
     {
         UiTheme::TopbarLayout wide = UiTheme::topbarLayout(1920);
