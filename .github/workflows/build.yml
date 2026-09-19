@@ -31,7 +31,7 @@ jobs:
           }
           if (!(Test-Path data)) { throw "data/ missing from checkout" }
           Copy-Item -Recurse data dist/atanua-windows/
-          Copy-Item readme.md dist/atanua-windows/
+          Copy-Item README.md,CHANGELOG.md dist/atanua-windows/
       - name: Zip windows package
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -61,7 +61,7 @@ jobs:
           [ -d data ] || { echo "data/ missing from checkout"; exit 1; }
           mkdir -p dist/atanua-linux artifacts
           cp build/atanua dist/atanua-linux/
-          cp readme.md dist/atanua-linux/
+          cp README.md CHANGELOG.md dist/atanua-linux/
           cp -r data dist/atanua-linux/
           tar -czf artifacts/atanua-linux-x86_64.tar.gz -C dist atanua-linux
       - uses: actions/upload-artifact@v4
@@ -92,4 +92,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" --title "${{ github.ref_name }}" --generate-notes artifacts/atanua-windows-x64.zip artifacts/atanua-linux-x86_64.tar.gz
+          TAG="${{ github.ref_name }}"
+          NOTES="$(awk -v want="## [$TAG]" 'index($0, want)==1 {flag=1; next} /^## / {flag=0} flag' CHANGELOG.md)"
+          if [ -n "$NOTES" ]; then
+            gh release create "$TAG" --title "$TAG" --notes "$NOTES" artifacts/atanua-windows-x64.zip artifacts/atanua-linux-x86_64.tar.gz
+          else
+            gh release create "$TAG" --title "$TAG" --generate-notes artifacts/atanua-windows-x64.zip artifacts/atanua-linux-x86_64.tar.gz
+          fi

@@ -150,8 +150,27 @@ def test_workflow_publishes_tagged_releases():
     assert "upload-artifact" in wf, "builds not uploaded for release"
     assert "atanua.exe" in wf and "data" in wf, "windows package incomplete"
     assert "dumpbin" in wf, "windows package must resolve runtime DLLs, not hardcode vcpkg paths"
+    assert "CHANGELOG.md" in wf, "release must publish changelog notes"
+    assert "--notes" in wf, "release must prefer changelog notes over generated ones"
     assert os.path.isfile(os.path.join(REPO, "data", "vera14.fnt")), "data assets missing from checkout"
     assert os.path.isfile(os.path.join(REPO, "data", "vera31.fnt")), "data assets missing from checkout"
+
+
+def test_readme_and_changelog():
+    # Front page is bilingual and documents the shipped features;
+    # the changelog carries an Unreleased section plus tag sections
+    # so every tagged release page shows real notes.
+    readme = read(os.path.join(REPO, "README.md"))
+    assert "# Atanua Prime" in readme, "readme title missing"
+    assert "Русский" in readme, "readme must have a Russian section"
+    assert "## Русский" in readme, "russian section header missing"
+    for token in ["Click-to-bend", "Undo", "Auto-update", "Ctrl+Z",
+                  "Изгибы", "undo", "Автообновление", "Ctrl+Z"]:
+        assert token in readme, f"readme missing documented feature: {token}"
+    changelog = read(os.path.join(REPO, "CHANGELOG.md"))
+    assert "## [Unreleased]" in changelog, "changelog needs an Unreleased section"
+    assert "## [v1.3.141223]" in changelog, "changelog missing published tag section"
+    assert "## [v1.3.141222]" in changelog, "changelog missing published tag section"
 
 
 def test_reset_saves_only_on_confirm():
@@ -409,6 +428,7 @@ if __name__ == "__main__":
     test_undo_covers_every_mutation()
     test_ubuntu_ci_has_gtk()
     test_workflow_publishes_tagged_releases()
+    test_readme_and_changelog()
     test_reset_saves_only_on_confirm()
     test_anchor_visible_and_magnetic()
     test_circuits_parse_and_wire_indices_valid()
