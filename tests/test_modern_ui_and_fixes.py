@@ -1,8 +1,10 @@
 """Modern UI + bug-fix regression tests. Drives shipped sources and binary."""
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -159,6 +161,159 @@ def test_reset_saves_only_on_confirm():
     assert block.index("okcancel") < block.index("save_undo"), "reset must save only after confirm"
 
 
+_msvc_env_cache = None
+
+def _msvc_env():
+    # Capture a real Developer Prompt environment so cl runs without a
+    # wrapper batch file (which would mangle non-ASCII paths).
+    global _msvc_env_cache
+    if _msvc_env_cache is not None:
+        return _msvc_env_cache
+    vsdev = r"C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat"
+    bat = os.path.join(tempfile.mkdtemp(prefix="atanua_env_"), "env.bat")
+    with open(bat, "w", encoding="ascii") as f:
+        f.write(f'call "{vsdev}" -arch=x64 -host_arch=x64 >NUL\nset\n')
+    p = subprocess.run(["cmd", "/c", bat], capture_output=True)
+    env = {}
+    raw = p.stdout
+    text = None
+    for enc in ("utf-8", "cp866", "cp1251"):
+        try:
+            text = raw.decode(enc)
+            break
+        except Exception:
+            continue
+    assert text is not None, "could not decode VsDevCmd environment"
+    for line in text.splitlines():
+        if "=" in line:
+            k, v = line.split("=", 1)
+            env[k.strip()] = v
+    assert "INCLUDE" in env and "LIB" in env, "VsDevCmd did not yield a compiler env"
+    _msvc_env_cache = env
+    return env
+
+
+def _find_cl(path_env=None):
+    # Derive cl.exe from the MSVC include roots in the captured Developer
+    # Prompt environment (VsDevCmd output), falling back to PATH lookup.
+    # Directory walking proved unreliable here; direct probes are stable.
+    import shutil
+    cands = []
+    try:
+        inc = _msvc_env().get("INCLUDE", "")
+        for part in inc.split(";"):
+            p = part.strip().rstrip("\\/")
+            if p.lower().endswith("\\include"):
+                base = p[: -len("\\include")]
+                cands.append(os.path.join(base, "bin", "Hostx64", "x64", "cl.exe"))
+    except Exception:
+        pass
+    for cand in cands:
+        try:
+            if os.path.getsize(cand) > 0:
+                return cand
+        except OSError:
+            continue
+    if path_env is None:
+        path_env = os.environ.get("PATH", "")
+    found = shutil.which("cl.exe", path=path_env)
+    assert found, "no MSVC cl.exe found"
+    return found
+
+
+def _sdl_include():
+    cands = [
+        os.path.join(REPO, "build", "vcpkg_installed", "x64-windows", "include"),
+    ]
+    root = os.environ.get("VCPKG_INSTALLATION_ROOT")
+    if root:
+        cands.append(os.path.join(root, "installed", "x64-windows", "include"))
+    cands.append("/usr/include")
+    for c in cands:
+        if os.path.isfile(os.path.join(c, "SDL2", "SDL_endian.h")):
+            return c
+    return None
+
+
+def _compile_and_run(test_cpp, extra_sources, run_marker):
+    # Builds the given test against the given shipped sources with the
+    # project's own toolchain and runs it. Proves the shipped code.
+    tmp = tempfile.mkdtemp(prefix="atanua_cxx_")
+    try:
+        exe = os.path.join(tmp, "t.exe" if os.name == "nt" else "t")
+        if os.name == "nt":
+            env = dict(os.environ)
+            env.update(_msvc_env())
+            sdl = _sdl_include()
+            assert sdl, "no SDL headers for standalone compile"
+            cmd = [_find_cl(env.get("PATH", "")), "/nologo", "/EHsc",
+                   f"/I{os.path.join(REPO, 'src', 'include')}",
+                   f"/I{os.path.join(REPO, 'src')}",
+                   f"/I{sdl}", test_cpp] + extra_sources + [f"/Fe{exe}"]
+            p = subprocess.run(cmd, capture_output=True, env=env, timeout=180)
+            def dec(b):
+                for enc in ("utf-8", "cp866", "cp1251"):
+                    try:
+                        return b.decode(enc)
+                    except Exception:
+                        continue
+                return b.decode("utf-8", errors="replace")
+            out, err = dec(p.stdout), dec(p.stderr)
+            assert p.returncode == 0, f"compile failed:\n{out}\n{err}"
+            r2 = subprocess.run([exe], capture_output=True, timeout=30)
+            out2 = dec(r2.stdout)
+            assert r2.returncode == 0, f"test binary failed:\n{out2}\n{dec(r2.stderr)}"
+            assert run_marker in out2, f"missing pass marker:\n{out2}"
+        else:
+            inc = ["-I" + os.path.join(REPO, "src", "include"),
+                   "-I" + os.path.join(REPO, "src")]
+            sdl = _sdl_include()
+            if sdl and sdl != "/usr/include":
+                inc.append("-I" + sdl)
+            subprocess.run(["c++", "-std=c++17"] + inc + [test_cpp] + extra_sources +
+                           ["-o", exe], check=True, capture_output=True, timeout=180)
+            r2 = subprocess.run([exe], capture_output=True, text=True, timeout=30)
+            assert r2.returncode == 0, f"test binary failed:\n{r2.stdout}\n{r2.stderr}"
+            assert run_marker in r2.stdout, f"missing pass marker:\n{r2.stdout}"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_fileutils_roundtrip():
+    # Compiles the SHIPPED fileutils.cpp and drives its snapshot path.
+    _compile_and_run(os.path.join(REPO, "tests", "test_fileutils_roundtrip.cpp"),
+                     [os.path.join(REPO, "src", "core", "fileutils.cpp")],
+                     "ALL FILEUTILS TESTS PASSED")
+
+
+def test_updatecheck_units():
+    # Compiles the SHIPPED update logic header and drives version compare
+    # plus newest-release selection on representative payloads.
+    _compile_and_run(os.path.join(REPO, "tests", "test_updatecheck.cpp"),
+                     [],
+                     "ALL UPDATE TESTS PASSED")
+
+
+def test_updatecheck_wired_into_app():
+    # The check must actually run at startup and surface exactly once.
+    main = read(SRC_MAIN)
+    assert "AppUpdate_StartCheck();" in main, "update check never started"
+    assert "AppUpdate_Poll(" in main, "update result never polled"
+    assert "Update available:" in main, "no user-visible update prompt"
+    assert "ATANUAVERSION" in main, "prompt must show built-in version"
+    internal = read(os.path.join(REPO, "src", "include", "atanua_internal.h"))
+    assert "AppUpdate_StartCheck" in internal and "AppUpdate_Poll" in internal
+    core = os.path.join(REPO, "src", "core", "appupdate.cpp")
+    assert os.path.isfile(core), "appupdate.cpp missing"
+    src = read(core)
+    assert "api.github.com" in src, "updater must query the releases API"
+    assert "SDL_CreateThread" in src, "fetch must stay off the UI thread"
+    assert "SDL_DetachThread" in src, "worker thread must detach"
+    cmake = read(CMAKE_LISTS)
+    assert "appupdate.cpp" in cmake, "appupdate.cpp not built"
+    assert "wininet" in cmake.lower(), "Windows HTTP link missing"
+
+
 def test_anchor_visible_and_magnetic():
     main = read(SRC_MAIN)
     assert "anchorGrabPad" in main, "magnetic anchor hit-test missing"
@@ -248,6 +403,9 @@ if __name__ == "__main__":
     test_fileio_roundtrip_guards()
     test_main_interaction_guards()
     test_wire_bend_helpers()
+    test_fileutils_roundtrip()
+    test_updatecheck_units()
+    test_updatecheck_wired_into_app()
     test_undo_covers_every_mutation()
     test_ubuntu_ci_has_gtk()
     test_workflow_publishes_tagged_releases()

@@ -107,6 +107,7 @@ set(ATANUA_SOURCES
   src/chip/tflipflop.cpp
   src/chip/xorchip.cpp
   src/core/AtanuaConfig.cpp
+  src/core/appupdate.cpp
   src/core/basechipfactory.cpp
   src/core/BoxStitchingInformation.cpp
   src/core/chip.cpp
@@ -150,7 +151,7 @@ target_link_libraries(atanua PRIVATE
 )
 
 if(WIN32)
-  target_link_libraries(atanua PRIVATE OpenGL::GLU winmm)
+  target_link_libraries(atanua PRIVATE OpenGL::GLU winmm wininet)
   set_target_properties(atanua PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
 

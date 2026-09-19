@@ -665,6 +665,20 @@ static void draw_screen()
     int i;
     int tick = SDL_GetTicks();
     static int slidervalue = 0;
+    {
+        // Surface a newer release once; stays silent when up to date,
+        // offline, or unsupported. The dialog blocks like other prompts.
+        char ver[64];
+        char url[256];
+        if (AppUpdate_Poll(ver, (int)sizeof(ver), url, (int)sizeof(url)))
+        {
+            char msg[512];
+            snprintf(msg, sizeof(msg),
+                "Update available: %s\nYou have: %s\n\nDownload:\n%s",
+                ver, ATANUAVERSION, url);
+            okcancel(msg);
+        }
+    }
     UiTheme::TopbarLayout tb = UiTheme::topbarLayout(gScreenWidth);
     gTopbarH = tb.topH;
     float worldmousex = ((gUIState.mousex - gConfig.mToolkitWidth) / gZoomFactor) - gWorldOfsX;
@@ -2397,6 +2411,8 @@ int main(int argc, char** args)
 
     if (argc > 1)
         do_loaddialog(0, args[1]);
+
+    AppUpdate_StartCheck();
 
     while (1) 
     {

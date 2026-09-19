@@ -731,7 +731,11 @@ void do_loaddialog(int merge, const char *aFilename)
 
     if (fh)
     {
-        save_undo();
+        // Seed undo with the pre-load design so a load itself can be undone,
+        // but never with a boot-empty canvas (that seed would wipe the fresh
+        // design on the first undo).
+        if (!gChip.empty() || !gWire.empty() || !gUndoStack.empty() || !gRedoStack.empty())
+            save_undo();
 		if (!merge)
 			do_reset();
         File * f = new File(fh);

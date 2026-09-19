@@ -87,14 +87,14 @@ void File::readchars(char * dst, int count)
 {
     if (!dst || count <= 0)
         return;
-    if (!f)
+    // NOTE: must go through the virtual readbyte so MemoryFile snapshots
+    // read from memory instead of (absent) disk handles.
+    while (count > 0)
     {
-        memset(dst, 0, count);
-        return;
+        *dst = (char)readbyte();
+        dst++;
+        count--;
     }
-    size_t got = fread(dst, 1, count, f);
-    if (got < (size_t)count)
-        memset(dst + got, 0, count - got);
 }
 
 void File::writebyte(char data)
@@ -126,9 +126,12 @@ void File::writeint(int data)
 
 void File::writechars(const char * src, int count)
 {
-    if (!f || !src || count <= 0)
+    if (!src || count <= 0)
         return;
-    while (count)
+    // NOTE: must go through the virtual writebyte so MemoryFile snapshots
+    // actually store the bytes instead of dropping them for lack of a disk
+    // handle (same virtual-dispatch rule as readchars above).
+    while (count > 0)
     {
         writebyte(*src);
         src++;

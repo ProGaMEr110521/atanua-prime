@@ -154,6 +154,10 @@ extern void do_home();
 extern void do_resetdialog();
 extern void do_loaddialog(int merge = 0, const char *aFilename = 0);
 extern void do_savedialog();
+
+// from appupdate.cpp (background update check, prompt once when newer)
+extern void AppUpdate_StartCheck();
+extern int AppUpdate_Poll(char *aVersionOut, int aVersionCap, char *aUrlOut, int aUrlCap);
 extern BoxStitchingInformation * do_preparse_box(const char *aFname);
 
 // from nativefunctions.cpp
