@@ -375,6 +375,33 @@ def test_settings_wired_into_app():
     assert cyr == 66, f"cyrillic coverage lost: {cyr}"
 
 
+    # Dear ImGui chrome (stage 1): vendored lib + backends, TTF font with
+    # Cyrillic, and the settings panel drawn through ImGui beside the
+    # kept canvas.
+    imgui_h = os.path.join(REPO, "third_party", "imgui", "imgui.h")
+    assert os.path.isfile(imgui_h), "vendored imgui.h missing"
+    assert "1.92" in read(imgui_h), "unexpected vendored imgui version"
+    for name in ["imgui_impl_sdl2.cpp", "imgui_impl_opengl2.cpp"]:
+        assert os.path.isfile(os.path.join(REPO, "third_party", "imgui", "backends", name)), \
+            f"imgui backend missing: {name}"
+    assert os.path.isfile(os.path.join(REPO, "third_party", "imgui", "LICENSE.txt")), \
+        "imgui license missing"
+    assert os.path.isfile(os.path.join(DATA_DIR, "fonts", "DejaVuSans.ttf")), \
+        "settings TTF missing"
+    assert os.path.isfile(os.path.join(DATA_DIR, "fonts", "LICENSE_DEJAVU")), \
+        "font license missing"
+    for token in ["ImGui::CreateContext", "ImGui_ImplSDL2_ProcessEvent",
+                  "ImGui_ImplSDL2_NewFrame", "ImGui_ImplOpenGL2_RenderDrawData",
+                  "GetGlyphRangesCyrillic", "settings_radio", "ImGui::Begin",
+                  "AlwaysAutoResize"]:
+        assert token in main, f"imgui wiring missing: {token}"
+    assert "settings_opt" not in main, "old fixed-pixel panel helper still present"
+    cmake = read(CMAKE_LISTS)
+    assert "add_library(imgui" in cmake, "imgui target missing"
+    assert "imgui_impl_sdl2" in cmake and "imgui_impl_opengl2" in cmake, \
+        "imgui backends not built"
+
+
 def test_updatecheck_units():
     # Compiles the SHIPPED update logic header and drives version compare
     # plus newest-release selection on representative payloads.

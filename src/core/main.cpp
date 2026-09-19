@@ -25,6 +25,9 @@ distribution.
 #include "fileutils.h"
 #include "ui_theme.h"
 #include "app_settings.h"
+#include "imgui.h"
+#include "imgui_impl_sdl2.h"
+#include "imgui_impl_opengl2.h"
 
 #include "basechipfactory.h"
 #include "pluginchipfactory.h"
@@ -197,6 +200,8 @@ void process_events()
 
     while (SDL_PollEvent(&event)) 
     {
+        if (ImGui::GetCurrentContext())
+            ImGui_ImplSDL2_ProcessEvent(&event);
         switch (event.type) 
         {
         case SDL_KEYDOWN:
@@ -663,98 +668,119 @@ void move_chip(Chip *c, int charcode)
 
 void do_build_nets();
 
-static int settings_opt(int id, const char *label, float x, float y, float w, int selected, int cAccent)
+static void imgui_init()
 {
-    return imgui_button(id, fn14, label, x, y, w, 30,
-        selected ? cAccent : C_WIDGETBG, C_WIDGETTHUMB, cAccent, C_TEXT);
+    static int done = 0;
+    if (done || !gMainWindow || !gGLContext)
+        return;
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO &io = ImGui::GetIO();
+    io.IniFilename = NULL;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    ImGui::StyleColorsDark();
+    ImGui_ImplSDL2_InitForOpenGL((SDL_Window *)gMainWindow, gGLContext);
+    ImGui_ImplOpenGL2_Init();
+    ImFont *font = io.Fonts->AddFontFromFileTTF("data/fonts/DejaVuSans.ttf", 19.0f,
+        NULL, io.Fonts->GetGlyphRangesCyrillic());
+    if (!font)
+        fprintf(stderr, "settings font missing: data/fonts/DejaVuSans.ttf\n");
+    done = 1;
 }
 
-static void draw_settings_panel(int lang, int cMenubg, int cMenuline, int cAccent)
+// Radio with an explicit ID scope so options that share a visible label
+// (e.g. the two "Off" radios) never collide in ImGui's ID space.
+static bool settings_radio(int idKey, const char *label, int selected)
 {
-    float pw = 480.0f;
-    float ph = 380.0f;
-    float px = ((float)gScreenWidth - pw) / 2.0f;
-    float py = ((float)gScreenHeight - ph) / 2.0f;
-    if (px < 8.0f) px = 8.0f;
-    if (py < (float)gTopbarH + 8.0f) py = (float)gTopbarH + 8.0f;
-    drawrect(px, py, pw, ph, cMenubg);
-    drawrect(px, py, pw, 1, cMenuline);
-    drawrect(px, py + ph - 1, pw, 1, cMenuline);
-    drawrect(px, py, 1, ph, cMenuline);
-    drawrect(px + pw - 1, py, 1, ph, cMenuline);
-    fn14.drawstring(AppSettings::text(AppSettings::S_SETTINGS, lang, 0), px + 16, py + 12, C_TEXT);
+    ImGui::PushID(idKey);
+    bool hit = ImGui::RadioButton(label, selected);
+    ImGui::PopID();
+    return hit;
+}
 
-    float labX = px + 16.0f;
-    float optX = px + 150.0f;
-    float optW = pw - 150.0f - 16.0f;
-    float rowY = py + 48.0f;
-
-    fn14.drawstring(AppSettings::text(AppSettings::S_LANGUAGE, lang, 0), labX, rowY + 8, C_TEXT);
-    float half = (optW - 8.0f) / 2.0f;
-    if (settings_opt(GEN_ID, AppSettings::langName(AppSettings::LANG_EN, lang), optX, rowY, half,
-        AppSettings::clampLang(gConfig.mLanguage) == AppSettings::LANG_EN, cAccent))
+static void draw_settings_panel(int lang)
+{
+    // Auto-sized: the window grows to fit any label length, so translated
+    // strings can never overflow their controls.
+    ImGui::SetNextWindowPos(ImVec2((float)gScreenWidth * 0.5f, (float)gScreenHeight * 0.5f),
+        ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_AlwaysAutoResize;
+    if (!ImGui::Begin(AppSettings::text(AppSettings::S_SETTINGS, lang, 0), NULL, flags))
+    {
+        ImGui::End();
+        return;
+    }
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_LANGUAGE, lang, 0));
+    ImGui::SameLine(150.0f);
+    int curLang = AppSettings::clampLang(gConfig.mLanguage);
+    if (settings_radio(AppSettings::S_ENGLISH, AppSettings::langName(AppSettings::LANG_EN, lang),
+        curLang == AppSettings::LANG_EN))
     {
         gConfig.mLanguage = AppSettings::LANG_EN;
         gConfig.save();
     }
-    if (settings_opt(GEN_ID, AppSettings::langName(AppSettings::LANG_RU, lang), optX + half + 8.0f, rowY, half,
-        AppSettings::clampLang(gConfig.mLanguage) == AppSettings::LANG_RU, cAccent))
+    ImGui::SameLine();
+    if (settings_radio(AppSettings::S_RUSSIAN, AppSettings::langName(AppSettings::LANG_RU, lang),
+        curLang == AppSettings::LANG_RU))
     {
         gConfig.mLanguage = AppSettings::LANG_RU;
         gConfig.save();
     }
-    rowY += 42.0f;
-
-    fn14.drawstring(AppSettings::text(AppSettings::S_THEME, lang, 0), labX, rowY + 8, C_TEXT);
-    if (settings_opt(GEN_ID, AppSettings::text(AppSettings::S_THEME_DARK, lang, 0), optX, rowY, half,
-        AppSettings::clampTheme(gConfig.mThemeVariant) == AppSettings::THEME_DARK, cAccent))
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_THEME, lang, 0));
+    ImGui::SameLine(150.0f);
+    int curTheme = AppSettings::clampTheme(gConfig.mThemeVariant);
+    if (settings_radio(AppSettings::S_THEME_DARK, AppSettings::text(AppSettings::S_THEME_DARK, lang, 0),
+        curTheme == AppSettings::THEME_DARK))
     {
         gConfig.mThemeVariant = AppSettings::THEME_DARK;
         gConfig.save();
     }
-    if (settings_opt(GEN_ID, AppSettings::text(AppSettings::S_THEME_CONTRAST, lang, 0), optX + half + 8.0f, rowY, half,
-        AppSettings::clampTheme(gConfig.mThemeVariant) == AppSettings::THEME_CONTRAST, cAccent))
+    ImGui::SameLine();
+    if (settings_radio(AppSettings::S_THEME_CONTRAST, AppSettings::text(AppSettings::S_THEME_CONTRAST, lang, 0),
+        curTheme == AppSettings::THEME_CONTRAST))
     {
         gConfig.mThemeVariant = AppSettings::THEME_CONTRAST;
         gConfig.save();
     }
-    rowY += 42.0f;
-
-    fn14.drawstring(AppSettings::text(AppSettings::S_TOOLTIPS, lang, 0), labX, rowY + 8, C_TEXT);
-    float q = (optW - 24.0f) / 4.0f;
-    int cur = AppSettings::tooltipPresetIndex(gConfig.mTooltipDelay);
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_TOOLTIPS, lang, 0));
+    ImGui::SameLine(150.0f);
+    int curTt = AppSettings::tooltipPresetIndex(gConfig.mTooltipDelay);
     const int ttKey[4] = { AppSettings::S_TT_OFF, AppSettings::S_TT_SHORT,
         AppSettings::S_TT_NORMAL, AppSettings::S_TT_LONG };
     for (int i = 0; i < 4; i++)
     {
-        if (settings_opt(GEN_ID + i, AppSettings::text(ttKey[i], lang, 0), optX + i * (q + 8.0f), rowY, q,
-            cur == i, cAccent))
+        if (i > 0)
+            ImGui::SameLine();
+        if (settings_radio(ttKey[i], AppSettings::text(ttKey[i], lang, 0), curTt == i))
         {
             gConfig.mTooltipDelay = AppSettings::tooltipPreset(i);
             gConfig.save();
         }
     }
-    rowY += 42.0f;
-
-    fn14.drawstring(AppSettings::text(AppSettings::S_SOUND, lang, 0), labX, rowY + 8, C_TEXT);
-    if (settings_opt(GEN_ID, AppSettings::text(AppSettings::S_ON, lang, 0), optX, rowY, half,
-        AppSettings::clampAudio(gConfig.mAudioEnable) == 1, cAccent))
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_SOUND, lang, 0));
+    ImGui::SameLine(150.0f);
+    int curAudio = AppSettings::clampAudio(gConfig.mAudioEnable);
+    if (settings_radio(AppSettings::S_ON, AppSettings::text(AppSettings::S_ON, lang, 0), curAudio == 1))
     {
         gConfig.mAudioEnable = 1;
         gConfig.save();
     }
-    if (settings_opt(GEN_ID, AppSettings::text(AppSettings::S_OFF, lang, 0), optX + half + 8.0f, rowY, half,
-        AppSettings::clampAudio(gConfig.mAudioEnable) == 0, cAccent))
+    ImGui::SameLine();
+    if (settings_radio(AppSettings::S_OFF, AppSettings::text(AppSettings::S_OFF, lang, 0), curAudio == 0))
     {
         gConfig.mAudioEnable = 0;
         gConfig.save();
     }
-    rowY += 36.0f;
-    fn14.drawstring(AppSettings::text(AppSettings::S_SOUND_RESTART_NOTE, lang, 0), labX, rowY, C_TEXTDIM);
-    rowY += 28.0f;
-    fn14.drawstring(AppSettings::text(AppSettings::S_SAVED_NOTE, lang, 0), labX, rowY + 8, C_TEXTDIM);
-    if (settings_opt(GEN_ID, AppSettings::text(AppSettings::S_CLOSE, lang, 0), px + pw - 136.0f, rowY, 120.0f, 0, cAccent))
+    ImGui::TextDisabled("%s", AppSettings::text(AppSettings::S_SOUND_RESTART_NOTE, lang, 0));
+    ImGui::TextDisabled("%s", AppSettings::text(AppSettings::S_SAVED_NOTE, lang, 0));
+    if (ImGui::Button(AppSettings::text(AppSettings::S_CLOSE, lang, 0)))
         gSettingsOpen = 0;
+    ImGui::End();
 }
 
 static void draw_screen()
@@ -2211,8 +2237,6 @@ static void draw_screen()
             }
         }
     }
-    if (gSettingsOpen)
-        draw_settings_panel(lang, cMenubg, cMenuline, cAccent);
     // Tooltips
     if (gUIState.activeitem == 0 && gUIState.hotitem != 0 && (tick - gUIState.lasthottick) > gConfig.mTooltipDelay)
     {
@@ -2394,6 +2418,17 @@ static void draw_screen()
             SDL_SetCursor(want);
     }
 
+    if (ImGui::GetCurrentContext())
+    {
+        ImGui_ImplOpenGL2_NewFrame();
+        ImGui_ImplSDL2_NewFrame();
+        ImGui::NewFrame();
+        if (gSettingsOpen)
+            draw_settings_panel(lang);
+        ImGui::Render();
+        ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+    }
+
     SDL_Delay(10);
     glFinish();
     if (gMainWindow)
@@ -2444,6 +2479,7 @@ void initvideo()
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     reload_textures();
+    imgui_init();
 }
 
 void audiomixer(void *userdata, Uint8 *stream, int len)

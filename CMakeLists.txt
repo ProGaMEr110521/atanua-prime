@@ -128,6 +128,26 @@ set(ATANUA_SOURCES
 
 add_executable(atanua ${ATANUA_SOURCES})
 
+# Vendored Dear ImGui (MIT, see third_party/imgui/LICENSE.txt) for the
+# settings chrome. SDL2 + fixed-pipeline OpenGL backends match this app's
+# stack, so no new packages or toolchain changes are needed on any CI OS.
+add_library(imgui STATIC
+  third_party/imgui/imgui.cpp
+  third_party/imgui/imgui_draw.cpp
+  third_party/imgui/imgui_tables.cpp
+  third_party/imgui/imgui_widgets.cpp
+  third_party/imgui/backends/imgui_impl_sdl2.cpp
+  third_party/imgui/backends/imgui_impl_opengl2.cpp
+)
+target_include_directories(imgui PUBLIC
+  third_party/imgui
+  third_party/imgui/backends
+)
+target_link_libraries(imgui PUBLIC
+  $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>
+  OpenGL::GL
+)
+
 if(MSVC)
   # Third-party stb sources trigger benign 4244/4267 narrowing warnings
   # under /W3; keep first-party code warning-clean without forking them.
@@ -135,6 +155,16 @@ if(MSVC)
     src/stb/stb_image.c
     src/stb/stb_image_write.c
     PROPERTIES COMPILE_OPTIONS "/wd4244;/wd4267"
+  )
+  # Same treatment for vendored ImGui (narrowing, unreferenced params).
+  set_source_files_properties(
+    third_party/imgui/imgui.cpp
+    third_party/imgui/imgui_draw.cpp
+    third_party/imgui/imgui_tables.cpp
+    third_party/imgui/imgui_widgets.cpp
+    third_party/imgui/backends/imgui_impl_sdl2.cpp
+    third_party/imgui/backends/imgui_impl_opengl2.cpp
+    PROPERTIES COMPILE_OPTIONS "/wd4244;/wd4267;/wd4100;/wd4127;/wd4996"
   )
 endif()
 
@@ -148,6 +178,7 @@ target_link_libraries(atanua PRIVATE
   $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>
   OpenGL::GL
   tinyxml2::tinyxml2
+  imgui
 )
 
 if(WIN32)
