@@ -371,8 +371,7 @@ static int AppUpdate_ParseReleases(const char *json, AppUpdateRelease *out, int 
 
 /* Picks the newest non-draft release strictly newer than current.
    Prereleases count: the newest published tag wins either way.
-   Returns 1 and the index, or 0 when up to date. */
-static int AppUpdate_SelectNewest(const AppUpdateRelease *rs, int n,
+   Returns 1 and the index, or 0 when up to date. */static int AppUpdate_SelectNewest(const AppUpdateRelease *rs, int n,
     const int current[3], int *picked)
 {
     int i;
@@ -405,6 +404,108 @@ static int AppUpdate_SelectNewest(const AppUpdateRelease *rs, int n,
         return 0;
     *picked = best;
     return 1;
+}
+
+/* Host part of an http(s) URL into out (lowercased, no port/userinfo).
+   Returns 1 on success. */
+static int AppUpdate_ExtractHost(const char *url, char *out, int cap)
+{
+    const char *p;
+    const char *at;
+    const char *end;
+    int i;
+    if (!url || !out || cap <= 0)
+        return 0;
+    p = strstr(url, "://");
+    if (!p)
+        return 0;
+    p += 3;
+    end = p;
+    while (*end && *end != '/' && *end != '?' && *end != '#')
+        end++;
+    at = NULL;
+    {
+        const char *q = p;
+        while (q < end)
+        {
+            if (*q == '@')
+                at = q;
+            q++;
+        }
+    }
+    if (at)
+        p = at + 1;
+    {
+        const char *colon = NULL;
+        const char *q = p;
+        while (q < end)
+        {
+            if (*q == ':')
+            {
+                colon = q;
+                break;
+            }
+            q++;
+        }
+        if (colon)
+            end = colon;
+    }
+    if (end <= p)
+        return 0;
+    i = 0;
+    while (p < end && i < cap - 1)
+    {
+        char c = *p++;
+        if (c >= 'A' && c <= 'Z')
+            c = (char)(c + ('a' - 'A'));
+        out[i++] = c;
+    }
+    out[i] = '\0';
+    return i > 0 ? 1 : 0;
+}
+
+/* 1 when a download may come from this host: github.com or a
+   githubusercontent.com domain (exact or subdomain), nothing else. */
+static int AppUpdate_HostAllowed(const char *host)
+{
+    static const char *allowed[] = { "github.com", "githubusercontent.com" };
+    size_t hlen;
+    int i;
+    if (!host || !*host)
+        return 0;
+    hlen = strlen(host);
+    for (i = 0; i < 2; i++)
+    {
+        size_t alen = strlen(allowed[i]);
+        if (hlen < alen)
+            continue;
+        if (strcmp(host + hlen - alen, allowed[i]) != 0)
+            continue;
+        if (hlen == alen || host[hlen - alen - 1] == '.')
+            return 1;
+    }
+    return 0;
+}
+
+/* Keeps [A-Za-z0-9._-] so tags are safe inside temp paths and scripts. */
+static void AppUpdate_SafeTag(const char *tag, char *out, int cap)
+{
+    int i;
+    if (!out || cap <= 0)
+        return;
+    i = 0;
+    if (tag)
+    {
+        while (*tag && i < cap - 1)
+        {
+            char c = *tag++;
+            int ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-';
+            if (ok)
+                out[i++] = c;
+        }
+    }
+    out[i] = '\0';
 }
 
 #endif

@@ -158,6 +158,14 @@ extern void do_savedialog();
 // from appupdate.cpp (background update check, prompt once when newer)
 extern void AppUpdate_StartCheck();
 extern int AppUpdate_Poll(char *aVersionOut, int aVersionCap, char *aUrlOut, int aUrlCap);
+// download + install flow: BeginDownload after a Yes, DownloadActive drives
+// the progress overlay (percent 0..100, -1 unknown size, -2 extracting),
+// CancelDownload aborts, ConsumeReady returns 1 to restart or 2 with an
+// error message, 0 when there is nothing to report.
+extern void AppUpdate_BeginDownload();
+extern int AppUpdate_DownloadActive(int *aPercentOut);
+extern void AppUpdate_CancelDownload();
+extern int AppUpdate_ConsumeReady(char *aMsgOut, int aMsgCap);
 extern BoxStitchingInformation * do_preparse_box(const char *aFname);
 
 // from nativefunctions.cpp

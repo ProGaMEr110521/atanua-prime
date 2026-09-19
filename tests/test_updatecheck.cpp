@@ -73,6 +73,31 @@ int main()
         CHECK(AppUpdate_ParseReleases("[]", rs, 8) == 0, "empty list parses to zero");
         CHECK(!AppUpdate_SelectNewest(rs, 0, NULL, NULL), "empty selection quiet");
     }
+    {
+        char host[128];
+        CHECK(AppUpdate_ExtractHost("https://github.com/ProGaMEr110521/atanua-prime/releases/download/v1/x.zip", host, sizeof(host)) && strcmp(host, "github.com") == 0, "github host extracted");
+        CHECK(AppUpdate_ExtractHost("https://objects.githubusercontent.com/foo/bar?x=1", host, sizeof(host)) && strcmp(host, "objects.githubusercontent.com") == 0, "object host extracted");
+        CHECK(AppUpdate_ExtractHost("https://user@github.com:443/a", host, sizeof(host)) && strcmp(host, "github.com") == 0, "userinfo and port stripped");
+        CHECK(!AppUpdate_ExtractHost("github.com/no-scheme", host, sizeof(host)), "scheme required");
+        CHECK(!AppUpdate_ExtractHost("https://", host, sizeof(host)), "empty host rejected");
+        CHECK(AppUpdate_HostAllowed("github.com"), "github allowed");
+        CHECK(AppUpdate_HostAllowed("objects.githubusercontent.com"), "object CDN allowed");
+        CHECK(AppUpdate_HostAllowed("release-assets.githubusercontent.com"), "asset CDN allowed");
+        CHECK(!AppUpdate_HostAllowed("github.com.evil.com"), "lookalike domain denied");
+        CHECK(!AppUpdate_HostAllowed("evilgithub.com"), "suffix without dot denied");
+        CHECK(!AppUpdate_HostAllowed("example.com"), "random host denied");
+        CHECK(!AppUpdate_HostAllowed(""), "empty host denied");
+        CHECK(!AppUpdate_HostAllowed(NULL), "null host denied");
+    }
+    {
+        char safe[64];
+        AppUpdate_SafeTag("v1.3.141223", safe, sizeof(safe));
+        CHECK(strcmp(safe, "v1.3.141223") == 0, "clean tag untouched");
+        AppUpdate_SafeTag("a/b\\c:d*e?f\"g<h>i|j", safe, sizeof(safe));
+        CHECK(strcmp(safe, "abcdefghij") == 0, "unsafe tag chars stripped");
+        AppUpdate_SafeTag(NULL, safe, sizeof(safe));
+        CHECK(strcmp(safe, "") == 0, "null tag empties");
+    }
     if (failures == 0)
         printf("ALL UPDATE TESTS PASSED\n");
     return failures;

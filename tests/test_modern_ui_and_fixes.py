@@ -314,20 +314,34 @@ def test_updatecheck_units():
 
 
 def test_updatecheck_wired_into_app():
-    # The check must actually run at startup and surface exactly once.
+    # The check must actually run at startup and surface exactly once,
+    # and a Yes must flow into download -> install -> restart.
     main = read(SRC_MAIN)
     assert "AppUpdate_StartCheck();" in main, "update check never started"
     assert "AppUpdate_Poll(" in main, "update result never polled"
     assert "Update available:" in main, "no user-visible update prompt"
+    assert "Download and install now?" in main, "prompt must offer the full flow"
+    assert "AppUpdate_BeginDownload();" in main, "Yes never starts the download"
+    assert "AppUpdate_DownloadActive(" in main, "no progress overlay"
+    assert "AppUpdate_CancelDownload();" in main, "no way to cancel the download"
+    assert "AppUpdate_ConsumeReady(" in main, "ready/failed result never consumed"
+    assert "sRestartFrames" in main, "no restart countdown after install"
     assert "ATANUAVERSION" in main, "prompt must show built-in version"
     internal = read(os.path.join(REPO, "src", "include", "atanua_internal.h"))
-    assert "AppUpdate_StartCheck" in internal and "AppUpdate_Poll" in internal
+    for token in ["AppUpdate_StartCheck", "AppUpdate_Poll", "AppUpdate_BeginDownload",
+                  "AppUpdate_DownloadActive", "AppUpdate_CancelDownload",
+                  "AppUpdate_ConsumeReady"]:
+        assert token in internal, f"missing updater decl: {token}"
     core = os.path.join(REPO, "src", "core", "appupdate.cpp")
     assert os.path.isfile(core), "appupdate.cpp missing"
     src = read(core)
     assert "api.github.com" in src, "updater must query the releases API"
     assert "SDL_CreateThread" in src, "fetch must stay off the UI thread"
     assert "SDL_DetachThread" in src, "worker thread must detach"
+    assert "tasklist" in src and "xcopy" in src, "windows restarter script missing"
+    assert "Restarting to finish the update." in src, "no restart notice text"
+    assert "tar -xf" in src or "tar.exe" in src, "windows unpack step missing"
+    assert "kill -0" in src and "cp -rf" in src, "linux restarter script missing"
     cmake = read(CMAKE_LISTS)
     assert "appupdate.cpp" in cmake, "appupdate.cpp not built"
     assert "wininet" in cmake.lower(), "Windows HTTP link missing"

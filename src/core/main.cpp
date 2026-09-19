@@ -665,20 +665,6 @@ static void draw_screen()
     int i;
     int tick = SDL_GetTicks();
     static int slidervalue = 0;
-    {
-        // Surface a newer release once; stays silent when up to date,
-        // offline, or unsupported. The dialog blocks like other prompts.
-        char ver[64];
-        char url[256];
-        if (AppUpdate_Poll(ver, (int)sizeof(ver), url, (int)sizeof(url)))
-        {
-            char msg[512];
-            snprintf(msg, sizeof(msg),
-                "Update available: %s\nYou have: %s\n\nDownload:\n%s",
-                ver, ATANUAVERSION, url);
-            okcancel(msg);
-        }
-    }
     UiTheme::TopbarLayout tb = UiTheme::topbarLayout(gScreenWidth);
     gTopbarH = tb.topH;
     float worldmousex = ((gUIState.mousex - gConfig.mToolkitWidth) / gZoomFactor) - gWorldOfsX;
@@ -2035,6 +2021,88 @@ static void draw_screen()
     glPopMatrix();
     glScissor(0,0,gScreenWidth,gScreenHeight);
 
+    {
+        // Surface a newer release once; stays silent when up to date,
+        // offline, or unsupported. The dialog blocks like other prompts.
+        // A Yes starts the download below; anything else asks never again.
+        char ver[64];
+        char url[256];
+        if (AppUpdate_Poll(ver, (int)sizeof(ver), url, (int)sizeof(url)))
+        {
+            char msg[512];
+            snprintf(msg, sizeof(msg),
+                "Update available: %s\nYou have: %s\n\nDownload and install now?\n%s",
+                ver, ATANUAVERSION, url);
+            if (okcancel(msg))
+                AppUpdate_BeginDownload();
+        }
+    }
+    {
+        // Download progress overlay with a way out; the worker thread
+        // owns the transfer, this only renders its counters.
+        int pct = -1;
+        if (AppUpdate_DownloadActive(&pct))
+        {
+            float pw = 380.0f;
+            float ph = 132.0f;
+            float px = ((float)gScreenWidth - pw) / 2.0f;
+            float py = ((float)gScreenHeight - ph) / 2.0f;
+            char line[96];
+            if (pct == -2)
+                snprintf(line, sizeof(line), "Extracting update...");
+            else if (pct < 0)
+                snprintf(line, sizeof(line), "Downloading update...");
+            else
+                snprintf(line, sizeof(line), "Downloading update... %d%%", pct);
+            drawrect(px, py, pw, ph, C_MENUBG);
+            drawrect(px, py, pw, 1, C_MENULINE);
+            drawrect(px, py + ph - 1, pw, 1, C_MENULINE);
+            fn14.drawstring("Updating Atanua", px + 16, py + 14, C_TEXT);
+            fn14.drawstring(line, px + 16, py + 40, C_TEXTDIM);
+            drawrect(px + 16, py + 66, pw - 32, 14, C_WIDGETBG);
+            if (pct >= 0)
+            {
+                float fill = (pw - 32.0f) * (float)pct / 100.0f;
+                if (fill > 0.0f)
+                    drawrect(px + 16, py + 66, fill, 14, C_WIDGETHOT);
+            }
+            if (imgui_button(GEN_ID, fn14, "Cancel", px + (pw - 120.0f) / 2.0f, py + 90.0f, 120, 30, C_WIDGETBG, C_WIDGETTHUMB, C_WIDGETHOT, C_TEXT))
+                AppUpdate_CancelDownload();
+        }
+    }
+    {
+        // Install finished (or failed): restart once, or say why, once.
+        static int sRestartFrames = 0;
+        static char sRestartMsg[256] = { 0 };
+        char msg[256];
+        int done = AppUpdate_ConsumeReady(msg, (int)sizeof(msg));
+        if (done == 1)
+        {
+            snprintf(sRestartMsg, sizeof(sRestartMsg), "%s", msg);
+            sRestartFrames = 90;
+        }
+        else if (done == 2)
+        {
+            okcancel(msg);
+        }
+        if (sRestartFrames > 0)
+        {
+            float tw, th, tlw;
+            sRestartFrames--;
+            fn14.stringmetrics(sRestartMsg, tw, th, tlw);
+            drawrect(((float)gScreenWidth - tw - 24.0f) / 2.0f,
+                ((float)gScreenHeight - 52.0f) / 2.0f, tw + 24.0f, 52.0f, C_MENUBG);
+            fn14.drawstring(sRestartMsg,
+                (((float)gScreenWidth - tw) / 2.0f),
+                (((float)gScreenHeight - th) / 2.0f), C_TEXT);
+            if (sRestartFrames == 0)
+            {
+                SDL_Event ev;
+                ev.type = SDL_QUIT;
+                SDL_PushEvent(&ev);
+            }
+        }
+    }
     // Tooltips
     if (gUIState.activeitem == 0 && gUIState.hotitem != 0 && (tick - gUIState.lasthottick) > gConfig.mTooltipDelay)
     {
