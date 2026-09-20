@@ -26,6 +26,7 @@ distribution.
 #include "ui_theme.h"
 #include "app_settings.h"
 #include "imgui.h"
+#include "imgui_internal.h"
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_opengl2.h"
 
@@ -73,6 +74,7 @@ int gMultiselectDirty = 1;
 AtanuaConfig gConfig;
 int gVisibleChiplist = 0;
 int gSettingsOpen = 0;
+int gShortcutsOpen = 0;
 int gStatusH = 24;
 static ImFont *gSmallFont = NULL;
 static ImFont *gTopFont = NULL;
@@ -138,6 +140,7 @@ void handle_key(int keysym, int down)
         if (down)
         {
             gSettingsOpen = 0;
+            gShortcutsOpen = 0;
             do_cancel();
         }
         break;        
@@ -688,6 +691,8 @@ static void imgui_init()
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     ImGui::StyleColorsDark();
     ImGui::GetStyle().FontScaleMain = AppSettings::clampUiScale(gConfig.mUiScale);
+    ImGui::GetStyle().FrameRounding = 4.0f;
+    ImGui::GetStyle().PopupRounding = 4.0f;
     ImGui_ImplSDL2_InitForOpenGL((SDL_Window *)gMainWindow, gGLContext);
     ImGui_ImplOpenGL2_Init();
     ImFont *font = io.Fonts->AddFontFromFileTTF("data/fonts/DejaVuSans.ttf", 19.0f,
@@ -711,6 +716,60 @@ static bool settings_radio(int idKey, const char *label, int selected)
     bool hit = ImGui::RadioButton(label, selected);
     ImGui::PopID();
     return hit;
+}
+
+static void draw_shortcuts_window(int lang)
+{
+    ImGui::SetNextWindowPos(ImVec2((float)gScreenWidth * 0.5f, (float)gScreenHeight * 0.5f),
+        ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_AlwaysAutoResize;
+    if (!ImGui::Begin(AppSettings::text(AppSettings::S_SHORTCUTS, lang, 0), NULL, flags))
+    {
+        ImGui::End();
+        return;
+    }
+    struct CutRow { int key; const char *combo; int arrows; };
+    static const CutRow rows[] = {
+        { AppSettings::S_NEW, "Ctrl+N", 0 },
+        { AppSettings::S_LOAD, "Ctrl+L", 0 },
+        { AppSettings::S_MERGE, "Ctrl+M", 0 },
+        { AppSettings::S_BOX, "Ctrl+B", 0 },
+        { AppSettings::S_SAVE, "Ctrl+S", 0 },
+        { AppSettings::S_UNDO, "Ctrl+Z", 0 },
+        { AppSettings::S_REDO, "Ctrl+Y", 0 },
+        { AppSettings::S_HOME, "Ctrl+H", 0 },
+        { AppSettings::S_ZOOM, "Ctrl+E", 0 },
+        { AppSettings::S_SNAP_ON, "Ctrl+P", 0 },
+        { AppSettings::S_VIEW_LIVE, "Ctrl+W", 0 },
+        { AppSettings::S_PNG, "Ctrl+G", 0 },
+        { AppSettings::S_ROTATE, "Ctrl+R", 0 },
+        { AppSettings::S_OPTIMIZE, "Ctrl+O", 0 },
+        { AppSettings::S_DELETE, "Del / Ctrl+D", 0 },
+        { AppSettings::S_NUDGE, NULL, 1 },
+        { AppSettings::S_CANCEL, "Esc", 0 },
+    };
+    if (ImGui::BeginTable("##scuts", 2, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV))
+    {
+        ImGui::TableSetupColumn(AppSettings::text(AppSettings::S_ACTION, lang, 0));
+        ImGui::TableSetupColumn(AppSettings::text(AppSettings::S_SHORTCUT, lang, 0));
+        ImGui::TableHeadersRow();
+        for (unsigned r = 0; r < sizeof(rows) / sizeof(rows[0]); r++)
+        {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(AppSettings::text(rows[r].key, lang, 1));
+            ImGui::TableNextColumn();
+            if (rows[r].arrows)
+                ImGui::TextUnformatted(AppSettings::text(AppSettings::S_ARROWS, lang, 0));
+            else
+                ImGui::TextUnformatted(rows[r].combo);
+        }
+        ImGui::EndTable();
+    }
+    if (ImGui::Button(AppSettings::text(AppSettings::S_CLOSE, lang, 0)))
+        gShortcutsOpen = 0;
+    ImGui::End();
 }
 
 static void draw_settings_panel(int lang)
@@ -821,11 +880,32 @@ static ImVec4 toImVec(int c)
         (c & 0xff) / 255.0f, (((c >> 24) & 0xff)) / 255.0f);
 }
 
-// Top-bar button: auto-sized single-line label, full two-line label as the
-// hover tooltip. highlighted renders with the theme accent. The ### suffix
-// keeps the ImGui ID unique even when two languages give different buttons
-// the same visible text (e.g. RU "Выход" is both the Out tab and Quit).
-static bool topbar_btn(int strKey, int lang, int highlighted, int cAccent)
+static float topbar_text_w(int strKey, int lang)
+{
+    return ImGui::CalcTextSize(AppSettings::text(strKey, lang, 1)).x +
+        ImGui::GetStyle().FramePadding.x * 2.0f;
+}
+
+static float topbar_group_w(const int *keys, int n, int lang)
+{
+    float w = 0.0f;
+    for (int i = 0; i < n; i++)
+    {
+        float kw = topbar_text_w(keys[i], lang);
+        if (kw > w)
+            w = kw;
+    }
+    return w;
+}
+
+// Top-bar button of fixed width: auto-sized single-line label, full
+// two-line label as the hover tooltip. highlighted renders with the theme
+// accent. Widths are uniform inside each functional group (the max of the
+// group), so labels can never overflow and neighbors never shift.
+// The ### suffix keeps the ImGui ID unique even when two languages give
+// different buttons the same visible text (e.g. RU "Выход" is both the
+// Out tab and Quit).
+static bool topbar_btn(int strKey, int lang, float w, int highlighted, int cAccent)
 {
     if (highlighted)
     {
@@ -836,7 +916,7 @@ static bool topbar_btn(int strKey, int lang, int highlighted, int cAccent)
     char idlabel[64];
     snprintf(idlabel, sizeof(idlabel), "%s###tb%d",
         AppSettings::text(strKey, lang, 1), strKey);
-    bool hit = ImGui::Button(idlabel);
+    bool hit = ImGui::Button(idlabel, ImVec2(w, 0));
     if (highlighted)
         ImGui::PopStyleColor(2);
     if (ImGui::IsItemHovered())
@@ -845,13 +925,24 @@ static bool topbar_btn(int strKey, int lang, int highlighted, int cAccent)
     return hit;
 }
 
-static void draw_topbar_tabs(int lang, int cAccent)
+static void topbar_sep()
+{
+    ImGui::SameLine(0, 10);
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    float h = ImGui::GetFrameHeight();
+    ImGui::GetWindowDrawList()->AddLine(ImVec2(p.x, p.y), ImVec2(p.x, p.y + h),
+        ImGui::GetColorU32(ImGuiCol_Border));
+    ImGui::Dummy(ImVec2(2, 1));
+    ImGui::SameLine(0, 10);
+}
+
+static void draw_topbar_tabs(int lang, int cAccent, float w)
 {
     const int tabKey[5] = { AppSettings::S_BASE, AppSettings::S_CHIPS,
         AppSettings::S_IN, AppSettings::S_OUT, AppSettings::S_MISC };
     for (int t = 0; t < 5; t++)
     {
-        if (topbar_btn(tabKey[t], lang, gVisibleChiplist == t, cAccent))
+        if (topbar_btn(tabKey[t], lang, w, gVisibleChiplist == t, cAccent))
         {
             int active = gUIState.kbditem;
             do_cancel();
@@ -861,66 +952,74 @@ static void draw_topbar_tabs(int lang, int cAccent)
     }
 }
 
-static void draw_topbar_actions(int lang, int cAccent)
+static void draw_topbar_actions(int lang, int cAccent, float fileW, float editW, float viewW)
 {
-    if (topbar_btn(AppSettings::S_NEW, lang, 0, cAccent))
+    if (topbar_btn(AppSettings::S_NEW, lang, fileW, 0, cAccent))
         do_resetdialog();
-    if (topbar_btn(AppSettings::S_LOAD, lang, 0, cAccent))
+    if (topbar_btn(AppSettings::S_LOAD, lang, fileW, 0, cAccent))
         do_loaddialog();
-    if (topbar_btn(AppSettings::S_MERGE, lang, 0, cAccent))
+    if (topbar_btn(AppSettings::S_MERGE, lang, fileW, 0, cAccent))
         do_loaddialog(1);
-    if (topbar_btn(AppSettings::S_BOX, lang, 0, cAccent))
+    if (topbar_btn(AppSettings::S_BOX, lang, fileW, 0, cAccent))
         do_loaddialog(2);
-    if (topbar_btn(AppSettings::S_SAVE, lang, 0, cAccent))
+    if (topbar_btn(AppSettings::S_SAVE, lang, fileW, 0, cAccent))
         do_savedialog();
-    if (topbar_btn(AppSettings::S_UNDO, lang, 0, cAccent))
+    topbar_sep();
+    if (topbar_btn(AppSettings::S_UNDO, lang, editW, 0, cAccent))
     {
         int active = gUIState.kbditem;
         do_undo();
         gUIState.kbditem = active;
     }
-    if (topbar_btn(AppSettings::S_REDO, lang, 0, cAccent))
+    if (topbar_btn(AppSettings::S_REDO, lang, editW, 0, cAccent))
     {
         int active = gUIState.kbditem;
         do_redo();
         gUIState.kbditem = active;
     }
-    if (topbar_btn(AppSettings::S_HOME, lang, 0, cAccent))
+    topbar_sep();
+    if (topbar_btn(AppSettings::S_HOME, lang, viewW, 0, cAccent))
         do_home();
-    if (topbar_btn(AppSettings::S_ZOOM, lang, 0, cAccent))
+    if (topbar_btn(AppSettings::S_ZOOM, lang, viewW, 0, cAccent))
         do_zoomext();
-    if (topbar_btn(gSnap ? AppSettings::S_SNAP_ON : AppSettings::S_SNAP_OFF, lang, gSnap, cAccent))
+    if (topbar_btn(gSnap ? AppSettings::S_SNAP_ON : AppSettings::S_SNAP_OFF, lang, viewW, gSnap, cAccent))
         gSnap = !gSnap;
-    if (topbar_btn(gLiveWires ? AppSettings::S_VIEW_LIVE : AppSettings::S_VIEW_GREY, lang, gLiveWires, cAccent))
+    if (topbar_btn(gLiveWires ? AppSettings::S_VIEW_LIVE : AppSettings::S_VIEW_GREY, lang, viewW, gLiveWires, cAccent))
     {
         gLiveWires = !gLiveWires;
         gBlackBackground ^= gLiveWires;
     }
-    if (topbar_btn(AppSettings::S_PNG, lang, 0, cAccent))
+    if (topbar_btn(AppSettings::S_PNG, lang, viewW, 0, cAccent))
         gSavePNG = 1;
 }
 
-static void draw_topbar_right(int lang, int cAccent)
+static void draw_topbar_right(int lang, int cAccent, float rightW)
 {
-    // Right-aligned Settings + Quit. Falls back to plain flow when the
-    // row is too narrow for the absolute position.
-    const char *setLbl = AppSettings::text(AppSettings::S_SETTINGS, lang, 1);
-    const char *quitLbl = AppSettings::text(AppSettings::S_QUIT, lang, 1);
+    // Right-aligned help + Settings + Quit. Falls back to plain flow when
+    // the row is too narrow for the absolute position.
     ImGuiStyle &st = ImGui::GetStyle();
-    float setW = ImGui::CalcTextSize(setLbl).x + st.FramePadding.x * 2.0f;
-    float quitW = ImGui::CalcTextSize(quitLbl).x + st.FramePadding.x * 2.0f;
-    float want = ImGui::GetWindowContentRegionMax().x - setW - quitW - st.ItemSpacing.x;
+    float helpW = ImGui::CalcTextSize("?").x + st.FramePadding.x * 2.0f;
+    float want = ImGui::GetWindowContentRegionMax().x - helpW - rightW * 2.0f -
+        st.ItemSpacing.x * 2.0f;
     if (want > ImGui::GetCursorPosX())
         ImGui::SameLine(want);
     else
         ImGui::SameLine();
-    if (topbar_btn(AppSettings::S_SETTINGS, lang, gSettingsOpen, cAccent))
-        gSettingsOpen = !gSettingsOpen;
-    ImGui::SameLine();
     {
+        bool hit = ImGui::Button("?###tbhelp");
+        if (ImGui::IsItemHovered())
+            ImGui::SetItemTooltip("%s", AppSettings::text(AppSettings::S_SHORTCUTS, lang, 0));
+        if (hit)
+            gShortcutsOpen = !gShortcutsOpen;
+        ImGui::SameLine();
+    }
+    if (topbar_btn(AppSettings::S_SETTINGS, lang, rightW, gSettingsOpen, cAccent))
+        gSettingsOpen = !gSettingsOpen;
+    {
+        const char *quitLbl = AppSettings::text(AppSettings::S_QUIT, lang, 1);
         char quitId[64];
         snprintf(quitId, sizeof(quitId), "%s###tb%d", quitLbl, AppSettings::S_QUIT);
-        bool hit = ImGui::Button(quitId);
+        bool hit = ImGui::Button(quitId, ImVec2(rightW, 0));
         if (ImGui::IsItemHovered())
             ImGui::SetItemTooltip("%s", AppSettings::text(AppSettings::S_QUIT, lang, 0));
         if (hit && okcancel("Are you sure you want to exit?\nAny unsaved changes will be lost."))
@@ -929,23 +1028,17 @@ static void draw_topbar_right(int lang, int cAccent)
     ImGui::SameLine();
 }
 
-static float draw_topbar_need(int lang)
+static float draw_topbar_need(int lang, float tabW, float fileW, float editW,
+    float viewW, float rightW)
 {
-    // Deterministic single-row width from text measurements (stable across
-    // frames, no transients). Must be called with the topbar font pushed.
-    static const int keys[19] = { AppSettings::S_BASE, AppSettings::S_CHIPS,
-        AppSettings::S_IN, AppSettings::S_OUT, AppSettings::S_MISC,
-        AppSettings::S_NEW, AppSettings::S_LOAD, AppSettings::S_MERGE,
-        AppSettings::S_BOX, AppSettings::S_SAVE, AppSettings::S_UNDO,
-        AppSettings::S_REDO, AppSettings::S_HOME, AppSettings::S_ZOOM,
-        AppSettings::S_SNAP_ON, AppSettings::S_VIEW_LIVE, AppSettings::S_PNG,
-        AppSettings::S_SETTINGS, AppSettings::S_QUIT };
+    // Deterministic single-row width from the uniform group widths (stable
+    // across frames, no transients). Must be called with the topbar font
+    // pushed.
     ImGuiStyle &st = ImGui::GetStyle();
-    float w = 0.0f;
-    for (int k = 0; k < 19; k++)
-        w += ImGui::CalcTextSize(AppSettings::text(keys[k], lang, 1)).x +
-            st.FramePadding.x * 2.0f;
-    w += 18.0f * st.ItemSpacing.x + 16.0f;
+    float helpW = ImGui::CalcTextSize("?").x + st.FramePadding.x * 2.0f;
+    float w = 5.0f * tabW + 5.0f * fileW + 2.0f * editW + 5.0f * viewW +
+        helpW + 2.0f * rightW;
+    w += 22.0f * st.ItemSpacing.x + 4.0f * 26.0f + 16.0f;
     return w;
 }
 
@@ -965,17 +1058,39 @@ static void draw_topbar_imgui(int lang, int cAccent)
     if (gTopFont)
         ImGui::PushFont(gTopFont);
 
+    // Uniform widths inside each functional group, measured live so any
+    // language fits without overlap.
+    static const int tabKeys[5] = { AppSettings::S_BASE, AppSettings::S_CHIPS,
+        AppSettings::S_IN, AppSettings::S_OUT, AppSettings::S_MISC };
+    static const int fileKeys[5] = { AppSettings::S_NEW, AppSettings::S_LOAD,
+        AppSettings::S_MERGE, AppSettings::S_BOX, AppSettings::S_SAVE };
+    static const int editKeys[2] = { AppSettings::S_UNDO, AppSettings::S_REDO };
+    static const int viewKeys[5] = { AppSettings::S_HOME, AppSettings::S_ZOOM,
+        AppSettings::S_SNAP_ON, AppSettings::S_VIEW_LIVE, AppSettings::S_PNG };
+    float tabW = topbar_group_w(tabKeys, 5, lang);
+    float fileW = topbar_group_w(fileKeys, 5, lang);
+    float editW = topbar_group_w(editKeys, 2, lang);
+    float viewW = topbar_group_w(viewKeys, 5, lang);
+    float rightW = topbar_text_w(AppSettings::S_SETTINGS, lang);
+    {
+        float qw = topbar_text_w(AppSettings::S_QUIT, lang);
+        if (qw > rightW)
+            rightW = qw;
+    }
+
     // One row normally; two rows when the measured need overflows, settled
     // over consecutive frames so the layout cannot flap.
     static int sTwoRows = 0;
     static int sSettle = 0;
     float winW = ImGui::GetWindowContentRegionMax().x;
-    float need = draw_topbar_need(lang);
+    float need = draw_topbar_need(lang, tabW, fileW, editW, viewW, rightW);
     if (!sTwoRows)
     {
-        draw_topbar_tabs(lang, cAccent);
-        draw_topbar_actions(lang, cAccent);
-        draw_topbar_right(lang, cAccent);
+        draw_topbar_tabs(lang, cAccent, tabW);
+        topbar_sep();
+        draw_topbar_actions(lang, cAccent, fileW, editW, viewW);
+        topbar_sep();
+        draw_topbar_right(lang, cAccent, rightW);
         if (winW > 100.0f && need > winW + 4.0f)
         {
             if (++sSettle >= 3)
@@ -989,10 +1104,10 @@ static void draw_topbar_imgui(int lang, int cAccent)
     }
     else
     {
-        draw_topbar_tabs(lang, cAccent);
-        draw_topbar_right(lang, cAccent);
+        draw_topbar_tabs(lang, cAccent, tabW);
+        draw_topbar_right(lang, cAccent, rightW);
         ImGui::NewLine();
-        draw_topbar_actions(lang, cAccent);
+        draw_topbar_actions(lang, cAccent, fileW, editW, viewW);
         if (winW > 100.0f && need < winW - 24.0f)
         {
             if (++sSettle >= 3)
@@ -1150,6 +1265,9 @@ static void draw_screen()
     ImGui_ImplOpenGL2_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
+    // Route all mouse input here while dragging so a focus change or a
+    // release outside the window cannot strand a drag (or an ImGui press).
+    SDL_CaptureMouse(gDragMode != DRAGMODE_NONE ? SDL_TRUE : SDL_FALSE);
     draw_topbar_imgui(lang, cAccent);
     draw_statusbar_imgui();
     int loc = -1;
@@ -1270,7 +1388,7 @@ static void draw_screen()
     if (gBlackBackground)
 		glClearColor(0.086f, 0.094f, 0.114f, 1.0f);
 	else
-		glClearColor(0.941f, 0.945f, 0.957f, 1.0f);
+		glClearColor(0.906f, 0.898f, 0.875f, 1.0f);
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
     imgui_prepare();
@@ -1921,7 +2039,7 @@ static void draw_screen()
 	if (gBlackBackground)
 		glColor4f(0.188f, 0.216f, 0.278f, 1.0f);
 	else
-		glColor4f(0.812f, 0.831f, 0.871f, 1.0f);
+		glColor4f(0.700f, 0.705f, 0.715f, 1.0f);
     glBegin(GL_LINES);    
     for (i = 0; i < 20; i++)
     {
@@ -2454,6 +2572,8 @@ static void draw_screen()
 
     if (gSettingsOpen)
         draw_settings_panel(lang);
+    if (gShortcutsOpen)
+        draw_shortcuts_window(lang);
     ImGui::Render();
     ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
 

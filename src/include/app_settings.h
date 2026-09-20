@@ -113,6 +113,15 @@ enum StrKey
     S_SCALE_SMALL,
     S_SCALE_NORMAL,
     S_SCALE_LARGE,
+    S_SHORTCUTS,
+    S_ACTION,
+    S_SHORTCUT,
+    S_ROTATE,
+    S_OPTIMIZE,
+    S_DELETE,
+    S_CANCEL,
+    S_NUDGE,
+    S_ARROWS,
     S_COUNT
 };
 
@@ -175,6 +184,15 @@ inline const StrEntry *stringTable(int *countOut)
         { S_SCALE_SMALL, "Small", "Small", "Мелкий", "Мелкий" },
         { S_SCALE_NORMAL, "Normal", "Normal", "Обычный", "Обычный" },
         { S_SCALE_LARGE, "Large", "Large", "Крупный", "Крупный" },
+        { S_SHORTCUTS, "Shortcuts", "Shortcuts", "Горячие клавиши", "Горячие клавиши" },
+        { S_ACTION, "Action", "Action", "Действие", "Действие" },
+        { S_SHORTCUT, "Shortcut", "Shortcut", "Сочетание", "Сочетание" },
+        { S_ROTATE, "Rotate", "Rotate", "Повернуть", "Повернуть" },
+        { S_OPTIMIZE, "Optimize box", "Optimize", "Оптимизировать", "Оптимизация" },
+        { S_DELETE, "Delete", "Delete", "Удалить", "Удалить" },
+        { S_CANCEL, "Cancel", "Cancel", "Отмена", "Отмена" },
+        { S_NUDGE, "Nudge", "Nudge", "Сдвиг", "Сдвиг" },
+        { S_ARROWS, "Arrows", "Arrows", "Стрелки", "Стрелки" },
     };
     if (countOut)
         *countOut = (int)(sizeof(kTable) / sizeof(kTable[0]));

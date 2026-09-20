@@ -6,6 +6,12 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 
 ## [Unreleased] / [В разработке]
 
+### Added / Добавлено
+- Top bar grouped by function with uniform button widths, separators, rounded controls and hover shortcut hints, plus a shortcuts reference window.
+- Верхняя панель сгруппирована по функциям: одинаковая ширина кнопок в группе, разделители, скруглённые элементы, подсказки с хоткеями и окно-справка по сочетаниям.
+- Light canvas palette reworked: soft paper background with readable grid instead of harsh white.
+- Светлая тема холста переработана: мягкий бумажный фон с читаемой сеткой вместо резкого белого.
+
 ## [v1.3.141226] - 2026-09-20
 
 ### Added / Добавлено
