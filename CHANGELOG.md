@@ -6,6 +6,8 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 
 ## [Unreleased] / [В разработке]
 
+## [v1.3.141226] - 2026-09-20
+
 ### Added / Добавлено
 - Top bar and chip sidebar drawn with Dear ImGui: buttons and rows auto-size to their labels (nothing can overflow), toggle states highlighted, tooltips with shortcuts, responsive one/two-row top bar by measured need; DejaVu 17/15px chrome fonts.
 - Верхняя панель и список микросхем на Dear ImGui: кнопки и строки сами подстраиваются под подписи (ничего не вылезает), включённые состояния подсвечены, подсказки с хоткеями, верхняя панель в одну или две строки по измеренной ширине; шрифты DejaVu 17/15px.
