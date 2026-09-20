@@ -208,6 +208,7 @@ public:
 	int mAutosaveInterval;
     int mLanguage;
     int mThemeVariant;
+    float mUiScale;
 };
 
 extern AtanuaConfig gConfig;

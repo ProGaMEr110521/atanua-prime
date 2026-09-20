@@ -406,7 +406,9 @@ def test_settings_wired_into_app():
     for token in ["ImGui::CreateContext", "ImGui_ImplSDL2_ProcessEvent",
                   "ImGui_ImplSDL2_NewFrame", "ImGui_ImplOpenGL2_RenderDrawData",
                   "GetGlyphRangesCyrillic", "settings_radio", "ImGui::Begin",
-                  "AlwaysAutoResize", "##statusbar", "SetTooltip", "ProgressBar"]:
+                  "AlwaysAutoResize", "##statusbar", "SetTooltip", "ProgressBar",
+                  "InputTextWithHint", "name_matches", "imgui_wants_keys",
+                  "FontScaleMain", "S_UISCALE", "uiScalePreset", "draw_topbar_need"]:
         assert token in main, f"imgui wiring missing: {token}"
     assert "settings_opt" not in main, "old fixed-pixel panel helper still present"
     cmake = read(CMAKE_LISTS)

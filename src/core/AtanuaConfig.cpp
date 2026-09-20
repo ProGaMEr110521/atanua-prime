@@ -60,6 +60,7 @@ AtanuaConfig::AtanuaConfig()
 	mAutosaveInterval = 5;
     mLanguage = AppSettings::LANG_EN;
     mThemeVariant = AppSettings::THEME_DARK;
+    mUiScale = 1.0f;
 }
 
 AtanuaConfig::~AtanuaConfig()
@@ -190,6 +191,10 @@ void AtanuaConfig::load()
         topelement->InsertEndChild(element);
         element->SetAttribute("value", mThemeVariant);
 
+        element = doc.NewElement("UiScale");
+        topelement->InsertEndChild(element);
+        element->SetAttribute("value", mUiScale);
+
         f = fopen("atanua.xml", "wb");
         if (f)
         {
@@ -279,6 +284,13 @@ void AtanuaConfig::load()
                 int theme = mThemeVariant;
                 part->QueryIntAttribute("value", &theme);
                 mThemeVariant = AppSettings::clampTheme(theme);
+            }
+            else
+            if (stricmp(part->Value(), "UiScale") == 0)
+            {
+                float scale = mUiScale;
+                part->QueryFloatAttribute("value", &scale);
+                mUiScale = AppSettings::clampUiScale(scale);
             }
             else
             if (stricmp(part->Value(), "ToolkitWidth") == 0)
@@ -384,7 +396,7 @@ static int isKnownConfigElement(const char *name)
         "MaxPhysicsMs", "InitialWindow", "TooltipDelay", "LinePickTolerance",
         "LineEndTolerance", "LineSplitDragDistance", "ChipCloneDragDistance",
         "User", "FontSystem", "PerformanceOptions", "Limits", "LED",
-        "Autosave", "Language", "ThemeVariant", 0
+        "Autosave", "Language", "ThemeVariant", "UiScale", 0
     };
     if (!name)
         return 0;
@@ -412,6 +424,7 @@ void AtanuaConfig::save()
     mThemeVariant = AppSettings::clampTheme(mThemeVariant);
     mTooltipDelay = AppSettings::clampTooltipMs(mTooltipDelay);
     mAudioEnable = AppSettings::clampAudio(mAudioEnable);
+    mUiScale = AppSettings::clampUiScale(mUiScale);
 
     XMLDocument doc;
     int haveDoc = 0;
@@ -485,6 +498,8 @@ void AtanuaConfig::save()
     el->SetAttribute("value", mLanguage);
     el = findOrCreateChild(root, doc, "ThemeVariant");
     el->SetAttribute("value", mThemeVariant);
+    el = findOrCreateChild(root, doc, "UiScale");
+    el->SetAttribute("value", mUiScale);
 
     // Drop duplicate known elements from hand edits, keep unknowns.
     XMLElement *child = root->FirstChildElement();

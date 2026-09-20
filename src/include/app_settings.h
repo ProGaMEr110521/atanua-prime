@@ -45,6 +45,29 @@ inline int tooltipPresetIndex(int ms)
     return 3;
 }
 
+// UI scale presets as multipliers of the base chrome font sizes.
+inline float uiScalePreset(int index)
+{
+    static const float kPresets[3] = { 0.85f, 1.0f, 1.25f };
+    if (index < 0) index = 0;
+    if (index > 2) index = 2;
+    return kPresets[index];
+}
+
+inline int uiScalePresetIndex(float s)
+{
+    if (s < 0.925f) return 0;
+    if (s < 1.125f) return 1;
+    return 2;
+}
+
+inline float clampUiScale(float s)
+{
+    if (s < 0.8f) return 0.8f;
+    if (s > 1.5f) return 1.5f;
+    return s;
+}
+
 // Chrome + settings string keys.
 enum StrKey
 {
@@ -86,6 +109,10 @@ enum StrKey
     S_CLOSE,
     S_SOUND_RESTART_NOTE,
     S_SAVED_NOTE,
+    S_UISCALE,
+    S_SCALE_SMALL,
+    S_SCALE_NORMAL,
+    S_SCALE_LARGE,
     S_COUNT
 };
 
@@ -144,6 +171,10 @@ inline const StrEntry *stringTable(int *countOut)
           "Звук применится после перезапуска", "Звук применится после перезапуска" },
         { S_SAVED_NOTE, "Saved to atanua.xml", "Saved to atanua.xml",
           "Сохранено в atanua.xml", "Сохранено в atanua.xml" },
+        { S_UISCALE, "UI scale", "UI scale", "Масштаб", "Масштаб" },
+        { S_SCALE_SMALL, "Small", "Small", "Мелкий", "Мелкий" },
+        { S_SCALE_NORMAL, "Normal", "Normal", "Обычный", "Обычный" },
+        { S_SCALE_LARGE, "Large", "Large", "Крупный", "Крупный" },
     };
     if (countOut)
         *countOut = (int)(sizeof(kTable) / sizeof(kTable[0]));
@@ -250,6 +281,7 @@ struct Values
     int theme;
     int tooltipMs;
     int audio;
+    float uiScale;
 };
 
 inline void defaults(Values &v)
@@ -258,6 +290,7 @@ inline void defaults(Values &v)
     v.theme = THEME_DARK;
     v.tooltipMs = 1500;
     v.audio = 1;
+    v.uiScale = 1.0f;
 }
 
 inline void validate(Values &v)
@@ -266,6 +299,7 @@ inline void validate(Values &v)
     v.theme = clampTheme(v.theme);
     v.tooltipMs = clampTooltipMs(v.tooltipMs);
     v.audio = clampAudio(v.audio);
+    v.uiScale = clampUiScale(v.uiScale);
 }
 
 inline int parseDec(const char *s, int fallback)
@@ -293,12 +327,55 @@ inline int parseDec(const char *s, int fallback)
     return neg ? -v : v;
 }
 
+inline float parseFloat(const char *s, float fallback)
+{
+    if (!s || !s[0])
+        return fallback;
+    int neg = 0;
+    int i = 0;
+    if (s[0] == '-')
+    {
+        neg = 1;
+        i = 1;
+    }
+    long whole = 0;
+    int digits = 0;
+    while (s[i] >= '0' && s[i] <= '9')
+    {
+        whole = whole * 10 + (s[i] - '0');
+        i++;
+        if (++digits > 6)
+            return fallback;
+    }
+    float v = (float)whole;
+    if (s[i] == '.' || s[i] == ',')
+    {
+        i++;
+        float place = 0.1f;
+        int fdigits = 0;
+        while (s[i] >= '0' && s[i] <= '9' && fdigits < 3)
+        {
+            v += (s[i] - '0') * place;
+            place *= 0.1f;
+            i++;
+            fdigits++;
+        }
+        if (s[i] != 0)
+            return fallback;
+    }
+    else if (s[i] != 0)
+        return fallback;
+    if (digits == 0)
+        return fallback;
+    return neg ? -v : v;
+}
+
 // XML element mapping. Tags match atanua.xml element names so the settings
 // ride the existing config file; each carries its value in a "value"
 // attribute as a decimal string.
 inline int fieldCount()
 {
-    return 4;
+    return 5;
 }
 
 inline const char *fieldTag(int i)
@@ -309,8 +386,55 @@ inline const char *fieldTag(int i)
     case 1: return "ThemeVariant";
     case 2: return "TooltipDelay";
     case 3: return "AudioEnable";
+    case 4: return "UiScale";
     default: return "";
     }
+}
+
+inline bool formatFloat2(float v, char *out, int cap)
+{
+    if (!out || cap < 2)
+        return false;
+    int neg = 0;
+    if (v < 0)
+    {
+        neg = 1;
+        v = -v;
+    }
+    int whole = (int)v;
+    int frac = (int)((v - whole) * 100.0f + 0.5f);
+    if (frac >= 100)
+    {
+        whole++;
+        frac -= 100;
+    }
+    char buf[16];
+    int len = 0;
+    buf[len++] = (char)('0' + (frac % 10));
+    buf[len++] = (char)('0' + ((frac / 10) % 10));
+    buf[len++] = '.';
+    if (whole == 0)
+        buf[len++] = '0';
+    else
+    {
+        int rev = 0;
+        char tmp[8];
+        while (whole > 0 && rev < 7)
+        {
+            tmp[rev++] = (char)('0' + (whole % 10));
+            whole /= 10;
+        }
+        while (rev > 0)
+            buf[len++] = tmp[--rev];
+    }
+    if (neg)
+        buf[len++] = '-';
+    if (len + 1 > cap)
+        return false;
+    for (int i = 0; i < len; i++)
+        out[i] = buf[len - 1 - i];
+    out[len] = 0;
+    return true;
 }
 
 inline bool getField(const Values &v, const char *tag, char *out, int cap)
@@ -326,6 +450,8 @@ inline bool getField(const Values &v, const char *tag, char *out, int cap)
         val = v.tooltipMs;
     else if (strcmp(tag, "AudioEnable") == 0)
         val = v.audio;
+    else if (strcmp(tag, "UiScale") == 0)
+        return formatFloat2(v.uiScale, out, cap);
     else
         return false;
     // Decimal itoa without stdio so tests and app share one path.
@@ -375,6 +501,11 @@ inline bool setField(Values &v, const char *tag, const char *str)
     if (strcmp(tag, "AudioEnable") == 0)
     {
         v.audio = clampAudio(parseDec(str, 1));
+        return true;
+    }
+    if (strcmp(tag, "UiScale") == 0)
+    {
+        v.uiScale = clampUiScale(parseFloat(str, 1.0f));
         return true;
     }
     return false;

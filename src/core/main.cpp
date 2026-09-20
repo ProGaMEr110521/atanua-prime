@@ -122,6 +122,14 @@ unsigned char *gAudioOut;
 
 void initvideo();
 
+// While an ImGui text input is active, keys belong to it: the app must not
+// also act on them (otherwise typing a filter would nudge chips or fire
+// shortcuts). Escape is always shared.
+static int imgui_wants_keys()
+{
+    return ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureKeyboard;
+}
+
 void handle_key(int keysym, int down)
 {
     switch(keysym)
@@ -198,6 +206,8 @@ void process_events()
         switch (event.type) 
         {
         case SDL_KEYDOWN:
+            if (!imgui_wants_keys() || event.key.keysym.sym == SDLK_ESCAPE)
+            {
             handle_key(event.key.keysym.sym, 1);
             // If a key is pressed, report it to the widgets
             gUIState.keyentered = event.key.keysym.sym;
@@ -218,12 +228,16 @@ void process_events()
             // SDL2: no unicode field; printable ASCII comes via sym, full text via SDL_TEXTINPUT
             if (event.key.keysym.sym >= 32 && event.key.keysym.sym < 127)
                 gUIState.keychar = event.key.keysym.sym;
+            }
             break;
         case SDL_TEXTINPUT:
-            if (event.text.text[0] >= 32 && event.text.text[0] < 127)
+            if ((!imgui_wants_keys()) &&
+                event.text.text[0] >= 32 && event.text.text[0] < 127)
                 gUIState.keychar = event.text.text[0];
             break;
         case SDL_KEYUP:
+            if (!imgui_wants_keys() || event.key.keysym.sym == SDLK_ESCAPE)
+            {
             gUIState.keymod = event.key.keysym.mod;
             handle_key(event.key.keysym.sym, 0);
             if (event.key.keysym.sym == SDLK_z &&
@@ -293,6 +307,7 @@ void process_events()
                 event.key.keysym.mod & KMOD_CTRL)
                 do_screengrab();
 
+            }
             break;
         case SDL_MOUSEMOTION:
             // update mouse position
@@ -672,6 +687,7 @@ static void imgui_init()
     io.IniFilename = NULL;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     ImGui::StyleColorsDark();
+    ImGui::GetStyle().FontScaleMain = AppSettings::clampUiScale(gConfig.mUiScale);
     ImGui_ImplSDL2_InitForOpenGL((SDL_Window *)gMainWindow, gGLContext);
     ImGui_ImplOpenGL2_Init();
     ImFont *font = io.Fonts->AddFontFromFileTTF("data/fonts/DejaVuSans.ttf", 19.0f,
@@ -774,6 +790,23 @@ static void draw_settings_panel(int lang)
     {
         gConfig.mAudioEnable = 0;
         gConfig.save();
+    }
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_UISCALE, lang, 0));
+    ImGui::SameLine(150.0f);
+    int curScale = AppSettings::uiScalePresetIndex(AppSettings::clampUiScale(gConfig.mUiScale));
+    const int scaleKey[3] = { AppSettings::S_SCALE_SMALL, AppSettings::S_SCALE_NORMAL,
+        AppSettings::S_SCALE_LARGE };
+    for (int i = 0; i < 3; i++)
+    {
+        if (i > 0)
+            ImGui::SameLine();
+        if (settings_radio(scaleKey[i], AppSettings::text(scaleKey[i], lang, 0), curScale == i))
+        {
+            gConfig.mUiScale = AppSettings::uiScalePreset(i);
+            gConfig.save();
+            ImGui::GetStyle().FontScaleMain = gConfig.mUiScale;
+        }
     }
     ImGui::TextDisabled("%s", AppSettings::text(AppSettings::S_SOUND_RESTART_NOTE, lang, 0));
     ImGui::TextDisabled("%s", AppSettings::text(AppSettings::S_SAVED_NOTE, lang, 0));
@@ -976,6 +1009,32 @@ static void draw_topbar_imgui(int lang, int cAccent)
     ImGui::End();
 }
 
+static int ascii_tolower(int c)
+{
+    return (c >= 'A' && c <= 'Z') ? c + 32 : c;
+}
+
+static int name_matches(const char *name, const char *filter)
+{
+    if (!filter || !filter[0])
+        return 1;
+    if (!name)
+        return 0;
+    for (const char *p = name; *p; p++)
+    {
+        const char *a = p;
+        const char *b = filter;
+        while (*a && *b && ascii_tolower(*a) == ascii_tolower(*b))
+        {
+            a++;
+            b++;
+        }
+        if (!*b)
+            return 1;
+    }
+    return 0;
+}
+
 static void draw_sidebar_imgui(int *locOut)
 {
     ImGui::SetNextWindowPos(ImVec2(0, (float)gTopbarH));
@@ -994,11 +1053,19 @@ static void draw_sidebar_imgui(int *locOut)
     if (gVisibleChiplist < 0 || gVisibleChiplist > 4)
         gVisibleChiplist = 0;
     int list = gVisibleChiplist;
+    static char sFilter[64] = { 0 };
+    ImGui::PushItemWidth(-1.0f);
+    ImGui::InputTextWithHint("##chipfilter", "Filter...", sFilter, (int)sizeof(sFilter));
+    ImGui::PopItemWidth();
+    int shown = 0;
     for (int i = 0; i < (signed)gAvailableChip[list].size(); i++)
     {
         const char *name = gAvailableChip[list][i];
         if (!name)
             continue;
+        if (!name_matches(name, sFilter))
+            continue;
+        shown++;
         char blank[32];
         const char *label = name;
         if (list == 3 && i == 8)
@@ -1037,6 +1104,8 @@ static void draw_sidebar_imgui(int *locOut)
             }
         }
     }
+    if (!shown)
+        ImGui::TextDisabled("(no matches)");
     if (gSmallFont)
         ImGui::PopFont();
     ImGui::End();

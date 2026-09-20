@@ -92,6 +92,12 @@ int main()
     CHECK(clampTooltipMs(-5) == 0 && clampTooltipMs(99999) == 10000, "tooltip delay clamps");
     CHECK(tooltipPreset(0) == 0 && tooltipPreset(2) == 1500, "tooltip presets");
     CHECK(tooltipPresetIndex(0) == 0 && tooltipPresetIndex(3000) == 3, "preset index maps");
+    CHECK(clampUiScale(0.1f) == 0.8f && clampUiScale(9.0f) == 1.5f, "ui scale clamps");
+    CHECK(uiScalePreset(0) == 0.85f && uiScalePreset(1) == 1.0f && uiScalePreset(2) == 1.25f, "scale presets");
+    CHECK(uiScalePresetIndex(1.25f) == 2 && uiScalePresetIndex(0.85f) == 0, "scale index maps");
+    CHECK(parseFloat("1.25", 0) == 1.25f && parseFloat("xx", 7.0f) == 7.0f, "float parses");
+    char fbuf[16];
+    CHECK(formatFloat2(1.25f, fbuf, sizeof(fbuf)) && strcmp(fbuf, "1.25") == 0, "float formats");
 
     CHECK(themeMenuBg(THEME_DARK) == 0xff20242c, "dark theme keeps legacy chrome");
     CHECK(themeAccent(THEME_DARK) == 0xff4c8dff, "dark theme keeps legacy accent");
@@ -100,14 +106,16 @@ int main()
     CHECK(themeHotRow(THEME_DARK) == 0xff31406b, "dark theme keeps legacy hot row");
     CHECK(themeHotRow(THEME_CONTRAST) != themeHotRow(THEME_DARK), "contrast hot row differs");
 
-    CHECK(fieldCount() == 4, "four persisted fields");
+    CHECK(fieldCount() == 5, "five persisted fields");
     CHECK(strcmp(fieldTag(0), "Language") == 0, "language tag matches atanua.xml style");
     CHECK(strcmp(fieldTag(1), "ThemeVariant") == 0, "theme tag named");
+    CHECK(strcmp(fieldTag(4), "UiScale") == 0, "scale tag named");
 
     Values v;
     defaults(v);
     CHECK(v.language == LANG_EN && v.theme == THEME_DARK, "defaults are English dark");
     CHECK(v.tooltipMs == 1500 && v.audio == 1, "defaults match shipped config");
+    CHECK(v.uiScale == 1.0f, "default scale is 1");
     char buf[16];
     CHECK(getField(v, "Language", buf, sizeof(buf)) && strcmp(buf, "0") == 0, "language serializes");
     CHECK(getField(v, "TooltipDelay", buf, sizeof(buf)) && strcmp(buf, "1500") == 0, "tooltip serializes");
@@ -123,6 +131,8 @@ int main()
     CHECK(setField(w, "TooltipDelay", "750") && w.tooltipMs == 750, "tooltip parses");
     CHECK(setField(w, "TooltipDelay", "-3") && w.tooltipMs == 0, "negative tooltip clamps");
     CHECK(setField(w, "AudioEnable", "0") && w.audio == 0, "audio parses");
+    CHECK(setField(w, "UiScale", "1.25") && w.uiScale == 1.25f, "scale parses");
+    CHECK(setField(w, "UiScale", "99") && w.uiScale == 1.5f, "bad scale clamps");
     CHECK(!setField(w, "Nope", "1"), "unknown tag rejected on set");
     CHECK(!setField(w, 0, "1") && !setField(w, "Language", 0), "null guarded");
 
@@ -133,6 +143,7 @@ int main()
     rt.theme = THEME_CONTRAST;
     rt.tooltipMs = 750;
     rt.audio = 0;
+    rt.uiScale = 1.25f;
     Values back;
     defaults(back);
     for (int i = 0; i < fieldCount(); i++)
@@ -143,6 +154,7 @@ int main()
     validate(back);
     CHECK(back.language == LANG_RU && back.theme == THEME_CONTRAST, "round-trip keeps language+theme");
     CHECK(back.tooltipMs == 750 && back.audio == 0, "round-trip keeps tooltip+audio");
+    CHECK(back.uiScale == 1.25f, "round-trip keeps scale");
 
     if (failures == 0)
         printf("ALL SETTINGS TESTS PASSED\n");
