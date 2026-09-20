@@ -927,13 +927,13 @@ static bool topbar_btn(int strKey, int lang, float w, int highlighted, int cAcce
 
 static void topbar_sep()
 {
-    ImGui::SameLine(0, 10);
+    ImGui::SameLine(0, 6);
     ImVec2 p = ImGui::GetCursorScreenPos();
     float h = ImGui::GetFrameHeight();
     ImGui::GetWindowDrawList()->AddLine(ImVec2(p.x, p.y), ImVec2(p.x, p.y + h),
         ImGui::GetColorU32(ImGuiCol_Border));
     ImGui::Dummy(ImVec2(2, 1));
-    ImGui::SameLine(0, 10);
+    ImGui::SameLine(0, 6);
 }
 
 static void draw_topbar_tabs(int lang, int cAccent, float w)
@@ -952,44 +952,44 @@ static void draw_topbar_tabs(int lang, int cAccent, float w)
     }
 }
 
-static void draw_topbar_actions(int lang, int cAccent, float fileW, float editW, float viewW)
+static void draw_topbar_actions(int lang, int cAccent, float actionW)
 {
-    if (topbar_btn(AppSettings::S_NEW, lang, fileW, 0, cAccent))
+    if (topbar_btn(AppSettings::S_NEW, lang, actionW, 0, cAccent))
         do_resetdialog();
-    if (topbar_btn(AppSettings::S_LOAD, lang, fileW, 0, cAccent))
+    if (topbar_btn(AppSettings::S_LOAD, lang, actionW, 0, cAccent))
         do_loaddialog();
-    if (topbar_btn(AppSettings::S_MERGE, lang, fileW, 0, cAccent))
+    if (topbar_btn(AppSettings::S_MERGE, lang, actionW, 0, cAccent))
         do_loaddialog(1);
-    if (topbar_btn(AppSettings::S_BOX, lang, fileW, 0, cAccent))
+    if (topbar_btn(AppSettings::S_BOX, lang, actionW, 0, cAccent))
         do_loaddialog(2);
-    if (topbar_btn(AppSettings::S_SAVE, lang, fileW, 0, cAccent))
+    if (topbar_btn(AppSettings::S_SAVE, lang, actionW, 0, cAccent))
         do_savedialog();
     topbar_sep();
-    if (topbar_btn(AppSettings::S_UNDO, lang, editW, 0, cAccent))
+    if (topbar_btn(AppSettings::S_UNDO, lang, actionW, 0, cAccent))
     {
         int active = gUIState.kbditem;
         do_undo();
         gUIState.kbditem = active;
     }
-    if (topbar_btn(AppSettings::S_REDO, lang, editW, 0, cAccent))
+    if (topbar_btn(AppSettings::S_REDO, lang, actionW, 0, cAccent))
     {
         int active = gUIState.kbditem;
         do_redo();
         gUIState.kbditem = active;
     }
     topbar_sep();
-    if (topbar_btn(AppSettings::S_HOME, lang, viewW, 0, cAccent))
+    if (topbar_btn(AppSettings::S_HOME, lang, actionW, 0, cAccent))
         do_home();
-    if (topbar_btn(AppSettings::S_ZOOM, lang, viewW, 0, cAccent))
+    if (topbar_btn(AppSettings::S_ZOOM, lang, actionW, 0, cAccent))
         do_zoomext();
-    if (topbar_btn(gSnap ? AppSettings::S_SNAP_ON : AppSettings::S_SNAP_OFF, lang, viewW, gSnap, cAccent))
+    if (topbar_btn(gSnap ? AppSettings::S_SNAP_ON : AppSettings::S_SNAP_OFF, lang, actionW, gSnap, cAccent))
         gSnap = !gSnap;
-    if (topbar_btn(gLiveWires ? AppSettings::S_VIEW_LIVE : AppSettings::S_VIEW_GREY, lang, viewW, gLiveWires, cAccent))
+    if (topbar_btn(gLiveWires ? AppSettings::S_VIEW_LIVE : AppSettings::S_VIEW_GREY, lang, actionW, gLiveWires, cAccent))
     {
         gLiveWires = !gLiveWires;
         gBlackBackground ^= gLiveWires;
     }
-    if (topbar_btn(AppSettings::S_PNG, lang, viewW, 0, cAccent))
+    if (topbar_btn(AppSettings::S_PNG, lang, actionW, 0, cAccent))
         gSavePNG = 1;
 }
 
@@ -1028,17 +1028,15 @@ static void draw_topbar_right(int lang, int cAccent, float rightW)
     ImGui::SameLine();
 }
 
-static float draw_topbar_need(int lang, float tabW, float fileW, float editW,
-    float viewW, float rightW)
+static float draw_topbar_need(int lang, float tabW, float actionW, float rightW)
 {
     // Deterministic single-row width from the uniform group widths (stable
     // across frames, no transients). Must be called with the topbar font
     // pushed.
     ImGuiStyle &st = ImGui::GetStyle();
     float helpW = ImGui::CalcTextSize("?").x + st.FramePadding.x * 2.0f;
-    float w = 5.0f * tabW + 5.0f * fileW + 2.0f * editW + 5.0f * viewW +
-        helpW + 2.0f * rightW;
-    w += 22.0f * st.ItemSpacing.x + 4.0f * 26.0f + 16.0f;
+    float w = 5.0f * tabW + 12.0f * actionW + helpW + 2.0f * rightW;
+    w += 19.0f * st.ItemSpacing.x + 4.0f * 18.0f + 16.0f;
     return w;
 }
 
@@ -1057,9 +1055,10 @@ static void draw_topbar_imgui(int lang, int cAccent)
     gTopbarH = (int)ImGui::GetWindowSize().y;
     if (gTopFont)
         ImGui::PushFont(gTopFont);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 4));
 
-    // Uniform widths inside each functional group, measured live so any
-    // language fits without overlap.
+    // Uniform widths: tabs share one, all twelve action buttons share one,
+    // Settings/Quit share one; measured live so any language fits.
     static const int tabKeys[5] = { AppSettings::S_BASE, AppSettings::S_CHIPS,
         AppSettings::S_IN, AppSettings::S_OUT, AppSettings::S_MISC };
     static const int fileKeys[5] = { AppSettings::S_NEW, AppSettings::S_LOAD,
@@ -1068,9 +1067,15 @@ static void draw_topbar_imgui(int lang, int cAccent)
     static const int viewKeys[5] = { AppSettings::S_HOME, AppSettings::S_ZOOM,
         AppSettings::S_SNAP_ON, AppSettings::S_VIEW_LIVE, AppSettings::S_PNG };
     float tabW = topbar_group_w(tabKeys, 5, lang);
-    float fileW = topbar_group_w(fileKeys, 5, lang);
-    float editW = topbar_group_w(editKeys, 2, lang);
-    float viewW = topbar_group_w(viewKeys, 5, lang);
+    float actionW = topbar_group_w(fileKeys, 5, lang);
+    {
+        float w = topbar_group_w(editKeys, 2, lang);
+        if (w > actionW)
+            actionW = w;
+        w = topbar_group_w(viewKeys, 5, lang);
+        if (w > actionW)
+            actionW = w;
+    }
     float rightW = topbar_text_w(AppSettings::S_SETTINGS, lang);
     {
         float qw = topbar_text_w(AppSettings::S_QUIT, lang);
@@ -1083,12 +1088,12 @@ static void draw_topbar_imgui(int lang, int cAccent)
     static int sTwoRows = 0;
     static int sSettle = 0;
     float winW = ImGui::GetWindowContentRegionMax().x;
-    float need = draw_topbar_need(lang, tabW, fileW, editW, viewW, rightW);
+    float need = draw_topbar_need(lang, tabW, actionW, rightW);
     if (!sTwoRows)
     {
         draw_topbar_tabs(lang, cAccent, tabW);
         topbar_sep();
-        draw_topbar_actions(lang, cAccent, fileW, editW, viewW);
+        draw_topbar_actions(lang, cAccent, actionW);
         topbar_sep();
         draw_topbar_right(lang, cAccent, rightW);
         if (winW > 100.0f && need > winW + 4.0f)
@@ -1107,7 +1112,7 @@ static void draw_topbar_imgui(int lang, int cAccent)
         draw_topbar_tabs(lang, cAccent, tabW);
         draw_topbar_right(lang, cAccent, rightW);
         ImGui::NewLine();
-        draw_topbar_actions(lang, cAccent, fileW, editW, viewW);
+        draw_topbar_actions(lang, cAccent, actionW);
         if (winW > 100.0f && need < winW - 24.0f)
         {
             if (++sSettle >= 3)
@@ -1119,6 +1124,7 @@ static void draw_topbar_imgui(int lang, int cAccent)
         else
             sSettle = 0;
     }
+    ImGui::PopStyleVar();
     if (gTopFont)
         ImGui::PopFont();
     ImGui::End();
