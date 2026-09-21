@@ -5,6 +5,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD 11)
 
+# Exported for clangd/VS Code/Zed when the generator supports it
+# (Ninja, Makefiles); silently ignored by the Visual Studio generator.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 if(MSVC)
   add_compile_definitions(_CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN)
   add_compile_options(/W3 /MP)

@@ -1,0 +1,13 @@
+# Clangd config for atanua (MSVC + vcpkg manifest build, C++17).
+#
+# The Visual Studio CMake generator cannot emit compile_commands.json, so
+# this file carries the project's include paths and defines as fallback
+# flags. If you ever configure with Ninja + CMAKE_EXPORT_COMPILE_COMMANDS
+# (see CMakeLists), clangd auto-discovers build/compile_commands.json and
+# it takes precedence over these fallbacks.
+CompileFlags:
+  Add: [-std=c++17,
+        -D_CRT_SECURE_NO_WARNINGS, -DNOMINMAX, -DWIN32_LEAN_AND_MEAN,
+        -Isrc/include, -Isrc,
+        -Ithird_party/imgui, -Ithird_party/imgui/backends,
+        -Ibuild/vcpkg_installed/x64-windows/include]
