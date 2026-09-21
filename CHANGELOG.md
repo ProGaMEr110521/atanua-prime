@@ -7,12 +7,24 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 ## [Unreleased] / [В разработке]
 
 ### Added / Добавлено
+- Linux install layout: binary, data, `.desktop` entry, and hicolor icon via `cmake --install`. Config follows XDG at `~/.config/atanua/atanua.xml`, with the old working-directory file still read if present.
+- Установка на Linux: бинарник, данные, `.desktop` и иконка hicolor через `cmake --install`. Конфиг по XDG в `~/.config/atanua/atanua.xml`, старый файл из рабочей папки по-прежнему читается, если он есть.
+- Linux update check downloads release info with `curl`.
+- Проверка обновлений на Linux скачивает сведения о релизе через `curl`.
+- READMEs rewritten to match the current build, controls, and vendored libraries.
+- README переписаны под текущую сборку, управление и vendored-библиотеки.
 - Top bar grouped by function with uniform button widths, separators, rounded controls and hover shortcut hints, plus a shortcuts reference window.
 - Верхняя панель сгруппирована по функциям: одинаковая ширина кнопок в группе, разделители, скруглённые элементы, подсказки с хоткеями и окно-справка по сочетаниям.
 - All twelve action buttons share one measured width with tighter toolbar spacing; separators slimmed.
 - Все двенадцать кнопок действий одной измеренной ширины, компактные отступы панели.
 - Light canvas palette reworked: soft paper background with readable grid instead of harsh white.
 - Светлая тема холста переработана: мягкий бумажный фон с читаемой сеткой вместо резкого белого.
+
+### Fixed / Исправлено
+- Linux data files resolve from the executable path (`/proc/self/exe`), so tarball, install prefix, and `/usr/share/atanua` launches work from any directory.
+- Файлы данных на Linux находятся от пути к исполняемому файлу (`/proc/self/exe`), поэтому архив, установочный префикс и `/usr/share/atanua` запускаются из любой папки.
+- Linux file dialogs no longer nest a GTK main loop; screenshots go to `~/Pictures`.
+- Диалоги выбора файлов на Linux больше не вкладывают цикл GTK; скриншоты сохраняются в `~/Pictures`.
 
 ## [v1.3.141226] - 2026-09-20
 
