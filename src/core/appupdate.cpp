@@ -1,9 +1,9 @@
 /*
 Atanua update check - background fetch plus one-shot prompt state.
 Pure version/release logic lives in appupdate.h (unit tested); this file
-only fetches the releases payload over HTTPS on a worker thread (Windows
-WinInet, unavailable elsewhere) and latches a newer-than-builtin result
-for the UI thread to surface once. Failures and up-to-date stay silent.
+fetches the releases payload over HTTPS on a worker thread (WinInet on
+Windows, curl on Linux) and latches a newer-than-builtin result for the
+UI thread to surface once. Failures and up-to-date stay silent.
 */
 #include "atanua.h"
 #include "atanua_internal.h"
@@ -117,9 +117,26 @@ static int fetchReleases(char *out, int cap)
     InternetCloseHandle(hInet);
     return ok;
 #else
-    (void)out;
-    (void)cap;
-    return 0;
+    FILE *p;
+    size_t total = 0;
+    size_t got;
+    if (!out || cap <= 0)
+        return 0;
+    p = popen("curl -fsSL --connect-timeout 8 --max-time 15 "
+        "-H 'User-Agent: AtanuaUpdateCheck/1.0' "
+        "-H 'Accept: application/vnd.github+json' "
+        "'https://api.github.com/repos/ProGaMEr110521/atanua-prime/releases?per_page=10' 2>/dev/null",
+        "r");
+    if (!p)
+        return 0;
+    while (total < (size_t)(cap - 1)
+        && (got = fread(out + total, 1, (size_t)(cap - 1) - total, p)) > 0)
+    {
+        total += got;
+    }
+    out[total] = '\0';
+    pclose(p);
+    return total > 0 ? 1 : 0;
 #endif
 }
 

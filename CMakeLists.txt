@@ -107,6 +107,7 @@ set(ATANUA_SOURCES
   src/chip/tflipflop.cpp
   src/chip/xorchip.cpp
   src/core/AtanuaConfig.cpp
+  src/core/applocation.cpp
   src/core/appupdate.cpp
   src/core/basechipfactory.cpp
   src/core/BoxStitchingInformation.cpp
@@ -191,6 +192,10 @@ if(UNIX AND NOT APPLE)
   find_package(PkgConfig REQUIRED)
   pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
   target_link_libraries(atanua PRIVATE PkgConfig::GTK)
+  install(TARGETS atanua RUNTIME DESTINATION bin)
+  install(DIRECTORY data/ DESTINATION share/atanua/data)
+  install(FILES packaging/atanua.desktop DESTINATION share/applications)
+  install(FILES data/icon.png DESTINATION share/icons/hicolor/256x256/apps RENAME atanua.png)
 endif()
 
 # Runtime assets (fonts, textures) live in data/ next to the exe.

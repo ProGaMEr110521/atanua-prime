@@ -25,6 +25,7 @@ distribution.
 #include "fileutils.h"
 #include "ui_theme.h"
 #include "app_settings.h"
+#include "applocation.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "imgui_impl_sdl2.h"
@@ -164,17 +165,9 @@ void do_rotate()
 
 void do_screengrab()
 {
-	FILE * f = NULL;
-	char tempname[256];
-	int i = 0;
-	do
-	{
-		if (f) fclose(f);
-		i++;
-		sprintf(tempname, "atanua%03d.png", i);
-		f = fopen(tempname, "rb");
-	}
-	while(f);
+	char tempname[512];
+	if (!AppLocation_NextScreenshotPath(tempname, (int)sizeof(tempname)))
+		return;
 
 	int x0 = gConfig.mToolkitWidth;
 	int y0 = gTopbarH;
@@ -183,6 +176,7 @@ void do_screengrab()
 
 	char * data = new char[w*h*4];
 	char * flipdata = new char[w*h*4];
+	int i;
 	glReadPixels(x0,0,w,h,GL_RGBA,GL_UNSIGNED_BYTE,data);
 
 	for (i = 0; i < h; i++)
@@ -2689,6 +2683,10 @@ int main(int argc, char** args)
 
     if (gConfig.mAudioEnable)
         sdlflags |= SDL_INIT_AUDIO;
+
+#ifdef LINUX_VERSION
+    SDL_SetHint("SDL_VIDEO_WAYLAND_APP_ID", "atanua");
+#endif
 
     if (SDL_Init(sdlflags) < 0)
     {
