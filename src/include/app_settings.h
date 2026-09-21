@@ -122,6 +122,7 @@ enum StrKey
     S_CANCEL,
     S_NUDGE,
     S_ARROWS,
+    S_ISSUES,
     S_COUNT
 };
 
@@ -193,6 +194,10 @@ inline const StrEntry *stringTable(int *countOut)
         { S_CANCEL, "Cancel", "Cancel", "Отмена", "Отмена" },
         { S_NUDGE, "Nudge", "Nudge", "Сдвиг", "Сдвиг" },
         { S_ARROWS, "Arrows", "Arrows", "Стрелки", "Стрелки" },
+        { S_ISSUES, "If you find any kind of bug or error, feel free to open a issue ticket on my github",
+            "If you find any kind of bug or error, feel free to open a issue ticket on my github"
+            , "Если вы нашли баг или испытываете трудности в работе с какими либо функциями или хотите добавить что-либо, пожалуйста сообщите разработчику на GitHub",
+            "Если вы нашли баг или испытываете трудности в работе с какими либо функциями или хотите добавить что-либо, пожалуйста сообщите разработчику на GitHub"}
     };
     if (countOut)
         *countOut = (int)(sizeof(kTable) / sizeof(kTable[0]));

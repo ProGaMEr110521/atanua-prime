@@ -143,7 +143,7 @@ void handle_key(int keysym, int down)
             gShortcutsOpen = 0;
             do_cancel();
         }
-        break;        
+        break;
     }
     gKeyState[AtanuaKeyIndex(keysym)] = down;
 }
@@ -180,11 +180,11 @@ void do_screengrab()
 	int y0 = gTopbarH;
 	int w = gScreenWidth - x0;
 	int h = gScreenHeight - y0;
-	
+
 	char * data = new char[w*h*4];
 	char * flipdata = new char[w*h*4];
 	glReadPixels(x0,0,w,h,GL_RGBA,GL_UNSIGNED_BYTE,data);
-	
+
 	for (i = 0; i < h; i++)
 		memcpy(flipdata+(h-i-1)*w*4,data+i*w*4,w*4);
 
@@ -202,11 +202,11 @@ void process_events()
 {
     SDL_Event event;
 
-    while (SDL_PollEvent(&event)) 
+    while (SDL_PollEvent(&event))
     {
         if (ImGui::GetCurrentContext())
             ImGui_ImplSDL2_ProcessEvent(&event);
-        switch (event.type) 
+        switch (event.type)
         {
         case SDL_KEYDOWN:
             if (!imgui_wants_keys() || event.key.keysym.sym == SDLK_ESCAPE)
@@ -500,7 +500,7 @@ int split_wire(int aDoSplit)
     float wirelen = sqrt((pos1[0]-pos2[0])*(pos1[0]-pos2[0]) + (pos1[1]-pos2[1])*(pos1[1]-pos2[1]));
     float p1dist = sqrt((pos1[0]-pos3[0])*(pos1[0]-pos3[0]) + (pos1[1]-pos3[1])*(pos1[1]-pos3[1]));
     float p2dist = sqrt((pos2[0]-pos3[0])*(pos2[0]-pos3[0]) + (pos2[1]-pos3[1])*(pos2[1]-pos3[1]));
-        
+
     if (p1dist < wirelen * endTol)
     {
         if (!aDoSplit) return 0;
@@ -767,6 +767,8 @@ static void draw_shortcuts_window(int lang)
         }
         ImGui::EndTable();
     }
+    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_ISSUES, lang, 0));
+    ImGui::TextLinkOpenURL("https://github.com/ProGaMEr110521/atanua-prime/issues");
     if (ImGui::Button(AppSettings::text(AppSettings::S_CLOSE, lang, 0)))
         gShortcutsOpen = 0;
     ImGui::End();
@@ -1342,7 +1344,7 @@ static void draw_screen()
 //#pragma omp parallel default(shared) num_threads(4)
 
 			// Chip updates could be split into jobs for a thread pool.
-//#pragma omp for 
+//#pragma omp for
 			for (i = 0; i < chips; i++)
 			{
 				if (gChip[i]->mDirty)
@@ -1351,9 +1353,9 @@ static void draw_screen()
 					gChip[i]->update(physicstick);
 				}
 			}
-		
+
 			// Net updates are relatively simple, and there's relatively few nets..
-//#pragma omp for 
+//#pragma omp for
 			for (i = 0; i < nets; i++)
 			{
 				if (gNet[i]->mDirty)
@@ -1367,18 +1369,18 @@ static void draw_screen()
 				}
 			}
 			physics_iterations++;
-        
+
 			physicstick += 1.0 / gConfig.mPhysicsKHz;
 		}
-       
+
         lasttick += 1;
 
         // don't allow for physics to drop framerate too low
-        
+
         if ((signed)SDL_GetTicks() - tick > gConfig.mMaxPhysicsMs)
         {
             lasttick = tick;
-        }        
+        }
     }
 
     physms = SDL_GetTicks() - physms;
@@ -1430,7 +1432,7 @@ static void draw_screen()
                         gMultiSelectWire.push_back(gWire[i]);
                         gWire[i]->mMultiSelectState = 1;
                         gMultiselectDirty = 1;
-                    } 
+                    }
 
                     if (gUIState.activeitem == 0 && gUIState.mousedown)
                     {
@@ -1443,7 +1445,7 @@ static void draw_screen()
                             gMultiSelectWire.clear();
                             gMultiSelectChip.clear();
                         }
-                    }                    
+                    }
                 }
             }
         }
@@ -1505,7 +1507,7 @@ static void draw_screen()
                             gChip[i]->mMultiSelectState = 1;
                         }
                         gMultiselectDirty = 1;
-                    }                    
+                    }
 
                     if (gUIState.activeitem == 0 && gUIState.mousedown)
                     {
@@ -1521,7 +1523,7 @@ static void draw_screen()
                             gMultiSelectChip.clear();
                         }
                     }
-                    
+
                 }
             }
         }
@@ -1667,7 +1669,7 @@ static void draw_screen()
                     gUIState.mousedowny += movey * gZoomFactor;
                 }
             }
-        }   
+        }
 
         // If nothing is active so far, we're in "move the world" mode
         if (gDragMode == DRAGMODE_NONE && gUIState.activeitem == -1 && gUIState.mousedown)
@@ -1685,7 +1687,7 @@ static void draw_screen()
                 gWorldOfsY -= dy / gZoomFactor;
                 gUIState.mousedownx -= dx;
                 gUIState.mousedowny -= dy;
-                gUIState.kbditem = 0; 
+                gUIState.kbditem = 0;
                 mousemode = 1;
                 if (!(gUIState.keymod & gSelectKeyMask) && (!gMultiSelectWire.empty() || !gMultiSelectChip.empty()))
                 {
@@ -1704,28 +1706,28 @@ static void draw_screen()
             {
 				if (gChip[i]->mBox != 0)
 					continue;
-				
-				if (rect_rect_collide(worldmousex, worldmousey, 
+
+				if (rect_rect_collide(worldmousex, worldmousey,
 									  worldmousedownx, worldmousedowny,
-									  gChip[i]->mRotatedX, gChip[i]->mRotatedY, 
+									  gChip[i]->mRotatedX, gChip[i]->mRotatedY,
 									  gChip[i]->mRotatedX + gChip[i]->mRotatedW, gChip[i]->mRotatedY + gChip[i]->mRotatedH))
 				{
 					if (gChip[i]->mMultiSelectState == 0)
 					{
 						gMultiSelectChip.push_back(gChip[i]);
-						gChip[i]->mMultiSelectState = 1;                        
+						gChip[i]->mMultiSelectState = 1;
 					}
 				}
-				
+
             }
-            for (i = 0; i < (signed)gWire.size(); i++)            
+            for (i = 0; i < (signed)gWire.size(); i++)
             {
 				if (gWire[i]->mBox != 0)
 					continue;
                 Pin * a, * b;
                 a = gWire[i]->mFirst;
                 b = gWire[i]->mSecond;
-                if (rect_line_collide(worldmousex, worldmousey, 
+                if (rect_line_collide(worldmousex, worldmousey,
                                       worldmousedownx, worldmousedowny,
                                       a->mHost->mRotatedX + a->mRotatedX + 0.25, a->mHost->mRotatedY + a->mRotatedY + 0.25,
                                       b->mHost->mRotatedX + b->mRotatedX + 0.25, b->mHost->mRotatedY + b->mRotatedY + 0.25))
@@ -1841,13 +1843,13 @@ static void draw_screen()
                     gChipName.push_back(gNewChipName);
                     gNewChip->mX = worldmousex - gNewChip->mW / 2;
                     gNewChip->mY = worldmousey - gNewChip->mH / 2;
-					
+
                     gNewChip->rotate(gChip[oldchipid]->mAngleIn90DegreeSteps);
                     gUIState.mousedownx = gUIState.mousex;
                     gUIState.mousedowny = gUIState.mousey;
                     gUIState.mousedownkeymod &= ~gCloneKeyMask; // stop cloning
                     gChip[oldchipid]->clone(gNewChip);
-				
+
 					int i;
 					for (i = 0; i < (signed)gChip.size(); i++)
 					{
@@ -1865,14 +1867,14 @@ static void draw_screen()
             }
         }
 
-        if ((gUIState.activeitem == 0 && gUIState.scroll) || 
-			gUIState.keyentered == SDLK_KP_PLUS || 
+        if ((gUIState.activeitem == 0 && gUIState.scroll) ||
+			gUIState.keyentered == SDLK_KP_PLUS ||
 			gUIState.keyentered == SDLK_KP_MINUS ||
 			gUIState.keyentered == SDLK_PAGEUP ||
 			gUIState.keyentered == SDLK_PAGEDOWN)
         {
             float oldfactor = gZoomFactor;
-            if (gUIState.scroll > 0 || 
+            if (gUIState.scroll > 0 ||
 				gUIState.keyentered == SDLK_KP_PLUS ||
 				gUIState.keyentered == SDLK_PAGEUP)
             {
@@ -1893,7 +1895,7 @@ static void draw_screen()
     // Handle keyboard events for selected objects
     static int sLastNudgeTick = 0;
     if ((!gMultiSelectChip.empty()) || (!gMultiSelectWire.empty()))
-    {    
+    {
         // multiselect mode
         if (gUIState.keyentered == SDLK_LEFT ||
             gUIState.keyentered == SDLK_RIGHT ||
@@ -1931,8 +1933,8 @@ static void draw_screen()
                     delete_chip(gChip[i]);
                 }
             }
-            
-            // Deletion of wires is easier (although it's unlikely that any remain 
+
+            // Deletion of wires is easier (although it's unlikely that any remain
             // at this point due to wirefry..)
 
             // This operation would be more efficient if done from end to the beginning.
@@ -2046,7 +2048,7 @@ static void draw_screen()
 		glColor4f(0.188f, 0.216f, 0.278f, 1.0f);
 	else
 		glColor4f(0.700f, 0.705f, 0.715f, 1.0f);
-    glBegin(GL_LINES);    
+    glBegin(GL_LINES);
     for (i = 0; i < 20; i++)
     {
             glVertex2f(i * 10, 0);
@@ -2071,15 +2073,15 @@ static void draw_screen()
             }
         }
     }
-    
+
 
     if (gDragMode == DRAGMODE_SELECT)
     {
         drawrect(
             worldmousedownx,
-            worldmousedowny, 
-            worldmousex - worldmousedownx, 
-            worldmousey - worldmousedowny, 
+            worldmousedowny,
+            worldmousex - worldmousedownx,
+            worldmousey - worldmousedowny,
             0x3fffff00);
     }
 
@@ -2124,7 +2126,7 @@ static void draw_screen()
         else
         if (gChip[i]->mMultiSelectState)
             drawrect(gChip[i]->mX-0.5,gChip[i]->mY-0.5,gChip[i]->mW+1,gChip[i]->mH+1,color_multiselect);
-            
+
         gChip[i]->render(CHIP_ID(0, i));
 
 
@@ -2150,21 +2152,21 @@ static void draw_screen()
             else
             if (IS_CHIP_ID(gUIState.hotitem) && GET_CHIP_ID(gUIState.hotitem) == i)
             {
-                drawrect(gChip[i]->mX + gChip[i]->mPin[j]->mX, 
+                drawrect(gChip[i]->mX + gChip[i]->mPin[j]->mX,
                          gChip[i]->mY + gChip[i]->mPin[j]->mY, 0.5, 0.5, color_hotpin1);
-                drawrect(gChip[i]->mX + gChip[i]->mPin[j]->mX + 0.1, 
+                drawrect(gChip[i]->mX + gChip[i]->mPin[j]->mX + 0.1,
                          gChip[i]->mY + gChip[i]->mPin[j]->mY + 0.1, 0.3, 0.3, color_hotpin2);
             }
             else
             {
                 if (gUIState.keymod & KMOD_ALT && gChip[i]->mPin[j]->getState() == PINSTATE_READ && gChip[i]->mPin[j]->mNet == NULL)
                 {
-                    drawrect(gChip[i]->mX + gChip[i]->mPin[j]->mX + 0.1, 
+                    drawrect(gChip[i]->mX + gChip[i]->mPin[j]->mX + 0.1,
                             gChip[i]->mY + gChip[i]->mPin[j]->mY + 0.1, 0.3, 0.3, color_pinhilight);
                 }
                 else
                 {
-                    drawrect(gChip[i]->mX + gChip[i]->mPin[j]->mX + 0.1, 
+                    drawrect(gChip[i]->mX + gChip[i]->mPin[j]->mX + 0.1,
                             gChip[i]->mY + gChip[i]->mPin[j]->mY + 0.1, 0.3, 0.3, color_normalpin);
                 }
             }
@@ -2209,14 +2211,14 @@ static void draw_screen()
             rc = 0.75; gc = 0; bc = 0;
             break;
         }
-      
+
         if (gUIState.kbditem == WIRE_ID(i))
         {
             rc = (rc + 1) / 2;
             gc = (gc + 1) / 2;
             bc = (bc + 0.5) / 2;
         }
-        else        
+        else
         if (gWire[i]->mMultiSelectState)
         {
             rc = (rc + 0.75) / 2;
@@ -2261,7 +2263,7 @@ static void draw_screen()
             {
                 float xv = (a->mHost->mRotatedX + a->mRotatedX + 0.25) - (b->mHost->mRotatedX + b->mRotatedX + 0.25);
                 float yv = (a->mHost->mRotatedY + a->mRotatedY + 0.25) - (b->mHost->mRotatedY + b->mRotatedY + 0.25);
-                
+
                 float l = sqrt(xv*xv+yv*yv);
                 if (l!=0)
                 {
@@ -2452,7 +2454,7 @@ static void draw_screen()
                 else
                 {
                     tooltip = NULL;
-                }                
+                }
             }
             else
             {
@@ -2684,11 +2686,11 @@ int main(int argc, char** args)
     gVisualRand.init_genrand(0xc0cac01a);
 
     int sdlflags = SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_EVENTS;
-    
+
     if (gConfig.mAudioEnable)
         sdlflags |= SDL_INIT_AUDIO;
 
-    if (SDL_Init(sdlflags) < 0) 
+    if (SDL_Init(sdlflags) < 0)
     {
         fprintf(stderr, "Video initialization failed: %s\n", SDL_GetError());
         SDL_Quit();
@@ -2782,7 +2784,7 @@ int main(int argc, char** args)
 
     AppUpdate_StartCheck();
 
-    while (1) 
+    while (1)
     {
         process_events();
         draw_screen();
