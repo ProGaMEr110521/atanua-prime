@@ -22,6 +22,7 @@ distribution.
 */
 #include "atanua.h"
 #include "atanua_internal.h"
+#include "app_settings.h"
 
 #include "label.h"
 #include "basechipfactory.h"
@@ -590,7 +591,7 @@ Chip * BaseChipFactory::build(const char *aChipId)
 	i = (int)strlen(aChipId);
 	if (i > 7 && stricmp(aChipId+i-7,".atanua") == 0)
 	{
-		if (gActiveBoxes > gConfig.mMaxActiveBoxes && okcancel("Maximum number of active boxes exceeded.\nContinue loading anyway?\n\nIf you really need more boxes, adjust the limit in atanua.xml") == 0)
+		if (gActiveBoxes > gConfig.mMaxActiveBoxes && okcancel(AppSettings::text(AppSettings::S_ERR_BOXLIMIT, gConfig.mLanguage, 0)) == 0)
 		{
 			return NULL;
 		}

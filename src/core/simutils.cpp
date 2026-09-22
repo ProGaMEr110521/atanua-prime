@@ -22,6 +22,7 @@ distribution.
 */
 #include "atanua.h"
 #include "atanua_internal.h"
+#include "app_settings.h"
 #include "fileutils.h"
 #include "ui_theme.h"
 #include "extpin.h"
@@ -816,7 +817,7 @@ void do_loaddialog(int merge, const char *aFilename)
 
 void do_resetdialog()
 {
-    if (okcancel("Are you sure you want to reset?\nAny unsaved changes will be lost."))
+    if (okcancel(AppSettings::text(AppSettings::S_CONFIRM_RESET, gConfig.mLanguage, 0)))
 	{
 		save_undo();
 		resetfilename();

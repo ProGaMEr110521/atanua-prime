@@ -22,6 +22,7 @@ distribution.
 */
 #include "atanua.h"
 #include "atanua_internal.h"
+#include "app_settings.h"
 #include "fileutils.h"
 #include <tinyxml2.h>
 #include "extpin.h"
@@ -314,7 +315,7 @@ BoxStitchingInformation * do_preparse_box(const char *aFname)
 		d->mToolTips.push_back(mystrdup(gBoxCache[idx].mTooltips[i]));
 	}
 
-	if (d->mToolTips.empty() && okcancel("Trying to box an .atanua file with no external pins!\nBuild it anyway?") == 0)
+	if (d->mToolTips.empty() && okcancel(AppSettings::text(AppSettings::S_ERR_BOXNOPINS, gConfig.mLanguage, 0)) == 0)
 	{
 		delete d;
 		return NULL;
@@ -507,7 +508,7 @@ void do_loadxml(FILE * f, int box)
                                 pin1 >= (signed)gChip[chip1+old_chips]->mPin.size() ||
                                 pin2 >= (signed)gChip[chip2+old_chips]->mPin.size())
                             {
-                                if (okcancel("Invalid wire definition found.\nTry to continue loading?") == 0)
+                                if (okcancel(AppSettings::text(AppSettings::S_ERR_BADWIRE, gConfig.mLanguage, 0)) == 0)
                                 {
                                     build_nets();
                                     return;

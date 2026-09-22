@@ -17,6 +17,8 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 - Открытие .atanua двойным кликом или перетаскиванием в окно: общая проверка расширения, подтверждение при несохранённых изменениях, ассоциация файлов по явному тогглу в настройках (HKCU, без админа), `atanua.ico` и Linux `.desktop` с MimeType в поставке.
 - External opens made reliable: non-ASCII paths, relative argv, no false filename in the title on failed loads; covered by scripted argv/drop trials.
 - Надёжное открытие извне: не-ASCII пути, относительный argv и честный заголовок при неудачной загрузке; покрыто скриптовыми argv/drop-пробами.
+- Russian consistency pass: distinct Out/Quit labels, unified Save wording, clearer zoom label, localized file dialogs and confirmations.
+- Проверка русского языка: разные подписи Out/Quit, единое слово для сохранения, понятная подпись масштаба, переведённые диалоги и подтверждения.
 - Support section in the shortcuts window: issues link plus developer email (`mailto:`), wrapped to keep the window on screen.
 - Секция поддержки в окне горячих клавиш: ссылка на issues и почта разработчика (`mailto:`), текст переносится, чтобы окно не вылезало за экран.
 

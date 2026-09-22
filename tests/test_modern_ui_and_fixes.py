@@ -432,6 +432,25 @@ def test_settings_wired_into_app():
     assert "draw_settings_panel" in main, "settings panel missing"
     assert "gConfig.save()" in main, "panel never persists"
     assert "S_SOUND_RESTART_NOTE" in main, "restart note missing"
+    assert "S_CONFIRM_EXIT" in main, "quit prompt not localized"
+    assert "S_CONFIRM_OPEN" in main, "drop open prompt not localized"
+    assert '"Are you sure you want to exit' not in main, "hardcoded EN quit prompt is back"
+    assert '"Open %s?' not in main, "hardcoded EN drop prompt is back"
+    sim = read(SRC_SIM)
+    assert "S_CONFIRM_RESET" in sim, "reset prompt not localized"
+    assert '"Are you sure you want to reset' not in sim, "hardcoded EN reset prompt is back"
+    native = read(os.path.join(REPO, "src", "core", "nativefunctions.cpp"))
+    assert "S_OPENTITLE" in native and "S_SAVETITLE" in native, \
+        "file dialog titles not localized"
+    assert '"Open Atanua design file"' not in native, "hardcoded EN open title is back"
+    assert '"Save Atanua design file"' not in native, "hardcoded EN save title is back"
+    assert "static const char *uiAnsi" in native, "UTF-8 to ANSI dialog helper missing"
+    assert "uiAnsi(prompt)" in native, "confirm prompts bypass the ANSI conversion"
+    fileio = read(os.path.join(REPO, "src", "core", "fileio.cpp"))
+    assert "S_ERR_BOXNOPINS" in fileio and "S_ERR_BADWIRE" in fileio, \
+        "load error prompts not localized"
+    base = read(os.path.join(REPO, "src", "core", "basechipfactory.cpp"))
+    assert "S_ERR_BOXLIMIT" in base, "box limit prompt not localized"
     assert "gSettingsOpen = 0" in main, "panel has no close path"
     font = read(os.path.join(REPO, "src", "basecode", "angelcodefont.cpp"))
     assert "acfont_nextcode" in font, "font has no UTF-8 decoder"

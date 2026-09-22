@@ -22,6 +22,7 @@ distribution.
 */
 #include "atanua.h"
 #include "atanua_internal.h" // for TITLE
+#include "app_settings.h"
 #include "fileassoc.h"
 
 char * gFilename = NULL;
@@ -53,6 +54,35 @@ FILE * atanua_fopen_rb(const char *aPath)
 	}
 #endif
 	return fopen(aPath, "rb");
+}
+
+// The string table is UTF-8 but the native dialogs are ANSI builds, so
+// Cyrillic labels would show as mojibake. Convert per call through
+// round-robin static buffers; every shipped string is CP_ACP
+// representable, so nothing is lost. Callers must use the result
+// immediately (up to 4 live values).
+static const char *uiAnsi(const char *u)
+{
+#ifdef WINDOWS_VERSION
+	static char bufs[4][1024];
+	static int next = 0;
+	if (u && u[0])
+	{
+		int wlen = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, u, -1, NULL, 0);
+		if (wlen > 0 && wlen < 1024)
+		{
+			wchar_t wbuf[1024];
+			if (MultiByteToWideChar(CP_UTF8, 0, u, -1, wbuf, wlen) > 0 &&
+				WideCharToMultiByte(CP_ACP, 0, wbuf, -1, bufs[next], 1024, NULL, NULL) > 0)
+			{
+				const char *out = bufs[next];
+				next = (next + 1) & 3;
+				return out;
+			}
+		}
+	}
+#endif
+	return u;
 }
 
 FILE * openfileinsamedir(const char * aFname)
@@ -190,7 +220,7 @@ FILE * openfiledialog(const char *title)
 			}
 		}
         
-        ofn.lpstrTitle = "Open Atanua design file";
+        ofn.lpstrTitle = uiAnsi(AppSettings::text(AppSettings::S_OPENTITLE, gConfig.mLanguage, 0));
     }
     else
         ofn.lpstrTitle = title;
@@ -232,7 +262,7 @@ FILE * savefiledialog(const char *title)
     {
         ofn.lpstrFilter = "Atanua Design Files (*.atanua)\0*.atanua\0All Files (*.*)\0*.*\0\0";
         ofn.lpstrDefExt = "atanua";
-        ofn.lpstrTitle = "Save Atanua design file";
+        ofn.lpstrTitle = uiAnsi(AppSettings::text(AppSettings::S_SAVETITLE, gConfig.mLanguage, 0));
     }
     else
     {
@@ -271,7 +301,8 @@ FILE * savefiledialog(const char *title)
 int okcancel(const char *prompt)
 {
     HWND hWnd = AtanuaGetHWND();
-    if (MessageBox(hWnd, prompt, TITLE, MB_OKCANCEL | MB_ICONWARNING) == IDOK)
+    // Prompts arrive as UTF-8 (table strings, drop/argv file names).
+    if (MessageBox(hWnd, uiAnsi(prompt), TITLE, MB_OKCANCEL | MB_ICONWARNING) == IDOK)
         return 1;
     return 0;
 }

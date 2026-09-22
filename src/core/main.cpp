@@ -227,7 +227,7 @@ static void open_external_file(const char *path)
     {
         char prompt[300];
         snprintf(prompt, sizeof(prompt),
-            "Open %s?\nAny unsaved changes will be lost.",
+            AppSettings::text(AppSettings::S_CONFIRM_OPEN, gConfig.mLanguage, 0),
             DropFile::baseName(path));
         if (!okcancel(prompt))
             return;
@@ -985,8 +985,7 @@ static float topbar_group_w(const int *keys, int n, int lang)
 // accent. Widths are uniform inside each functional group (the max of the
 // group), so labels can never overflow and neighbors never shift.
 // The ### suffix keeps the ImGui ID unique even when two languages give
-// different buttons the same visible text (e.g. RU "Выход" is both the
-// Out tab and Quit).
+// different buttons the same visible text.
 static bool topbar_btn(int strKey, int lang, float w, int highlighted, int cAccent)
 {
     if (highlighted)
@@ -1104,7 +1103,7 @@ static void draw_topbar_right(int lang, int cAccent, float rightW)
         bool hit = ImGui::Button(quitId, ImVec2(rightW, 0));
         if (ImGui::IsItemHovered())
             ImGui::SetItemTooltip("%s", AppSettings::text(AppSettings::S_QUIT, lang, 0));
-        if (hit && okcancel("Are you sure you want to exit?\nAny unsaved changes will be lost."))
+        if (hit && okcancel(AppSettings::text(AppSettings::S_CONFIRM_EXIT, lang, 0)))
             exit(0);
     }
     ImGui::SameLine();
