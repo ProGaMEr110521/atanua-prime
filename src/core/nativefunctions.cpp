@@ -22,6 +22,7 @@ distribution.
 */
 #include "atanua.h"
 #include "atanua_internal.h" // for TITLE
+#include "fileassoc.h"
 
 char * gFilename = NULL;
 char * gAltFilename = NULL;
@@ -268,6 +269,152 @@ void *getdllproc(DLLHANDLETYPE dllhandle, const char *procname)
 {
     HMODULE dllh = (HMODULE)dllhandle;
     return GetProcAddress(dllh, procname);
+}
+
+// Per-user .atanua association under HKCU\Software\Classes. Every write
+// happens only from the explicit Settings toggle; startup never touches
+// the registry.
+static HKEY assocRoot()
+{
+    return HKEY_CURRENT_USER;
+}
+
+static void assocFullKey(const char *aSubkey, char *aOut, int aCap)
+{
+    // "Software\Classes\" + subkey, truncated safely.
+    const char *prefix = "Software\\Classes\\";
+    int i = 0;
+    for (const char *p = prefix; *p && i + 1 < aCap; p++)
+        aOut[i++] = *p;
+    if (aSubkey)
+    {
+        for (const char *p = aSubkey; *p && i + 1 < aCap; p++)
+            aOut[i++] = *p;
+    }
+    aOut[i] = 0;
+}
+
+int assocReadString(const char *aSubkey, const char *aValueName, char *aOut, int aCap)
+{
+    if (!aSubkey || !aOut || aCap <= 0)
+        return 0;
+    char key[512];
+    assocFullKey(aSubkey, key, sizeof(key));
+    HKEY h = 0;
+    if (RegOpenKeyExA(assocRoot(), key, 0, KEY_QUERY_VALUE, &h) != ERROR_SUCCESS)
+        return 0;
+    DWORD type = 0;
+    DWORD size = (DWORD)aCap;
+    LONG rc = RegQueryValueExA(h, aValueName, 0, &type, (LPBYTE)aOut, &size);
+    RegCloseKey(h);
+    if (rc != ERROR_SUCCESS || (type != REG_SZ && type != REG_EXPAND_SZ))
+        return 0;
+    if (size >= (DWORD)aCap)
+        aOut[aCap - 1] = 0;
+    else
+        aOut[size] = 0;
+    return 1;
+}
+
+int assocWriteString(const char *aSubkey, const char *aValueName, const char *aValue)
+{
+    if (!aSubkey || !aValue)
+        return 0;
+    char key[512];
+    assocFullKey(aSubkey, key, sizeof(key));
+    HKEY h = 0;
+    if (RegCreateKeyExA(assocRoot(), key, 0, NULL, 0, KEY_SET_VALUE, NULL, &h, NULL) != ERROR_SUCCESS)
+        return 0;
+    LONG rc = RegSetValueExA(h, aValueName, 0, REG_SZ,
+        (const BYTE *)aValue, (DWORD)(strlen(aValue) + 1));
+    RegCloseKey(h);
+    return rc == ERROR_SUCCESS;
+}
+
+int assocDeleteKey(const char *aSubkey)
+{
+    if (!aSubkey)
+        return 0;
+    char key[512];
+    assocFullKey(aSubkey, key, sizeof(key));
+    // RegDeleteTree removes the key with all values/subkeys; missing keys
+    // count as success so toggle-off never errors on a clean machine.
+    LONG rc = RegDeleteTreeA(assocRoot(), key);
+    return rc == ERROR_SUCCESS || rc == ERROR_FILE_NOT_FOUND;
+}
+
+int currentExePath(char *aOut, int aCap)
+{
+    if (!aOut || aCap <= 0)
+        return 0;
+    DWORD n = GetModuleFileNameA(NULL, aOut, (DWORD)aCap);
+    if (n == 0 || n >= (DWORD)aCap)
+        return 0;
+    return 1;
+}
+
+int assocState(const char *aExePath)
+{
+    char exe[1024];
+    if (!aExePath || !aExePath[0])
+    {
+        if (!currentExePath(exe, sizeof(exe)))
+            return -1;
+        aExePath = exe;
+    }
+    char extVal[256];
+    char cmd[1024];
+    char cmdKey[256];
+    sprintf(cmdKey, "%s\\%s", FileAssoc::progId(), FileAssoc::openCommandSubkey());
+    if (!assocReadString(FileAssoc::extensionKey(), NULL, extVal, sizeof(extVal)))
+        return 0;
+    if (strcmp(extVal, FileAssoc::progId()) != 0)
+        return 0;
+    if (!assocReadString(cmdKey, NULL, cmd, sizeof(cmd)))
+        return 0;
+    return FileAssoc::openCommandMatchesExe(cmd, aExePath) ? 1 : 0;
+}
+
+int assocInstall(const char *aExePath)
+{
+    char exe[1024];
+    if (!aExePath || !aExePath[0])
+    {
+        if (!currentExePath(exe, sizeof(exe)))
+            return 0;
+        aExePath = exe;
+    }
+    char cmd[1024];
+    char icon[1024];
+    char cmdKey[256];
+    char iconKey[256];
+    if (!FileAssoc::formatOpenCommand(aExePath, cmd, sizeof(cmd)))
+        return 0;
+    if (!FileAssoc::formatDefaultIcon(aExePath, icon, sizeof(icon)))
+        return 0;
+    sprintf(cmdKey, "%s\\%s", FileAssoc::progId(), FileAssoc::openCommandSubkey());
+    sprintf(iconKey, "%s\\%s", FileAssoc::progId(), FileAssoc::defaultIconSubkey());
+    if (!assocWriteString(cmdKey, NULL, cmd))
+        return 0;
+    if (!assocWriteString(iconKey, NULL, icon))
+        return 0;
+    if (!assocWriteString(FileAssoc::extensionKey(), NULL, FileAssoc::progId()))
+        return 0;
+    return 1;
+}
+
+int assocRemove()
+{
+    // Remove only our own keys; never touch a foreign ProgID. The .atanua
+    // extension key is removed only when it still points at us.
+    char extVal[256];
+    int owned = assocReadString(FileAssoc::extensionKey(), NULL, extVal, sizeof(extVal)) &&
+        strcmp(extVal, FileAssoc::progId()) == 0;
+    if (!assocDeleteKey(FileAssoc::progId()))
+        return 0;
+    if (owned && !assocDeleteKey(FileAssoc::extensionKey()))
+        return 0;
+    return 1;
 }
 
 #endif
@@ -664,4 +811,43 @@ void *getdllproc(void* dllhandle, const char *procname)
     void* library = dllhandle;
     return dlsym(library,procname);
 }
+
+// File association is Windows-only; elsewhere the helpers are inert
+// stubs so shared callers compile unchanged.
+#ifndef WINDOWS_VERSION
+int assocReadString(const char *aSubkey, const char *aValueName, char *aOut, int aCap)
+{
+    (void)aSubkey; (void)aValueName; (void)aOut; (void)aCap;
+    return 0;
+}
+int assocWriteString(const char *aSubkey, const char *aValueName, const char *aValue)
+{
+    (void)aSubkey; (void)aValueName; (void)aValue;
+    return 0;
+}
+int assocDeleteKey(const char *aSubkey)
+{
+    (void)aSubkey;
+    return 0;
+}
+int currentExePath(char *aOut, int aCap)
+{
+    (void)aOut; (void)aCap;
+    return 0;
+}
+int assocState(const char *aExePath)
+{
+    (void)aExePath;
+    return 0;
+}
+int assocInstall(const char *aExePath)
+{
+    (void)aExePath;
+    return 0;
+}
+int assocRemove()
+{
+    return 1;
+}
+#endif
 #endif

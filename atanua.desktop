@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Atanua Prime
+Comment=Real-time logic simulator
+Exec=atanua %f
+Icon=atanua
+Terminal=false
+Categories=Education;Science;Electronics;
+MimeType=application/x-atanua;

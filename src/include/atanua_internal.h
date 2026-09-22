@@ -176,4 +176,14 @@ extern int okcancel(const char *prompt);
 extern void gotoappdirectory(int parc, char ** pars);
 extern DLLHANDLETYPE opendll(const char *dllfilename);
 extern void *getdllproc(DLLHANDLETYPE dllhandle, const char *procname);
+// Per-user .atanua file association (Windows HKCU; stubs elsewhere).
+// Paths use forward constants from fileassoc.h; assocState returns
+// 1 = this exe owns the association, 0 = missing/foreign, -1 = error.
+extern int assocReadString(const char *aSubkey, const char *aValueName, char *aOut, int aCap);
+extern int assocWriteString(const char *aSubkey, const char *aValueName, const char *aValue);
+extern int assocDeleteKey(const char *aSubkey);
+extern int assocState(const char *aExePath);
+extern int assocInstall(const char *aExePath);
+extern int assocRemove();
+extern int currentExePath(char *aOut, int aCap);
 #endif

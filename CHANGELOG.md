@@ -13,6 +13,10 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 - Все двенадцать кнопок действий одной измеренной ширины, компактные отступы панели.
 - Light canvas palette reworked: soft paper background with readable grid instead of harsh white.
 - Светлая тема холста переработана: мягкий бумажный фон с читаемой сеткой вместо резкого белого.
+- Open .atanua by double-click or drag-and-drop onto the window: shared extension-checked helper, dirty-canvas confirm before discarding work, per-user file association behind an explicit Settings toggle (HKCU, no admin), shipped `atanua.ico` and Linux `.desktop` with MimeType.
+- Открытие .atanua двойным кликом или перетаскиванием в окно: общая проверка расширения, подтверждение при несохранённых изменениях, ассоциация файлов по явному тогглу в настройках (HKCU, без админа), `atanua.ico` и Linux `.desktop` с MimeType в поставке.
+- Support section in the shortcuts window: issues link plus developer email (`mailto:`, with a plain-text fallback line).
+- Секция поддержки в окне горячих клавиш: ссылка на issues и почта разработчика (`mailto:`, плюс строка обычным текстом).
 
 ## [v1.3.141226] - 2026-09-20
 

@@ -184,6 +184,75 @@ def test_readme_and_changelog():    # Front page is bilingual and documents the 
     assert "## [v1.3.141222]" in changelog, "changelog missing published tag section"
 
 
+def test_dropfile_units():
+    # Compiles the SHIPPED drop/argv helper header and drives extension
+    # checks, drop acceptance and basename handling without a window.
+    _compile_and_run(os.path.join(REPO, "tests", "test_dropfile.cpp"),
+                     [],
+                     "ALL DROPFILE TESTS PASSED")
+
+
+def test_dropfile_wired_into_app():
+    # argv double-click and window drag-and-drop must flow through the
+    # shared helper: extension-checked, dirty-guarded, SDL path freed.
+    main = read(SRC_MAIN)
+    assert '#include "dropfile.h"' in main, "drop helper header not included"
+    assert "case SDL_DROPFILE:" in main, "drop event not handled"
+    assert "SDL_free(event.drop.file)" in main, "SDL drop path never freed"
+    assert 'SDL_EventState(SDL_DROPFILE, SDL_ENABLE)' in main, "drop events not enabled"
+    assert "open_external_file" in main, "shared open helper missing"
+    assert "DropFile::shouldAcceptDrop" in main, "drop path not extension-checked"
+    assert "DropFile::baseName" in main, "dirty prompt lacks file name"
+    assert "canvas_is_dirty" in main, "dirty-canvas guard missing"
+    assert "open_external_file(args[1])" in main, "argv[1] bypasses the helper"
+    assert "do_loaddialog(0, args[1])" not in main, "argv[1] still opens unchecked"
+    dropfile = read(os.path.join(REPO, "src", "include", "dropfile.h"))
+    assert "shouldAcceptDrop" in dropfile and "hasAtanuaExtension" in dropfile, \
+        "helper API incomplete"
+
+
+def test_fileassoc_units():
+    # Compiles the SHIPPED association helper header and drives ProgID
+    # layout, command/icon formatting and exe matching without registry.
+    _compile_and_run(os.path.join(REPO, "tests", "test_fileassoc.cpp"),
+                     [],
+                     "ALL FILEASSOC TESTS PASSED")
+
+
+def test_fileassoc_wired_into_app():
+    # Association must live behind an explicit Settings toggle (HKCU, no
+    # admin), never write at startup; icon + .desktop must ship; the
+    # Support section must carry both issues and email links.
+    main = read(SRC_MAIN)
+    assert '#include "dropfile.h"' in main, "drop helper header not included"
+    assert "S_FILEASSOC" in main, "no association toggle in settings"
+    assert "assocState(0)" in main, "toggle never reads association state"
+    assert "assocInstall(0)" in main, "toggle never installs association"
+    assert "assocRemove()" in main, "toggle never removes association"
+    assert "mailto:vladtem3943@gmail.com" in main, "email link missing"
+    assert "S_EMAIL" in main, "email string key missing"
+    assert "atanua-prime/issues" in main, "issues link missing"
+    native = read(os.path.join(REPO, "src", "core", "nativefunctions.cpp"))
+    assert "HKEY_CURRENT_USER" in native, "association must stay per-user (HKCU)"
+    assert "assocInstall" in native and "assocRemove" in native, "assoc impl missing"
+    for token in ["assocReadString", "assocWriteString", "assocDeleteKey",
+                  "currentExePath", "assocState"]:
+        assert token in native, f"assoc helper missing: {token}"
+    assert "RegDeleteTreeA" in native, "remove must clean the ProgID tree"
+    internal = read(os.path.join(REPO, "src", "include", "atanua_internal.h"))
+    for token in ["assocReadString", "assocWriteString", "assocDeleteKey",
+                  "assocState", "assocInstall", "assocRemove", "currentExePath"]:
+        assert token in internal, f"missing assoc decl: {token}"
+    assert os.path.isfile(os.path.join(REPO, "atanua.ico")), "atanua.ico not shipped"
+    assert os.path.isfile(os.path.join(REPO, "atanua.desktop")), "linux .desktop not shipped"
+    desktop = read(os.path.join(REPO, "atanua.desktop"))
+    assert "MimeType=application/x-atanua;" in desktop, ".desktop lacks MimeType"
+    assert "%f" in desktop, ".desktop cannot receive dropped files"
+    wf = read(WORKFLOW)
+    assert "atanua.ico" in wf, "windows package must ship the icon"
+    assert "atanua.desktop" in wf, "linux package must ship the .desktop file"
+
+
 def test_reset_saves_only_on_confirm():
     sim = read(SRC_SIM)
     i = sim.index("void do_resetdialog")
@@ -582,5 +651,9 @@ if __name__ == "__main__":
     test_anchor_visible_and_magnetic()
     test_circuits_parse_and_wire_indices_valid()
     test_binary_and_assets_present()
+    test_dropfile_units()
+    test_dropfile_wired_into_app()
+    test_fileassoc_units()
+    test_fileassoc_wired_into_app()
     test_cpp_theme_harness()
     print("python structural checks passed")

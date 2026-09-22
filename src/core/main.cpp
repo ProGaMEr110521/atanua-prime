@@ -25,6 +25,7 @@ distribution.
 #include "fileutils.h"
 #include "ui_theme.h"
 #include "app_settings.h"
+#include "dropfile.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "imgui_impl_sdl2.h"
@@ -198,6 +199,34 @@ void do_screengrab()
 	okcancel(tempout);
 }
 
+// A canvas counts as dirty (unsaved work exists) when it holds any chips
+// or wires, or when undo/redo stacks record earlier states. Boot-empty
+// canvases are clean, so opening the very first file never prompts.
+static int canvas_is_dirty()
+{
+    return !gChip.empty() || !gWire.empty() ||
+        !gUndoStack.empty() || !gRedoStack.empty();
+}
+
+// Open a file arriving from outside the Load dialog (argv double-click,
+// window drag-and-drop). Rejects non-.atanua paths silently; asks once
+// via the existing confirm pattern when the canvas holds unsaved work.
+static void open_external_file(const char *path)
+{
+    if (!DropFile::shouldAcceptDrop(path))
+        return;
+    if (canvas_is_dirty())
+    {
+        char prompt[300];
+        snprintf(prompt, sizeof(prompt),
+            "Open %s?\nAny unsaved changes will be lost.",
+            DropFile::baseName(path));
+        if (!okcancel(prompt))
+            return;
+    }
+    do_loaddialog(0, path);
+}
+
 void process_events()
 {
     SDL_Event event;
@@ -208,6 +237,13 @@ void process_events()
             ImGui_ImplSDL2_ProcessEvent(&event);
         switch (event.type)
         {
+        case SDL_DROPFILE:
+            if (event.drop.file)
+            {
+                open_external_file(event.drop.file);
+                SDL_free(event.drop.file);
+            }
+            break;
         case SDL_KEYDOWN:
             if (!imgui_wants_keys() || event.key.keysym.sym == SDLK_ESCAPE)
             {
@@ -769,6 +805,9 @@ static void draw_shortcuts_window(int lang)
     }
     ImGui::TextUnformatted(AppSettings::text(AppSettings::S_ISSUES, lang, 0));
     ImGui::TextLinkOpenURL("https://github.com/ProGaMEr110521/atanua-prime/issues");
+    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_EMAIL, lang, 0));
+    ImGui::TextLinkOpenURL("vladtem3943@gmail.com", "mailto:vladtem3943@gmail.com");
+    ImGui::TextUnformatted("vladtem3943@gmail.com");
     if (ImGui::Button(AppSettings::text(AppSettings::S_CLOSE, lang, 0)))
         gShortcutsOpen = 0;
     ImGui::End();
@@ -868,6 +907,30 @@ static void draw_settings_panel(int lang)
             gConfig.save();
             ImGui::GetStyle().FontScaleMain = gConfig.mUiScale;
         }
+    }
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_FILEASSOC, lang, 0));
+    ImGui::SameLine(150.0f);
+    // The toggle reads live registry state every frame; writes happen
+    // only on explicit clicks, never at startup.
+    static int assocCache = -2; // -2 = unprobed, else assocState() value
+    if (assocCache == -2)
+        assocCache = assocState(0);
+    bool owned = assocCache == 1;
+    if (settings_radio(AppSettings::S_ON, AppSettings::text(AppSettings::S_ON, lang, 0), owned))
+    {
+        if (assocInstall(0))
+            assocCache = 1;
+        else
+            assocCache = assocState(0);
+    }
+    ImGui::SameLine();
+    if (settings_radio(AppSettings::S_OFF, AppSettings::text(AppSettings::S_OFF, lang, 0), !owned))
+    {
+        if (assocRemove())
+            assocCache = 0;
+        else
+            assocCache = assocState(0);
     }
     ImGui::TextDisabled("%s", AppSettings::text(AppSettings::S_SOUND_RESTART_NOTE, lang, 0));
     ImGui::TextDisabled("%s", AppSettings::text(AppSettings::S_SAVED_NOTE, lang, 0));
@@ -2612,6 +2675,8 @@ void initvideo()
             SDL_Quit();
             exit(0);
         }
+        // Accept .atanua files dropped onto the window (SDL_DROPFILE).
+        SDL_EventState(SDL_DROPFILE, SDL_ENABLE);
     }
     else
     {
@@ -2779,8 +2844,11 @@ int main(int argc, char** args)
     for (i = 0; i < (signed)gChipFactory.size(); i++)
         gChipFactory[i]->getSupportedChips(gAvailableChip);
 
+    // Double-clicked .atanua files arrive as argv[1]. The canvas is
+    // boot-empty here, so no dirty prompt can fire; non-.atanua args
+    // are ignored silently.
     if (argc > 1)
-        do_loaddialog(0, args[1]);
+        open_external_file(args[1]);
 
     AppUpdate_StartCheck();
 

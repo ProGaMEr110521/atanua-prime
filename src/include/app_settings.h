@@ -123,6 +123,8 @@ enum StrKey
     S_NUDGE,
     S_ARROWS,
     S_ISSUES,
+    S_EMAIL,
+    S_FILEASSOC,
     S_COUNT
 };
 
@@ -197,7 +199,15 @@ inline const StrEntry *stringTable(int *countOut)
         { S_ISSUES, "If you find any kind of bug or error, feel free to open a issue ticket on my github",
             "If you find any kind of bug or error, feel free to open a issue ticket on my github"
             , "Если вы нашли баг или испытываете трудности в работе с какими либо функциями или хотите добавить что-либо, пожалуйста сообщите разработчику на GitHub",
-            "Если вы нашли баг или испытываете трудности в работе с какими либо функциями или хотите добавить что-либо, пожалуйста сообщите разработчику на GitHub"}
+            "Если вы нашли баг или испытываете трудности в работе с какими либо функциями или хотите добавить что-либо, пожалуйста сообщите разработчику на GitHub"},
+        { S_EMAIL, "or contact the developer directly by email",
+            "or contact the developer directly by email",
+            "или свяжитесь с разработчиком напрямую по почте",
+            "или свяжитесь с разработчиком напрямую по почте"},
+        { S_FILEASSOC, "Open .atanua files with this app",
+            "Associate .atanua",
+            "Открывать файлы .atanua в этом приложении",
+            "Ассоциация .atanua"}
     };
     if (countOut)
         *countOut = (int)(sizeof(kTable) / sizeof(kTable[0]));
