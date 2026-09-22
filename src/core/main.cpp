@@ -752,12 +752,16 @@ static void imgui_init()
     done = 1;
 }
 
-// Radio with an explicit ID scope so options that share a visible label
-// (e.g. the two "Off" radios) never collide in ImGui's ID space.
-static bool settings_radio(int idKey, const char *label, int selected)
+// Radio with a two-level ID scope (row + option): options sharing a
+// visible label across rows (e.g. the Sound and file-assoc off radios)
+// would otherwise collide in ImGui's ID space and trip the
+// conflicting-ID error.
+static bool settings_radio(int idScope, int idKey, const char *label, int selected)
 {
+    ImGui::PushID(idScope);
     ImGui::PushID(idKey);
     bool hit = ImGui::RadioButton(label, selected);
+    ImGui::PopID();
     ImGui::PopID();
     return hit;
 }
@@ -811,11 +815,14 @@ static void draw_shortcuts_window(int lang)
         }
         ImGui::EndTable();
     }
+    // Wrap the support lines at a fixed width: with AlwaysAutoResize an
+    // unbounded long sentence would stretch the window past the screen.
+    ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + 520.0f);
     ImGui::TextUnformatted(AppSettings::text(AppSettings::S_ISSUES, lang, 0));
     ImGui::TextLinkOpenURL("https://github.com/ProGaMEr110521/atanua-prime/issues");
     ImGui::TextUnformatted(AppSettings::text(AppSettings::S_EMAIL, lang, 0));
     ImGui::TextLinkOpenURL("vladtem3943@gmail.com", "mailto:vladtem3943@gmail.com");
-    ImGui::TextUnformatted("vladtem3943@gmail.com");
+    ImGui::PopTextWrapPos();
     if (ImGui::Button(AppSettings::text(AppSettings::S_CLOSE, lang, 0)))
         gShortcutsOpen = 0;
     ImGui::End();
@@ -838,14 +845,14 @@ static void draw_settings_panel(int lang)
     ImGui::TextUnformatted(AppSettings::text(AppSettings::S_LANGUAGE, lang, 0));
     ImGui::SameLine(150.0f);
     int curLang = AppSettings::clampLang(gConfig.mLanguage);
-    if (settings_radio(AppSettings::S_ENGLISH, AppSettings::langName(AppSettings::LANG_EN, lang),
+    if (settings_radio(AppSettings::S_LANGUAGE, AppSettings::S_ENGLISH, AppSettings::langName(AppSettings::LANG_EN, lang),
         curLang == AppSettings::LANG_EN))
     {
         gConfig.mLanguage = AppSettings::LANG_EN;
         gConfig.save();
     }
     ImGui::SameLine();
-    if (settings_radio(AppSettings::S_RUSSIAN, AppSettings::langName(AppSettings::LANG_RU, lang),
+    if (settings_radio(AppSettings::S_LANGUAGE, AppSettings::S_RUSSIAN, AppSettings::langName(AppSettings::LANG_RU, lang),
         curLang == AppSettings::LANG_RU))
     {
         gConfig.mLanguage = AppSettings::LANG_RU;
@@ -855,14 +862,14 @@ static void draw_settings_panel(int lang)
     ImGui::TextUnformatted(AppSettings::text(AppSettings::S_THEME, lang, 0));
     ImGui::SameLine(150.0f);
     int curTheme = AppSettings::clampTheme(gConfig.mThemeVariant);
-    if (settings_radio(AppSettings::S_THEME_DARK, AppSettings::text(AppSettings::S_THEME_DARK, lang, 0),
+    if (settings_radio(AppSettings::S_THEME, AppSettings::S_THEME_DARK, AppSettings::text(AppSettings::S_THEME_DARK, lang, 0),
         curTheme == AppSettings::THEME_DARK))
     {
         gConfig.mThemeVariant = AppSettings::THEME_DARK;
         gConfig.save();
     }
     ImGui::SameLine();
-    if (settings_radio(AppSettings::S_THEME_CONTRAST, AppSettings::text(AppSettings::S_THEME_CONTRAST, lang, 0),
+    if (settings_radio(AppSettings::S_THEME, AppSettings::S_THEME_CONTRAST, AppSettings::text(AppSettings::S_THEME_CONTRAST, lang, 0),
         curTheme == AppSettings::THEME_CONTRAST))
     {
         gConfig.mThemeVariant = AppSettings::THEME_CONTRAST;
@@ -878,7 +885,7 @@ static void draw_settings_panel(int lang)
     {
         if (i > 0)
             ImGui::SameLine();
-        if (settings_radio(ttKey[i], AppSettings::text(ttKey[i], lang, 0), curTt == i))
+        if (settings_radio(AppSettings::S_TOOLTIPS, ttKey[i], AppSettings::text(ttKey[i], lang, 0), curTt == i))
         {
             gConfig.mTooltipDelay = AppSettings::tooltipPreset(i);
             gConfig.save();
@@ -888,13 +895,13 @@ static void draw_settings_panel(int lang)
     ImGui::TextUnformatted(AppSettings::text(AppSettings::S_SOUND, lang, 0));
     ImGui::SameLine(150.0f);
     int curAudio = AppSettings::clampAudio(gConfig.mAudioEnable);
-    if (settings_radio(AppSettings::S_ON, AppSettings::text(AppSettings::S_ON, lang, 0), curAudio == 1))
+    if (settings_radio(AppSettings::S_SOUND, AppSettings::S_ON, AppSettings::text(AppSettings::S_ON, lang, 0), curAudio == 1))
     {
         gConfig.mAudioEnable = 1;
         gConfig.save();
     }
     ImGui::SameLine();
-    if (settings_radio(AppSettings::S_OFF, AppSettings::text(AppSettings::S_OFF, lang, 0), curAudio == 0))
+    if (settings_radio(AppSettings::S_SOUND, AppSettings::S_OFF, AppSettings::text(AppSettings::S_OFF, lang, 0), curAudio == 0))
     {
         gConfig.mAudioEnable = 0;
         gConfig.save();
@@ -909,7 +916,7 @@ static void draw_settings_panel(int lang)
     {
         if (i > 0)
             ImGui::SameLine();
-        if (settings_radio(scaleKey[i], AppSettings::text(scaleKey[i], lang, 0), curScale == i))
+        if (settings_radio(AppSettings::S_UISCALE, scaleKey[i], AppSettings::text(scaleKey[i], lang, 0), curScale == i))
         {
             gConfig.mUiScale = AppSettings::uiScalePreset(i);
             gConfig.save();
@@ -917,15 +924,17 @@ static void draw_settings_panel(int lang)
         }
     }
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_FILEASSOC, lang, 0));
-    ImGui::SameLine(150.0f);
+    // Compact form on a wider column: even the short translation needs
+    // more than the shared 150px label column.
+    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_FILEASSOC, lang, 1));
+    ImGui::SameLine(185.0f);
     // The toggle reads live registry state every frame; writes happen
     // only on explicit clicks, never at startup.
     static int assocCache = -2; // -2 = unprobed, else assocState() value
     if (assocCache == -2)
         assocCache = assocState(0);
     bool owned = assocCache == 1;
-    if (settings_radio(AppSettings::S_ON, AppSettings::text(AppSettings::S_ON, lang, 0), owned))
+    if (settings_radio(AppSettings::S_FILEASSOC, AppSettings::S_ON, AppSettings::text(AppSettings::S_ON, lang, 0), owned))
     {
         if (assocInstall(0))
             assocCache = 1;
@@ -933,7 +942,7 @@ static void draw_settings_panel(int lang)
             assocCache = assocState(0);
     }
     ImGui::SameLine();
-    if (settings_radio(AppSettings::S_OFF, AppSettings::text(AppSettings::S_OFF, lang, 0), !owned))
+    if (settings_radio(AppSettings::S_FILEASSOC, AppSettings::S_OFF, AppSettings::text(AppSettings::S_OFF, lang, 0), !owned))
     {
         if (assocRemove())
             assocCache = 0;

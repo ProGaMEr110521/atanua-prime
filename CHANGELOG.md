@@ -17,8 +17,8 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 - Открытие .atanua двойным кликом или перетаскиванием в окно: общая проверка расширения, подтверждение при несохранённых изменениях, ассоциация файлов по явному тогглу в настройках (HKCU, без админа), `atanua.ico` и Linux `.desktop` с MimeType в поставке.
 - External opens made reliable: non-ASCII paths, relative argv, no false filename in the title on failed loads; covered by scripted argv/drop trials.
 - Надёжное открытие извне: не-ASCII пути, относительный argv и честный заголовок при неудачной загрузке; покрыто скриптовыми argv/drop-пробами.
-- Support section in the shortcuts window: issues link plus developer email (`mailto:`, with a plain-text fallback line).
-- Секция поддержки в окне горячих клавиш: ссылка на issues и почта разработчика (`mailto:`, плюс строка обычным текстом).
+- Support section in the shortcuts window: issues link plus developer email (`mailto:`), wrapped to keep the window on screen.
+- Секция поддержки в окне горячих клавиш: ссылка на issues и почта разработчика (`mailto:`), текст переносится, чтобы окно не вылезало за экран.
 
 ## [v1.3.141226] - 2026-09-20
 

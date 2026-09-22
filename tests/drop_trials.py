@@ -209,9 +209,11 @@ def real_click(hwnd, cx, cy):
     assert user32.ClientToScreen(hwnd, ctypes.byref(pt)), \
         "ClientToScreen failed"
     user32.GetCursorPos.argtypes = [ctypes.POINTER(POINT)]
+    # Park first and let the move event pump through (ImGui hover must
+    # settle before the press, or a same-quantum down+up is ignored).
     for _ in range(10):
         assert user32.SetCursorPos(pt.x, pt.y), "SetCursorPos failed"
-        time.sleep(0.05)
+        time.sleep(0.3)
         cur = POINT(0, 0)
         user32.GetCursorPos(ctypes.byref(cur))
         if (cur.x, cur.y) == (pt.x, pt.y):

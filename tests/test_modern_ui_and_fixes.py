@@ -259,6 +259,26 @@ def test_fileassoc_wired_into_app():
     assert "atanua.desktop" in wf, "linux package must ship the .desktop file"
 
 
+def test_settings_layout_no_overlap():
+    # Loose rows sharing a visible label (Sound on/off vs file-assoc
+    # on/off) collided in ImGui's ID space and raised the conflicting-ID
+    # error, and the long assoc label ran under its own radios.
+    main = read(SRC_MAIN)
+    assert "PushID(idScope)" in main, "radio rows lack an ID scope"
+    assert main.count("settings_radio(AppSettings::S_SOUND,") == 2, \
+        "sound radios lost their row scope"
+    assert main.count("settings_radio(AppSettings::S_FILEASSOC,") == 2, \
+        "assoc radios lost their row scope"
+    assert "text(AppSettings::S_FILEASSOC, lang, 1)" in main, \
+        "assoc row must use the compact label form"
+    # The shortcuts support block shows each address once and wraps so
+    # the auto-sized window stays on screen in both languages.
+    assert 'TextUnformatted("vladtem3943@gmail.com")' not in main, \
+        "plain-text email duplicate is back"
+    assert "PushTextWrapPos" in main and "PopTextWrapPos" in main, \
+        "support text is not wrapped"
+
+
 def test_reset_saves_only_on_confirm():
     sim = read(SRC_SIM)
     i = sim.index("void do_resetdialog")
@@ -661,5 +681,6 @@ if __name__ == "__main__":
     test_dropfile_wired_into_app()
     test_fileassoc_units()
     test_fileassoc_wired_into_app()
+    test_settings_layout_no_overlap()
     test_cpp_theme_harness()
     print("python structural checks passed")
