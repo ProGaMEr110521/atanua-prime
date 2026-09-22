@@ -170,6 +170,7 @@ extern BoxStitchingInformation * do_preparse_box(const char *aFname);
 
 // from nativefunctions.cpp
 
+extern FILE * atanua_fopen_rb(const char *aPath);
 extern FILE * openfiledialog(const char *aPrompt);
 extern FILE * savefiledialog(const char *aPrompt);
 extern int okcancel(const char *prompt);

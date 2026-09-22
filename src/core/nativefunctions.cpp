@@ -28,6 +28,33 @@ char * gFilename = NULL;
 char * gAltFilename = NULL;
 
 
+FILE * atanua_fopen_rb(const char *aPath)
+{
+	if (!aPath || !aPath[0])
+		return NULL;
+#ifdef WINDOWS_VERSION
+	// SDL argv and SDL_DROPFILE paths arrive as UTF-8; fopen expects
+	// ANSI, so non-ASCII directories would fail to open. Convert to
+	// wide and use _wfopen, falling back to fopen for odd input.
+	int wlen = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, aPath, -1, NULL, 0);
+	if (wlen > 0)
+	{
+		wchar_t *wpath = new wchar_t[wlen];
+		if (MultiByteToWideChar(CP_UTF8, 0, aPath, -1, wpath, wlen) > 0)
+		{
+			FILE *wf = NULL;
+			if (_wfopen_s(&wf, wpath, L"rb") == 0 && wf)
+			{
+				delete[] wpath;
+				return wf;
+			}
+		}
+		delete[] wpath;
+	}
+#endif
+	return fopen(aPath, "rb");
+}
+
 FILE * openfileinsamedir(const char * aFname)
 {
 	char temp[1024];
@@ -49,7 +76,7 @@ FILE * openfileinsamedir(const char * aFname)
 	}
 	strcat(temp,aFname);
 	
-	return fopen(temp, "rb");
+	return atanua_fopen_rb(temp);
 }
 
 void resetfilename()

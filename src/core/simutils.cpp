@@ -688,7 +688,12 @@ void do_loaddialog(int merge, const char *aFilename)
 		origactivefilename = mystrdup(gFilename);
     if (aFilename)
     {
-        fh = fopen(aFilename, "rb");
+        fh = atanua_fopen_rb(aFilename);
+        if (!fh)
+        {
+            delete[] origactivefilename;
+            return;
+        }
 		storefilename(aFilename);
     }
     else

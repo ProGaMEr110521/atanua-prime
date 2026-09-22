@@ -204,8 +204,14 @@ def test_dropfile_wired_into_app():
     assert "DropFile::shouldAcceptDrop" in main, "drop path not extension-checked"
     assert "DropFile::baseName" in main, "dirty prompt lacks file name"
     assert "canvas_is_dirty" in main, "dirty-canvas guard missing"
-    assert "open_external_file(args[1])" in main, "argv[1] bypasses the helper"
+    assert "open_external_file(sArgvPath.c_str())" in main, "argv[1] bypasses the helper"
     assert "do_loaddialog(0, args[1])" not in main, "argv[1] still opens unchecked"
+    assert "do_loaddialog(0, sArgvPath" not in main, "argv still opens unchecked"
+    sim = read(SRC_SIM)
+    assert "atanua_fopen_rb(aFilename)" in sim, "loader must open via UTF-8 helper"
+    assert "if (!fh)" in sim, "loader must not claim failed opens"
+    assert "_getcwd" in main or "getcwd" in main, "argv relative-path resolve missing"
+    assert "gotoappdirectory(argc, args)" in main, "startup chdir missing"
     dropfile = read(os.path.join(REPO, "src", "include", "dropfile.h"))
     assert "shouldAcceptDrop" in dropfile and "hasAtanuaExtension" in dropfile, \
         "helper API incomplete"

@@ -36,6 +36,14 @@ distribution.
 
 #include "stb/stb_image_write.h"
 
+#include <string>
+#include <string.h>
+#ifdef WINDOWS_VERSION
+#include <direct.h>
+#else
+#include <unistd.h>
+#endif
+
 #define C_TEXTDIM 0xff8b93a7
 #define C_ACCENTTEXT 0xff7ddf8a
 
@@ -2730,6 +2738,46 @@ int main(int argc, char** args)
 {
     memset(gAudioBuffer,0,AUDIOBUF_SIZE);
 
+    // Resolve argv[1] before gotoappdirectory chdirs to the exe dir;
+    // otherwise relative double-click/test paths no longer resolve.
+    // Absolute paths pass through untouched.
+    std::string sArgvPath;
+    if (argc > 1 && args[1] && args[1][0])
+    {
+        const char *p = args[1];
+        bool isAbs = false;
+#ifdef WINDOWS_VERSION
+        if (p[0] == '\\' || p[0] == '/')
+            isAbs = true;
+        else if (strlen(p) >= 3 && p[1] == ':' && (p[2] == '\\' || p[2] == '/'))
+            isAbs = true;
+#else
+        if (p[0] == '/')
+            isAbs = true;
+#endif
+        if (isAbs)
+            sArgvPath = p;
+        else
+        {
+            char startupDir[1024] = { 0 };
+#ifdef WINDOWS_VERSION
+            _getcwd(startupDir, sizeof(startupDir) - 1);
+#else
+            getcwd(startupDir, sizeof(startupDir) - 1);
+#endif
+            if (startupDir[0])
+            {
+#ifdef WINDOWS_VERSION
+                sArgvPath = std::string(startupDir) + "\\" + p;
+#else
+                sArgvPath = std::string(startupDir) + "/" + p;
+#endif
+            }
+            else
+                sArgvPath = p;
+        }
+    }
+
     gotoappdirectory(argc, args);
 
     gConfig.load();
@@ -2844,11 +2892,11 @@ int main(int argc, char** args)
     for (i = 0; i < (signed)gChipFactory.size(); i++)
         gChipFactory[i]->getSupportedChips(gAvailableChip);
 
-    // Double-clicked .atanua files arrive as argv[1]. The canvas is
-    // boot-empty here, so no dirty prompt can fire; non-.atanua args
-    // are ignored silently.
-    if (argc > 1)
-        open_external_file(args[1]);
+    // Double-clicked .atanua files arrive as argv[1] (resolved above
+    // before the exe-dir chdir). The canvas is boot-empty here, so no
+    // dirty prompt can fire; non-.atanua args are ignored silently.
+    if (!sArgvPath.empty())
+        open_external_file(sArgvPath.c_str());
 
     AppUpdate_StartCheck();
 
