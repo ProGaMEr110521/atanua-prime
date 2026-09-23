@@ -106,16 +106,19 @@ int main()
     CHECK(themeHotRow(THEME_DARK) == 0xff31406b, "dark theme keeps legacy hot row");
     CHECK(themeHotRow(THEME_CONTRAST) != themeHotRow(THEME_DARK), "contrast hot row differs");
 
-    CHECK(fieldCount() == 5, "five persisted fields");
+    CHECK(fieldCount() == 7, "seven persisted fields");
     CHECK(strcmp(fieldTag(0), "Language") == 0, "language tag matches atanua.xml style");
     CHECK(strcmp(fieldTag(1), "ThemeVariant") == 0, "theme tag named");
     CHECK(strcmp(fieldTag(4), "UiScale") == 0, "scale tag named");
+    CHECK(strcmp(fieldTag(5), "CanvasDark") == 0, "canvas tag named");
+    CHECK(strcmp(fieldTag(6), "LiveWires") == 0, "wires tag named");
 
     Values v;
     defaults(v);
     CHECK(v.language == LANG_EN && v.theme == THEME_DARK, "defaults are English dark");
     CHECK(v.tooltipMs == 1500 && v.audio == 1, "defaults match shipped config");
     CHECK(v.uiScale == 1.0f, "default scale is 1");
+    CHECK(v.canvasDark == 1 && v.liveWires == 1, "defaults are dark canvas, live wires");
     char buf[16];
     CHECK(getField(v, "Language", buf, sizeof(buf)) && strcmp(buf, "0") == 0, "language serializes");
     CHECK(getField(v, "TooltipDelay", buf, sizeof(buf)) && strcmp(buf, "1500") == 0, "tooltip serializes");
@@ -133,6 +136,9 @@ int main()
     CHECK(setField(w, "AudioEnable", "0") && w.audio == 0, "audio parses");
     CHECK(setField(w, "UiScale", "1.25") && w.uiScale == 1.25f, "scale parses");
     CHECK(setField(w, "UiScale", "99") && w.uiScale == 1.5f, "bad scale clamps");
+    CHECK(setField(w, "CanvasDark", "0") && w.canvasDark == 0, "canvas parses");
+    CHECK(setField(w, "CanvasDark", "9") && w.canvasDark == 1, "bad canvas clamps");
+    CHECK(setField(w, "LiveWires", "0") && w.liveWires == 0, "wires parse");
     CHECK(!setField(w, "Nope", "1"), "unknown tag rejected on set");
     CHECK(!setField(w, 0, "1") && !setField(w, "Language", 0), "null guarded");
 
@@ -144,6 +150,8 @@ int main()
     rt.tooltipMs = 750;
     rt.audio = 0;
     rt.uiScale = 1.25f;
+    rt.canvasDark = 0;
+    rt.liveWires = 0;
     Values back;
     defaults(back);
     for (int i = 0; i < fieldCount(); i++)
@@ -155,6 +163,7 @@ int main()
     CHECK(back.language == LANG_RU && back.theme == THEME_CONTRAST, "round-trip keeps language+theme");
     CHECK(back.tooltipMs == 750 && back.audio == 0, "round-trip keeps tooltip+audio");
     CHECK(back.uiScale == 1.25f, "round-trip keeps scale");
+    CHECK(back.canvasDark == 0 && back.liveWires == 0, "round-trip keeps canvas+wires");
 
     if (failures == 0)
         printf("ALL SETTINGS TESTS PASSED\n");

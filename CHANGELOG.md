@@ -19,6 +19,8 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 - Надёжное открытие извне: не-ASCII пути, относительный argv и честный заголовок при неудачной загрузке; покрыто скриптовыми argv/drop-пробами.
 - Russian consistency pass: distinct Out/Quit labels, unified Save wording, clearer zoom label, localized file dialogs and confirmations.
 - Проверка русского языка: разные подписи Out/Quit, единое слово для сохранения, понятная подпись масштаба, переведённые диалоги и подтверждения.
+- View split into persisted canvas background and wire mode: Settings gains Background (Dark/Paper) and user-name rows, the topbar button now toggles wires only, canvas corner shows title plus name without the promo link (credit moved to Support).
+- Разделение View: фон холста и режим проводов стали независимыми настройками с сохранением, в настройках появились строки фона и имени, кнопка включает только провода, в углу холста остались название и имя без рекламной ссылки (упоминание переехало в поддержку).
 - Support section in the shortcuts window: issues link plus developer email (`mailto:`), wrapped to keep the window on screen.
 - Секция поддержки в окне горячих клавиш: ссылка на issues и почта разработчика (`mailto:`), текст переносится, чтобы окно не вылезало за экран.
 

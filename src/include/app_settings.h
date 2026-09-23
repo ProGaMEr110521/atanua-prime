@@ -133,6 +133,12 @@ enum StrKey
     S_ERR_BOXLIMIT,
     S_ERR_BOXNOPINS,
     S_ERR_BADWIRE,
+    S_USERNAME,
+    S_CREDIT,
+    S_CANVAS,
+    S_PAPER,
+    S_LIVE,
+    S_GREY,
     S_COUNT
 };
 
@@ -167,8 +173,8 @@ inline const StrEntry *stringTable(int *countOut)
         { S_ZOOM, "Zoom\next", "Zoom", "Вся\nсхема", "Вся схема" },
         { S_SNAP_ON, "Snap\n(on)", "Snap", "Привязка\n(вкл)", "Привязка" },
         { S_SNAP_OFF, "Snap\n(off)", "Snap", "Привязка\n(выкл)", "Привязка" },
-        { S_VIEW_LIVE, "View\n(live)", "View", "Вид\n(цвет)", "Вид" },
-        { S_VIEW_GREY, "View\n(grey)", "View", "Вид\n(серый)", "Вид" },
+        { S_VIEW_LIVE, "Wires\n(live)", "Wires", "Провода\n(цветные)", "Провода" },
+        { S_VIEW_GREY, "Wires\n(grey)", "Wires", "Провода\n(серые)", "Провода" },
         { S_PNG, "PNG it\nCtrl-G", "PNG", "PNG\nCtrl-G", "PNG" },
         { S_QUIT, "Quit", "Quit", "Выход", "Выход" },
         { S_SETTINGS, "Settings", "Settings", "Настройки", "Настройки" },
@@ -243,7 +249,14 @@ inline const StrEntry *stringTable(int *countOut)
         { S_ERR_BADWIRE, "Invalid wire definition found.\nTry to continue loading?",
             "Invalid wire definition found.\nTry to continue loading?",
             "Найдено неверное описание провода.\nПродолжить загрузку?",
-            "Найдено неверное описание провода.\nПродолжить загрузку?" }
+            "Найдено неверное описание провода.\nПродолжить загрузку?" },
+        { S_USERNAME, "User name", "User name", "Имя", "Имя" },
+        { S_CREDIT, "Based on Atanua by Jari Komppa", "Based on Atanua by Jari Komppa",
+            "Основано на Atanua, автор: Jari Komppa", "Основано на Atanua, автор: Jari Komppa" },
+        { S_CANVAS, "Background", "Background", "Фон", "Фон" },
+        { S_PAPER, "Paper", "Paper", "Бумага", "Бумага" },
+        { S_LIVE, "Live", "Live", "Цветные", "Цветные" },
+        { S_GREY, "Grey", "Grey", "Серые", "Серые" }
     };
     if (countOut)
         *countOut = (int)(sizeof(kTable) / sizeof(kTable[0]));
@@ -351,6 +364,8 @@ struct Values
     int tooltipMs;
     int audio;
     float uiScale;
+    int canvasDark;
+    int liveWires;
 };
 
 inline void defaults(Values &v)
@@ -360,6 +375,8 @@ inline void defaults(Values &v)
     v.tooltipMs = 1500;
     v.audio = 1;
     v.uiScale = 1.0f;
+    v.canvasDark = 1;
+    v.liveWires = 1;
 }
 
 inline void validate(Values &v)
@@ -369,6 +386,8 @@ inline void validate(Values &v)
     v.tooltipMs = clampTooltipMs(v.tooltipMs);
     v.audio = clampAudio(v.audio);
     v.uiScale = clampUiScale(v.uiScale);
+    v.canvasDark = clampAudio(v.canvasDark);
+    v.liveWires = clampAudio(v.liveWires);
 }
 
 inline int parseDec(const char *s, int fallback)
@@ -444,7 +463,7 @@ inline float parseFloat(const char *s, float fallback)
 // attribute as a decimal string.
 inline int fieldCount()
 {
-    return 5;
+    return 7;
 }
 
 inline const char *fieldTag(int i)
@@ -456,6 +475,8 @@ inline const char *fieldTag(int i)
     case 2: return "TooltipDelay";
     case 3: return "AudioEnable";
     case 4: return "UiScale";
+    case 5: return "CanvasDark";
+    case 6: return "LiveWires";
     default: return "";
     }
 }
@@ -521,6 +542,10 @@ inline bool getField(const Values &v, const char *tag, char *out, int cap)
         val = v.audio;
     else if (strcmp(tag, "UiScale") == 0)
         return formatFloat2(v.uiScale, out, cap);
+    else if (strcmp(tag, "CanvasDark") == 0)
+        val = v.canvasDark;
+    else if (strcmp(tag, "LiveWires") == 0)
+        val = v.liveWires;
     else
         return false;
     // Decimal itoa without stdio so tests and app share one path.
@@ -575,6 +600,16 @@ inline bool setField(Values &v, const char *tag, const char *str)
     if (strcmp(tag, "UiScale") == 0)
     {
         v.uiScale = clampUiScale(parseFloat(str, 1.0f));
+        return true;
+    }
+    if (strcmp(tag, "CanvasDark") == 0)
+    {
+        v.canvasDark = clampAudio(parseDec(str, 1));
+        return true;
+    }
+    if (strcmp(tag, "LiveWires") == 0)
+    {
+        v.liveWires = clampAudio(parseDec(str, 1));
         return true;
     }
     return false;

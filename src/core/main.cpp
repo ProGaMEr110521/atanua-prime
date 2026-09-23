@@ -84,6 +84,12 @@ AtanuaConfig gConfig;
 int gVisibleChiplist = 0;
 int gSettingsOpen = 0;
 int gShortcutsOpen = 0;
+extern char *gFilename;
+void storefilename(const char *fn);
+// Editable user-name buffer for the settings row; re-synced from the
+// config every time the panel opens.
+static char sUserBuf[64];
+static int sUserBufInit = 0;
 int gStatusH = 24;
 static ImFont *gSmallFont = NULL;
 static ImFont *gTopFont = NULL;
@@ -150,6 +156,7 @@ void handle_key(int keysym, int down)
         {
             gSettingsOpen = 0;
             gShortcutsOpen = 0;
+            sUserBufInit = 0;
             do_cancel();
         }
         break;
@@ -822,6 +829,8 @@ static void draw_shortcuts_window(int lang)
     ImGui::TextLinkOpenURL("https://github.com/ProGaMEr110521/atanua-prime/issues");
     ImGui::TextUnformatted(AppSettings::text(AppSettings::S_EMAIL, lang, 0));
     ImGui::TextLinkOpenURL("vladtem3943@gmail.com", "mailto:vladtem3943@gmail.com");
+    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_CREDIT, lang, 0));
+    ImGui::TextLinkOpenURL("http://iki.fi/sol/");
     ImGui::PopTextWrapPos();
     if (ImGui::Button(AppSettings::text(AppSettings::S_CLOSE, lang, 0)))
         gShortcutsOpen = 0;
@@ -924,6 +933,50 @@ static void draw_settings_panel(int lang)
         }
     }
     ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_CANVAS, lang, 0));
+    ImGui::SameLine(150.0f);
+    if (settings_radio(AppSettings::S_CANVAS, AppSettings::S_THEME_DARK, AppSettings::text(AppSettings::S_THEME_DARK, lang, 0), gBlackBackground))
+    {
+        gBlackBackground = 1;
+        gConfig.mCanvasDark = 1;
+        gConfig.save();
+    }
+    ImGui::SameLine();
+    if (settings_radio(AppSettings::S_CANVAS, AppSettings::S_PAPER, AppSettings::text(AppSettings::S_PAPER, lang, 0), !gBlackBackground))
+    {
+        gBlackBackground = 0;
+        gConfig.mCanvasDark = 0;
+        gConfig.save();
+    }
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_USERNAME, lang, 0));
+    ImGui::SameLine(150.0f);
+    if (!sUserBufInit)
+    {
+        strncpy(sUserBuf, gConfig.mUserInfo ? gConfig.mUserInfo : "", sizeof(sUserBuf) - 1);
+        sUserBuf[sizeof(sUserBuf) - 1] = 0;
+        sUserBufInit = 1;
+    }
+    ImGui::SetNextItemWidth(220.0f);
+    bool nameCommit = ImGui::InputText("##username", sUserBuf, sizeof(sUserBuf), ImGuiInputTextFlags_EnterReturnsTrue);
+    // Clicking away commits too, so a lost Enter key can never strand text.
+    nameCommit = nameCommit || ImGui::IsItemDeactivatedAfterEdit();
+    if (nameCommit)
+    {
+        // Cap the visible name so the title bar and canvas corner stay
+        // one-liners; persist and refresh the window title live.
+        sUserBuf[48] = 0;
+        if (!gConfig.mUserInfo || strcmp(sUserBuf, gConfig.mUserInfo) != 0)
+        {
+            delete[] gConfig.mUserInfo;
+            gConfig.mUserInfo = mystrdup(sUserBuf);
+            gConfig.save();
+            char *cur = gFilename ? mystrdup(gFilename) : NULL;
+            storefilename(cur);
+            delete[] cur;
+        }
+    }
+    ImGui::AlignTextToFramePadding();
     // Compact form on a wider column: even the short translation needs
     // more than the shared 150px label column.
     ImGui::TextUnformatted(AppSettings::text(AppSettings::S_FILEASSOC, lang, 1));
@@ -952,7 +1005,10 @@ static void draw_settings_panel(int lang)
     ImGui::TextDisabled("%s", AppSettings::text(AppSettings::S_SOUND_RESTART_NOTE, lang, 0));
     ImGui::TextDisabled("%s", AppSettings::text(AppSettings::S_SAVED_NOTE, lang, 0));
     if (ImGui::Button(AppSettings::text(AppSettings::S_CLOSE, lang, 0)))
+    {
         gSettingsOpen = 0;
+        sUserBufInit = 0;
+    }
     ImGui::End();
 }
 
@@ -1067,8 +1123,11 @@ static void draw_topbar_actions(int lang, int cAccent, float actionW)
         gSnap = !gSnap;
     if (topbar_btn(gLiveWires ? AppSettings::S_VIEW_LIVE : AppSettings::S_VIEW_GREY, lang, actionW, gLiveWires, cAccent))
     {
+        // Wires only: the canvas background is a separate persisted
+        // setting now, never flipped as a side effect.
         gLiveWires = !gLiveWires;
-        gBlackBackground ^= gLiveWires;
+        gConfig.mLiveWires = gLiveWires ? 1 : 0;
+        gConfig.save();
     }
     if (topbar_btn(AppSettings::S_PNG, lang, actionW, 0, cAccent))
         gSavePNG = 1;
@@ -1313,7 +1372,7 @@ static void draw_sidebar_imgui(int *locOut)
     ImGui::End();
 }
 
-static void draw_statusbar_imgui()
+static void draw_statusbar_imgui(int lang)
 {
     ImGui::SetNextWindowPos(ImVec2(0, (float)(gScreenHeight - 24)));
     ImGui::SetNextWindowSize(ImVec2((float)gScreenWidth, 0));
@@ -1334,7 +1393,8 @@ static void draw_statusbar_imgui()
         (int)gChip.size(), (int)gWire.size(), (int)gNet.size(),
         gZoomFactor,
         gSnap ? "Snap:on" : "Snap:off",
-        gLiveWires ? "Live" : "Grey",
+        gLiveWires ? AppSettings::text(AppSettings::S_LIVE, lang, 0)
+                   : AppSettings::text(AppSettings::S_GREY, lang, 0),
         (int)gUndoStack.size(), (int)gRedoStack.size());
     ImGui::TextUnformatted(status);
     if (gSmallFont)
@@ -1356,7 +1416,7 @@ static void draw_screen()
     // release outside the window cannot strand a drag (or an ImGui press).
     SDL_CaptureMouse(gDragMode != DRAGMODE_NONE ? SDL_TRUE : SDL_FALSE);
     draw_topbar_imgui(lang, cAccent);
-    draw_statusbar_imgui();
+    draw_statusbar_imgui(lang);
     int loc = -1;
     draw_sidebar_imgui(&loc);
     float worldmousex = ((gUIState.mousex - gConfig.mToolkitWidth) / gZoomFactor) - gWorldOfsX;
@@ -2136,9 +2196,8 @@ static void draw_screen()
             glVertex2f(190   , i * 10);
     }
     glEnd();
-    fn.drawstring(TITLE,0.5,0.5,C_ACCENTTEXT,1);
-    fn.drawstring(gConfig.mUserInfo,0.5,2.0,C_ACCENTTEXT,1);
-    fn.drawstring("http://iki.fi/sol/",0.5,3.2,C_TEXTDIM,0.5);
+    fn14.drawstring(TITLE,0.5,0.5,C_ACCENTTEXT,1);
+    fn14.drawstring(gConfig.mUserInfo,0.5,2.0,C_ACCENTTEXT,1);
 
     if (gZoomFactor > 100)
     {
@@ -2789,6 +2848,11 @@ int main(int argc, char** args)
     gotoappdirectory(argc, args);
 
     gConfig.load();
+
+    // Canvas and wire mode persist across restarts; the globals drive
+    // the frame loop, the config owns the values.
+    gBlackBackground = gConfig.mCanvasDark ? 1 : 0;
+    gLiveWires = gConfig.mLiveWires ? 1 : 0;
 
     if (gConfig.mSwapShiftAndCtrl)
     {

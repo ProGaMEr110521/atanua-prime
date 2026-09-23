@@ -277,6 +277,22 @@ def test_settings_layout_no_overlap():
         "plain-text email duplicate is back"
     assert "PushTextWrapPos" in main and "PopTextWrapPos" in main, \
         "support text is not wrapped"
+    assert "S_CREDIT" in main and "iki.fi/sol" in main, \
+        "canvas credit did not move to Support"
+    assert "drawstring(\"http://iki.fi/sol/\"" not in main, \
+        "promo link still stamped on the canvas"
+    assert "S_CANVAS" in main and "S_PAPER" in main, \
+        "canvas background setting missing"
+    assert "S_USERNAME" in main and "##username" in main, \
+        "user name settings row missing"
+    assert "gBlackBackground ^=" not in main, \
+        "wires toggle still flips the background"
+    assert "mLiveWires = gLiveWires" in main, "wire mode not persisted"
+    # The canvas corner prints the free-form user name: it must use the
+    # Cyrillic-covered bitmap font (vera31 has no Cyrillic glyphs, so a
+    # Cyrillic name rendered as blank spaces there).
+    assert "fn14.drawstring(gConfig.mUserInfo" in main, \
+        "corner username needs the Cyrillic bitmap font"
 
 
 def test_reset_saves_only_on_confirm():
@@ -456,11 +472,14 @@ def test_settings_wired_into_app():
     assert "acfont_nextcode" in font, "font has no UTF-8 decoder"
     cfg = read(os.path.join(REPO, "src", "core", "AtanuaConfig.cpp"))
     assert "mLanguage" in cfg and "mThemeVariant" in cfg, "config fields missing"
+    assert "mCanvasDark" in cfg and "mLiveWires" in cfg, "canvas/wires fields missing"
+    assert '"CanvasDark"' in cfg and '"LiveWires"' in cfg, "canvas/wires XML missing"
     assert "void AtanuaConfig::save()" in cfg, "config save() missing"
     assert '"Language"' in cfg and '"ThemeVariant"' in cfg, "new XML elements missing"
     assert "isKnownConfigElement" in cfg, "save() must preserve unknown elements"
     header = read(os.path.join(REPO, "src", "include", "atanua.h"))
     assert "void save();" in header and "mLanguage;" in header, "config decl missing"
+    assert "mCanvasDark;" in header and "mLiveWires;" in header, "canvas decl missing"
     theme = read(THEME_H)
     assert "TopbarLayout" not in theme and "topbarLayout" not in theme, \
         "manual topbar math must stay deleted"

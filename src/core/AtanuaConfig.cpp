@@ -61,6 +61,8 @@ AtanuaConfig::AtanuaConfig()
     mLanguage = AppSettings::LANG_EN;
     mThemeVariant = AppSettings::THEME_DARK;
     mUiScale = 1.0f;
+    mCanvasDark = 1;
+    mLiveWires = 1;
 }
 
 AtanuaConfig::~AtanuaConfig()
@@ -195,6 +197,14 @@ void AtanuaConfig::load()
         topelement->InsertEndChild(element);
         element->SetAttribute("value", mUiScale);
 
+        element = doc.NewElement("CanvasDark");
+        topelement->InsertEndChild(element);
+        element->SetAttribute("value", mCanvasDark);
+
+        element = doc.NewElement("LiveWires");
+        topelement->InsertEndChild(element);
+        element->SetAttribute("value", mLiveWires);
+
         f = fopen("atanua.xml", "wb");
         if (f)
         {
@@ -291,6 +301,20 @@ void AtanuaConfig::load()
                 float scale = mUiScale;
                 part->QueryFloatAttribute("value", &scale);
                 mUiScale = AppSettings::clampUiScale(scale);
+            }
+            else
+            if (stricmp(part->Value(), "CanvasDark") == 0)
+            {
+                int dark = mCanvasDark;
+                part->QueryIntAttribute("value", &dark);
+                mCanvasDark = AppSettings::clampAudio(dark);
+            }
+            else
+            if (stricmp(part->Value(), "LiveWires") == 0)
+            {
+                int live = mLiveWires;
+                part->QueryIntAttribute("value", &live);
+                mLiveWires = AppSettings::clampAudio(live);
             }
             else
             if (stricmp(part->Value(), "ToolkitWidth") == 0)
@@ -396,7 +420,8 @@ static int isKnownConfigElement(const char *name)
         "MaxPhysicsMs", "InitialWindow", "TooltipDelay", "LinePickTolerance",
         "LineEndTolerance", "LineSplitDragDistance", "ChipCloneDragDistance",
         "User", "FontSystem", "PerformanceOptions", "Limits", "LED",
-        "Autosave", "Language", "ThemeVariant", "UiScale", 0
+        "Autosave", "Language", "ThemeVariant", "UiScale", "CanvasDark",
+        "LiveWires", 0
     };
     if (!name)
         return 0;
@@ -425,6 +450,8 @@ void AtanuaConfig::save()
     mTooltipDelay = AppSettings::clampTooltipMs(mTooltipDelay);
     mAudioEnable = AppSettings::clampAudio(mAudioEnable);
     mUiScale = AppSettings::clampUiScale(mUiScale);
+    mCanvasDark = AppSettings::clampAudio(mCanvasDark);
+    mLiveWires = AppSettings::clampAudio(mLiveWires);
 
     XMLDocument doc;
     int haveDoc = 0;
@@ -500,6 +527,10 @@ void AtanuaConfig::save()
     el->SetAttribute("value", mThemeVariant);
     el = findOrCreateChild(root, doc, "UiScale");
     el->SetAttribute("value", mUiScale);
+    el = findOrCreateChild(root, doc, "CanvasDark");
+    el->SetAttribute("value", mCanvasDark);
+    el = findOrCreateChild(root, doc, "LiveWires");
+    el->SetAttribute("value", mLiveWires);
 
     // Drop duplicate known elements from hand edits, keep unknowns.
     XMLElement *child = root->FirstChildElement();

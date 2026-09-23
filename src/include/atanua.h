@@ -209,6 +209,8 @@ public:
     int mLanguage;
     int mThemeVariant;
     float mUiScale;
+    int mCanvasDark;
+    int mLiveWires;
 };
 
 extern AtanuaConfig gConfig;
