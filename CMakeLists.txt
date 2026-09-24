@@ -15,11 +15,27 @@ if(NOT SDL2_FOUND)
   find_package(SDL2 REQUIRED)
 endif()
 find_package(OpenGL REQUIRED)
+# Prefer a static tinyxml2 on Linux so release tarballs do not depend on a
+# distro soname (Ubuntu ships .so.10; Arch/Omarchy often have none or .so.11).
+unset(ATANUA_TINYXML2_STATIC_LIB CACHE)
+if(UNIX AND NOT APPLE)
+  find_library(ATANUA_TINYXML2_STATIC_LIB
+    NAMES libtinyxml2.a
+    PATHS
+      /usr/lib/x86_64-linux-gnu
+      /usr/lib64
+      /usr/lib
+      "$ENV{HOME}/.local/lib"
+  )
+endif()
 find_package(tinyxml2 CONFIG QUIET)
 if(NOT tinyxml2_FOUND)
   find_package(PkgConfig REQUIRED)
   pkg_check_modules(tinyxml2 REQUIRED IMPORTED_TARGET tinyxml2)
   add_library(tinyxml2::tinyxml2 ALIAS PkgConfig::tinyxml2)
+endif()
+if(ATANUA_TINYXML2_STATIC_LIB)
+  message(STATUS "atanua: linking static tinyxml2 (${ATANUA_TINYXML2_STATIC_LIB})")
 endif()
 
 set(ATANUA_SOURCES
@@ -178,9 +194,19 @@ target_link_libraries(atanua PRIVATE
   $<TARGET_NAME_IF_EXISTS:SDL2::SDL2main>
   $<IF:$<TARGET_EXISTS:SDL2::SDL2>,SDL2::SDL2,SDL2::SDL2-static>
   OpenGL::GL
-  tinyxml2::tinyxml2
   imgui
 )
+if(ATANUA_TINYXML2_STATIC_LIB)
+  # Keep include path from the found package, but link the .a so the binary
+  # does not need libtinyxml2.so at runtime.
+  get_target_property(_atanua_tinyxml2_incs tinyxml2::tinyxml2 INTERFACE_INCLUDE_DIRECTORIES)
+  if(_atanua_tinyxml2_incs)
+    target_include_directories(atanua PRIVATE ${_atanua_tinyxml2_incs})
+  endif()
+  target_link_libraries(atanua PRIVATE ${ATANUA_TINYXML2_STATIC_LIB})
+else()
+  target_link_libraries(atanua PRIVATE tinyxml2::tinyxml2)
+endif()
 
 if(WIN32)
   target_link_libraries(atanua PRIVATE OpenGL::GLU winmm wininet)

@@ -2409,9 +2409,22 @@ static void draw_screen()
             ImGui::End();
             if (sRestartFrames == 0)
             {
-                SDL_Event ev;
-                ev.type = SDL_QUIT;
-                SDL_PushEvent(&ev);
+                /* Linux installs + execve here so the same absolute path the
+                 * user is running comes back up. Windows already handed off
+                 * to update.bat during download. On Linux failure the previous
+                 * binary is restored — keep this session open instead of
+                 * quitting into a dead launcher. */
+                if (AppUpdate_ApplyAndRelaunch())
+                {
+                    SDL_Event ev;
+                    ev.type = SDL_QUIT;
+                    SDL_PushEvent(&ev);
+                }
+                else
+                {
+                    okcancel("Update could not be applied on this system.\n"
+                        "Your current Atanua was kept. You can keep working.");
+                }
             }
         }
     }

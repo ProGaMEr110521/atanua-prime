@@ -21,6 +21,12 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 - Светлая тема холста переработана: мягкий бумажный фон с читаемой сеткой вместо резкого белого.
 
 ### Fixed / Исправлено
+- Linux in-app update: `ldd` preflight refuses packages with missing libraries; apply copies the current binary to `atanua.bak`, `execve`s the same absolute path, rolls back if the child dies within ~1.5s, and keeps the running session on failure instead of quitting into a dead launcher.
+- Обновление на Linux: предпроверка `ldd` отклоняет пакеты с недостающими библиотеками; установка копирует текущий бинарник в `atanua.bak`, делает `execve` того же абсолютного пути, откатывается если новый процесс сразу умирает (~1.5 с), и при ошибке оставляет текущую сессию вместо выхода в мёртвый лаунчер.
+- Linux CMake prefers `libtinyxml2.a` when present so release binaries do not need a distro `libtinyxml2.so` soname (Ubuntu `.so.10` vs Arch/Omarchy).
+- CMake на Linux предпочитает `libtinyxml2.a`, если он есть, чтобы релиз не зависел от soname дистрибутива (`libtinyxml2.so.10` на Ubuntu vs Arch/Omarchy).
+- Ubuntu CI fails the Linux build if `ldd` shows unresolved libraries or a dynamic `libtinyxml2.so`.
+- Ubuntu CI валит Linux-сборку, если `ldd` показывает неразрешённые библиотеки или динамический `libtinyxml2.so`.
 - Linux data files resolve from the executable path (`/proc/self/exe`), so tarball, install prefix, and `/usr/share/atanua` launches work from any directory.
 - Файлы данных на Linux находятся от пути к исполняемому файлу (`/proc/self/exe`), поэтому архив, установочный префикс и `/usr/share/atanua` запускаются из любой папки.
 - Linux file dialogs no longer nest a GTK main loop; screenshots go to `~/Pictures`.
