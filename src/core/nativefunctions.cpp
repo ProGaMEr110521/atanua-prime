@@ -24,6 +24,13 @@ distribution.
 #include "atanua_internal.h" // for TITLE
 #include "app_settings.h"
 #include "fileassoc.h"
+#ifdef WINDOWS_VERSION
+// shlobj.h drags COM headers that clash with std::byte, so declare the
+// one shell call we need (linked from shell32) by hand.
+extern "C" __declspec(dllimport) void __stdcall SHChangeNotify(LONG wEventId, UINT uFlags, LPCVOID dwItem1, LPCVOID dwItem2);
+#define SHCNE_ASSOCCHANGED 0x08000000
+#define SHCNF_IDLIST 0x0000
+#endif
 
 char * gFilename = NULL;
 char * gAltFilename = NULL;
@@ -458,6 +465,8 @@ int assocInstall(const char *aExePath)
         return 0;
     if (!assocWriteString(FileAssoc::extensionKey(), NULL, FileAssoc::progId()))
         return 0;
+    // Tell Explorer to pick up the new verb and icon immediately.
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
     return 1;
 }
 
@@ -472,6 +481,7 @@ int assocRemove()
         return 0;
     if (owned && !assocDeleteKey(FileAssoc::extensionKey()))
         return 0;
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
     return 1;
 }
 

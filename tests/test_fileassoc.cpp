@@ -21,7 +21,7 @@ int main()
     CHECK(formatOpenCommand("C:\\app\\atanua.exe", buf, sizeof(buf)), "open command formats");
     CHECK(strcmp(buf, "\"C:\\app\\atanua.exe\" \"%1\"") == 0, "open command quoted with %1");
     CHECK(formatDefaultIcon("C:\\app\\atanua.exe", buf, sizeof(buf)), "icon value formats");
-    CHECK(strcmp(buf, "\"C:\\app\\atanua.exe\",0") == 0, "icon value points at exe index 0");
+    CHECK(strcmp(buf, "\"C:\\app\\atanua.exe\",1") == 0, "icon value points at exe index 1");
 
     CHECK(!formatOpenCommand(0, buf, sizeof(buf)), "null exe rejected");
     CHECK(!formatOpenCommand("", buf, sizeof(buf)), "empty exe rejected");

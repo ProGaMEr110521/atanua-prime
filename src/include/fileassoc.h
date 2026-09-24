@@ -8,8 +8,10 @@ panel; unit tests drive these without touching the registry.
 
 Layout (HKCU only, no admin, no surprise writes):
   Software\Classes\AtanuaPrime.Design\shell\open\command  = "<exe>" "%1"
-  Software\Classes\AtanuaPrime.Design\DefaultIcon         = "<exe>",0
+  Software\Classes\AtanuaPrime.Design\DefaultIcon         = "<exe>",1
   Software\Classes\.atanua\(Default)                      = "AtanuaPrime.Design"
+(Index 1 is the document icon; index 0 is the application icon, both
+embedded from atanua-app.ico / atanua-doc.ico via atanua.rc.)
 
 Rules:
 - All registry access goes through the narrow read/write/remove helpers
@@ -76,7 +78,7 @@ inline bool formatOpenCommand(const char *exePath, char *out, int cap)
     return true;
 }
 
-// Build the DefaultIcon value: "<exe>",0. Same guards as above.
+// Build the DefaultIcon value: "<exe>",1. Same guards as above.
 inline bool formatDefaultIcon(const char *exePath, char *out, int cap)
 {
     if (!exePath || !exePath[0] || !out || cap <= 0)
@@ -90,7 +92,7 @@ inline bool formatDefaultIcon(const char *exePath, char *out, int cap)
         out[i++] = *p;
     out[i++] = '"';
     out[i++] = ',';
-    out[i++] = '0';
+    out[i++] = '1';
     out[i] = 0;
     return true;
 }

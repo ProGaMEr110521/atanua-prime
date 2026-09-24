@@ -130,6 +130,12 @@ set(ATANUA_SOURCES
   src/stb/stb_image_write.c
 )
 
+# Windows exe icon + document icon (MSVC compiles the .rc with rc.exe;
+# other platforms ignore it, so Linux/macOS builds stay untouched).
+if(WIN32)
+  list(APPEND ATANUA_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/atanua.rc)
+endif()
+
 add_executable(atanua ${ATANUA_SOURCES})
 
 # Vendored Dear ImGui (MIT, see third_party/imgui/LICENSE.txt) for the
@@ -186,7 +192,7 @@ target_link_libraries(atanua PRIVATE
 )
 
 if(WIN32)
-  target_link_libraries(atanua PRIVATE OpenGL::GLU winmm wininet)
+  target_link_libraries(atanua PRIVATE OpenGL::GLU winmm wininet shell32)
   set_target_properties(atanua PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
 

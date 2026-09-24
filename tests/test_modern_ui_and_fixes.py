@@ -245,11 +245,23 @@ def test_fileassoc_wired_into_app():
                   "currentExePath", "assocState"]:
         assert token in native, f"assoc helper missing: {token}"
     assert "RegDeleteTreeA" in native, "remove must clean the ProgID tree"
+    assert "SHChangeNotify" in native, "toggle must refresh Explorer"
     internal = read(os.path.join(REPO, "src", "include", "atanua_internal.h"))
     for token in ["assocReadString", "assocWriteString", "assocDeleteKey",
                   "assocState", "assocInstall", "assocRemove", "currentExePath"]:
         assert token in internal, f"missing assoc decl: {token}"
     assert os.path.isfile(os.path.join(REPO, "atanua.ico")), "atanua.ico not shipped"
+    assert os.path.isfile(os.path.join(REPO, "atanua-app.ico")), "app icon not shipped"
+    assert os.path.isfile(os.path.join(REPO, "atanua-doc.ico")), "doc icon not shipped"
+    assert os.path.isfile(os.path.join(REPO, "atanua.png")), "icon source art not shipped"
+    rc = read(os.path.join(REPO, "atanua.rc"))
+    assert "atanua-app.ico" in rc and "atanua-doc.ico" in rc, "rc must embed both icons"
+    assert "IDI_ICON1" in rc and "IDI_ICON2" in rc, "doc icon needs its own resource id"
+    cmake = read(os.path.join(REPO, "CMakeLists.txt"))
+    assert "atanua.rc" in cmake and "if(WIN32)" in cmake, "rc must join the Windows build"
+    assert "shell32" in cmake, "assoc refresh needs shell32"
+    assoc = read(os.path.join(REPO, "src", "include", "fileassoc.h"))
+    assert '"<exe>",1' in assoc, "file icon must use exe index 1"
     assert os.path.isfile(os.path.join(REPO, "atanua.desktop")), "linux .desktop not shipped"
     desktop = read(os.path.join(REPO, "atanua.desktop"))
     assert "MimeType=application/x-atanua;" in desktop, ".desktop lacks MimeType"
