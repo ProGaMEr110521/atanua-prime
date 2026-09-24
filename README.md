@@ -70,6 +70,8 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
+Linux builds static-link TinyXML2. If `libtinyxml2.a` is missing (Ubuntu's `libtinyxml2-dev` is shared-only), CMake fetches TinyXML2 10.0.0 and builds it as a static library — the same path Ubuntu CI uses. A distro `libtinyxml2.so` is not linked.
+
 If `data/` is present at configure time, CMake copies it next to the built executable. The app expects `data/` (fonts, chip textures) alongside the binary.
 
 Run the binary:
@@ -171,6 +173,8 @@ sudo apt install build-essential cmake ninja-build libsdl2-dev libtinyxml2-dev l
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
+
+На Linux TinyXML2 линкуется статически. Если нет `libtinyxml2.a` (у Ubuntu в `libtinyxml2-dev` только `.so`), CMake скачивает TinyXML2 10.0.0 и собирает статическую библиотеку — тот же путь, что в Ubuntu CI. Дистрибутивный `libtinyxml2.so` не линкуется.
 
 Если каталог `data/` есть при конфигурации, CMake копирует его рядом с исполняемым файлом. Приложению нужен `data/` (шрифты, текстуры) рядом с бинарником.
 

@@ -31,16 +31,18 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 - Секция поддержки в окне горячих клавиш: ссылка на issues и почта разработчика (`mailto:`), текст переносится, чтобы окно не вылезало за экран.
 
 ### Fixed / Исправлено
-- Linux in-app update: `ldd` preflight refuses packages with missing libraries; apply copies the current binary to `atanua.bak`, `execve`s the same absolute path, rolls back if the child dies within ~1.5s, and keeps the running session on failure instead of quitting into a dead launcher.
-- Обновление на Linux: предпроверка `ldd` отклоняет пакеты с недостающими библиотеками; установка копирует текущий бинарник в `atanua.bak`, делает `execve` того же абсолютного пути, откатывается если новый процесс сразу умирает (~1.5 с), и при ошибке оставляет текущую сессию вместо выхода в мёртвый лаунчер.
-- Linux CMake prefers `libtinyxml2.a` when present so release binaries do not need a distro `libtinyxml2.so` soname (Ubuntu `.so.10` vs Arch/Omarchy).
-- CMake на Linux предпочитает `libtinyxml2.a`, если он есть, чтобы релиз не зависел от soname дистрибутива (`libtinyxml2.so.10` на Ubuntu vs Arch/Omarchy).
-- Ubuntu CI fails the Linux build if `ldd` shows unresolved libraries or a dynamic `libtinyxml2.so`.
-- Ubuntu CI валит Linux-сборку, если `ldd` показывает неразрешённые библиотеки или динамический `libtinyxml2.so`.
 - Linux data files resolve from the executable path (`/proc/self/exe`), so tarball, install prefix, and `/usr/share/atanua` launches work from any directory.
 - Файлы данных на Linux находятся от пути к исполняемому файлу (`/proc/self/exe`), поэтому архив, установочный префикс и `/usr/share/atanua` запускаются из любой папки.
 - Linux file dialogs no longer nest a GTK main loop; screenshots go to `~/Pictures`.
 - Диалоги выбора файлов на Linux больше не вкладывают цикл GTK; скриншоты сохраняются в `~/Pictures`.
+
+## [v1.3.141231] - 2026-09-24
+
+### Fixed / Исправлено
+- Linux release builds static-link TinyXML2 even when the distro only ships a shared `libtinyxml2.so` (CMake FetchContent of TinyXML2 10.0.0). `libtinyxml2.a` is still preferred when present. Ubuntu CI keeps failing if `ldd` shows `libtinyxml2.so` or unresolved libraries.
+- Linux-релизы линкуют TinyXML2 статически даже если в дистрибутиве есть только общий `libtinyxml2.so` (CMake FetchContent TinyXML2 10.0.0). Если есть `libtinyxml2.a`, он по-прежнему предпочтителен. Ubuntu CI по-прежнему валит сборку, если `ldd` показывает `libtinyxml2.so` или неразрешённые библиотеки.
+- Linux in-app update: `ldd` preflight refuses packages with missing libraries; apply copies the current binary to `atanua.bak`, `execve`s the same absolute path, rolls back if the child dies within ~1.5s, and keeps the running session on failure instead of quitting into a dead launcher.
+- Обновление на Linux: предпроверка `ldd` отклоняет пакеты с недостающими библиотеками; установка копирует текущий бинарник в `atanua.bak`, делает `execve` того же абсолютного пути, откатывается если новый процесс сразу умирает (~1.5 с), и при ошибке оставляет текущую сессию вместо выхода в мёртвый лаунчер.
 
 ## [v1.3.141226] - 2026-09-20
 

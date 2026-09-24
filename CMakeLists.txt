@@ -21,6 +21,8 @@ endif()
 find_package(OpenGL REQUIRED)
 # Prefer a static tinyxml2 on Linux so release tarballs do not depend on a
 # distro soname (Ubuntu ships .so.10; Arch/Omarchy often have none or .so.11).
+# Ubuntu's libtinyxml2-dev is shared-only, so when no .a is present we build
+# TinyXML2 10.0.0 as a static library via FetchContent (same as Ubuntu CI).
 unset(ATANUA_TINYXML2_STATIC_LIB CACHE)
 if(UNIX AND NOT APPLE)
   find_library(ATANUA_TINYXML2_STATIC_LIB
@@ -32,14 +34,56 @@ if(UNIX AND NOT APPLE)
       "$ENV{HOME}/.local/lib"
   )
 endif()
-find_package(tinyxml2 CONFIG QUIET)
-if(NOT tinyxml2_FOUND)
-  find_package(PkgConfig REQUIRED)
-  pkg_check_modules(tinyxml2 REQUIRED IMPORTED_TARGET tinyxml2)
-  add_library(tinyxml2::tinyxml2 ALIAS PkgConfig::tinyxml2)
-endif()
-if(ATANUA_TINYXML2_STATIC_LIB)
+if(UNIX AND NOT APPLE AND ATANUA_TINYXML2_STATIC_LIB)
   message(STATUS "atanua: linking static tinyxml2 (${ATANUA_TINYXML2_STATIC_LIB})")
+  find_package(tinyxml2 CONFIG QUIET)
+  if(NOT tinyxml2_FOUND)
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+      pkg_check_modules(tinyxml2 QUIET IMPORTED_TARGET tinyxml2)
+      if(tinyxml2_FOUND AND NOT TARGET tinyxml2::tinyxml2)
+        add_library(tinyxml2::tinyxml2 ALIAS PkgConfig::tinyxml2)
+      endif()
+    endif()
+  endif()
+  if(NOT TARGET tinyxml2::tinyxml2)
+    find_path(ATANUA_TINYXML2_INCLUDE_DIR tinyxml2.h
+      PATHS
+        /usr/include
+        /usr/local/include
+        "$ENV{HOME}/.local/include"
+    )
+  endif()
+elseif(UNIX AND NOT APPLE)
+  message(STATUS "atanua: no libtinyxml2.a found; FetchContent static tinyxml2 10.0.0")
+  include(FetchContent)
+  FetchContent_Declare(
+    tinyxml2
+    URL https://github.com/leethomason/tinyxml2/archive/refs/tags/10.0.0.tar.gz
+    URL_HASH SHA256=3bdf15128ba16686e69bce256cc468e76c7b94ff2c7f391cc5ec09e40bff3839
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+  )
+  set(tinyxml2_SHARED_LIBS OFF CACHE BOOL "atanua: always static-link tinyxml2 on Linux" FORCE)
+  set(tinyxml2_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+  set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+  set(_atanua_saved_pic "${CMAKE_POSITION_INDEPENDENT_CODE}")
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+  FetchContent_MakeAvailable(tinyxml2)
+  if(TARGET tinyxml2)
+    set_property(TARGET tinyxml2 PROPERTY POSITION_INDEPENDENT_CODE ON)
+  endif()
+  if(_atanua_saved_pic STREQUAL "")
+    unset(CMAKE_POSITION_INDEPENDENT_CODE)
+  else()
+    set(CMAKE_POSITION_INDEPENDENT_CODE "${_atanua_saved_pic}")
+  endif()
+else()
+  find_package(tinyxml2 CONFIG QUIET)
+  if(NOT tinyxml2_FOUND)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(tinyxml2 REQUIRED IMPORTED_TARGET tinyxml2)
+    add_library(tinyxml2::tinyxml2 ALIAS PkgConfig::tinyxml2)
+  endif()
 endif()
 
 set(ATANUA_SOURCES
@@ -203,9 +247,13 @@ target_link_libraries(atanua PRIVATE
 if(ATANUA_TINYXML2_STATIC_LIB)
   # Keep include path from the found package, but link the .a so the binary
   # does not need libtinyxml2.so at runtime.
-  get_target_property(_atanua_tinyxml2_incs tinyxml2::tinyxml2 INTERFACE_INCLUDE_DIRECTORIES)
-  if(_atanua_tinyxml2_incs)
-    target_include_directories(atanua PRIVATE ${_atanua_tinyxml2_incs})
+  if(TARGET tinyxml2::tinyxml2)
+    get_target_property(_atanua_tinyxml2_incs tinyxml2::tinyxml2 INTERFACE_INCLUDE_DIRECTORIES)
+    if(_atanua_tinyxml2_incs)
+      target_include_directories(atanua PRIVATE ${_atanua_tinyxml2_incs})
+    endif()
+  elseif(ATANUA_TINYXML2_INCLUDE_DIR)
+    target_include_directories(atanua PRIVATE ${ATANUA_TINYXML2_INCLUDE_DIR})
   endif()
   target_link_libraries(atanua PRIVATE ${ATANUA_TINYXML2_STATIC_LIB})
 else()

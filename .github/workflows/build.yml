@@ -51,6 +51,9 @@ jobs:
       - name: Install deps
         run: |
           sudo apt-get update
+          # libtinyxml2-dev is shared-only on Ubuntu; CMake FetchContent builds
+          # a static libtinyxml2 when no .a is present. Keep the package so a
+          # future distro .a is preferred automatically.
           sudo apt-get install -y build-essential cmake ninja-build libsdl2-dev libtinyxml2-dev libgl1-mesa-dev libglu1-mesa-dev libgtk-3-dev pkg-config curl
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_PACKAGE_PREFER_CONFIG=OFF
