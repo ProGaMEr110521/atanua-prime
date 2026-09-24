@@ -26,6 +26,7 @@ distribution.
 #include "ui_theme.h"
 #include "app_settings.h"
 #include "dropfile.h"
+#include "applocation.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "imgui_impl_sdl2.h"
@@ -180,17 +181,9 @@ void do_rotate()
 
 void do_screengrab()
 {
-	FILE * f = NULL;
-	char tempname[256];
-	int i = 0;
-	do
-	{
-		if (f) fclose(f);
-		i++;
-		sprintf(tempname, "atanua%03d.png", i);
-		f = fopen(tempname, "rb");
-	}
-	while(f);
+	char tempname[512];
+	if (!AppLocation_NextScreenshotPath(tempname, (int)sizeof(tempname)))
+		return;
 
 	int x0 = gConfig.mToolkitWidth;
 	int y0 = gTopbarH;
@@ -199,6 +192,7 @@ void do_screengrab()
 
 	char * data = new char[w*h*4];
 	char * flipdata = new char[w*h*4];
+	int i;
 	glReadPixels(x0,0,w,h,GL_RGBA,GL_UNSIGNED_BYTE,data);
 
 	for (i = 0; i < h; i++)
@@ -2553,9 +2547,22 @@ static void draw_screen()
             ImGui::End();
             if (sRestartFrames == 0)
             {
-                SDL_Event ev;
-                ev.type = SDL_QUIT;
-                SDL_PushEvent(&ev);
+                /* Linux installs + execve here so the same absolute path the
+                 * user is running comes back up. Windows already handed off
+                 * to update.bat during download. On Linux failure the previous
+                 * binary is restored — keep this session open instead of
+                 * quitting into a dead launcher. */
+                if (AppUpdate_ApplyAndRelaunch())
+                {
+                    SDL_Event ev;
+                    ev.type = SDL_QUIT;
+                    SDL_PushEvent(&ev);
+                }
+                else
+                {
+                    okcancel("Update could not be applied on this system.\n"
+                        "Your current Atanua was kept. You can keep working.");
+                }
             }
         }
     }
@@ -2874,6 +2881,10 @@ int main(int argc, char** args)
 
     if (gConfig.mAudioEnable)
         sdlflags |= SDL_INIT_AUDIO;
+
+#ifdef LINUX_VERSION
+    SDL_SetHint("SDL_VIDEO_WAYLAND_APP_ID", "atanua");
+#endif
 
     if (SDL_Init(sdlflags) < 0)
     {

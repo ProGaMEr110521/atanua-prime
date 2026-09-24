@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Atanua
+Comment=Real-time logic circuit simulator
+Exec=atanua
+Icon=atanua
+Terminal=false
+Categories=Education;Science;Electronics;
+StartupWMClass=atanua

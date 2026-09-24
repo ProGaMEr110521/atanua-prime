@@ -51,11 +51,22 @@ jobs:
       - name: Install deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build libsdl2-dev libtinyxml2-dev libgl1-mesa-dev libglu1-mesa-dev libgtk-3-dev pkg-config
+          sudo apt-get install -y build-essential cmake ninja-build libsdl2-dev libtinyxml2-dev libgl1-mesa-dev libglu1-mesa-dev libgtk-3-dev pkg-config curl
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_FIND_PACKAGE_PREFER_CONFIG=OFF
       - name: Build
         run: cmake --build build
+      - name: Check Linux binary has no unresolved or tinyxml2 shared deps
+        run: |
+          ldd build/atanua | tee /tmp/atanua-ldd.txt
+          if grep -E 'not found' /tmp/atanua-ldd.txt; then
+            echo "build/atanua has unresolved shared libraries" >&2
+            exit 1
+          fi
+          if grep -E 'libtinyxml2\.so' /tmp/atanua-ldd.txt; then
+            echo "build/atanua still dynamically links tinyxml2; prefer static .a" >&2
+            exit 1
+          fi
       - name: Stage linux package
         if: startsWith(github.ref, 'refs/tags/v')
         run: |

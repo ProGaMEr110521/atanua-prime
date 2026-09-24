@@ -1,9 +1,9 @@
 /*
 Atanua update check - background fetch plus one-shot prompt state.
 Pure version/release logic lives in appupdate.h (unit tested); this file
-only fetches the releases payload over HTTPS on a worker thread (Windows
-WinInet, unavailable elsewhere) and latches a newer-than-builtin result
-for the UI thread to surface once. Failures and up-to-date stay silent.
+fetches the releases payload over HTTPS on a worker thread (WinInet on
+Windows, curl on Linux) and latches a newer-than-builtin result for the
+UI thread to surface once. Failures and up-to-date stay silent.
 */
 #include "atanua.h"
 #include "atanua_internal.h"
@@ -117,9 +117,26 @@ static int fetchReleases(char *out, int cap)
     InternetCloseHandle(hInet);
     return ok;
 #else
-    (void)out;
-    (void)cap;
-    return 0;
+    FILE *p;
+    size_t total = 0;
+    size_t got;
+    if (!out || cap <= 0)
+        return 0;
+    p = popen("curl -fsSL --connect-timeout 8 --max-time 15 "
+        "-H 'User-Agent: AtanuaUpdateCheck/1.0' "
+        "-H 'Accept: application/vnd.github+json' "
+        "'https://api.github.com/repos/ProGaMEr110521/atanua-prime/releases?per_page=10' 2>/dev/null",
+        "r");
+    if (!p)
+        return 0;
+    while (total < (size_t)(cap - 1)
+        && (got = fread(out + total, 1, (size_t)(cap - 1) - total, p)) > 0)
+    {
+        total += got;
+    }
+    out[total] = '\0';
+    pclose(p);
+    return total > 0 ? 1 : 0;
 #endif
 }
 
@@ -419,10 +436,18 @@ static int launchUpdaterWin(const char *batPath)
 
 #else /* not Windows: best-effort curl flow, silent when unavailable */
 
+#include <limits.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+
+extern char **environ;
+
+/* Staged Linux package paths for ApplyAndRelaunch on the main thread. */
+static char s_stageDir[1024];
+static char s_appExe[1024];
+static int s_linuxStaged = 0;
 
 static int shellSafe(const char *s)
 {
@@ -487,6 +512,139 @@ static int downloadFileNix(const char *url, const char *destPath)
         return -1;
     }
     return rc == 0 ? 1 : 0;
+}
+
+/* Copy one file. Works while the destination path names a running binary
+ * only if the caller writes to a temp name first; do not truncate in place. */
+static int copyFileNix(const char *src, const char *dst)
+{
+    char buf[65536];
+    FILE *in;
+    FILE *out;
+    size_t n;
+    if (!src || !dst)
+        return 0;
+    in = fopen(src, "rb");
+    if (!in)
+        return 0;
+    out = fopen(dst, "wb");
+    if (!out)
+    {
+        fclose(in);
+        return 0;
+    }
+    while ((n = fread(buf, 1, sizeof(buf), in)) > 0)
+    {
+        if (fwrite(buf, 1, n, out) != n)
+        {
+            fclose(in);
+            fclose(out);
+            unlink(dst);
+            return 0;
+        }
+    }
+    if (ferror(in))
+    {
+        fclose(in);
+        fclose(out);
+        unlink(dst);
+        return 0;
+    }
+    fclose(in);
+    if (fclose(out) != 0)
+    {
+        unlink(dst);
+        return 0;
+    }
+    return 1;
+}
+
+/* Replace the running executable via temp + rename (avoids ETXTBSY). */
+static int installBinaryNix(const char *srcBin, const char *destExe)
+{
+    char tmpPath[1080];
+    if (!srcBin || !destExe || !*destExe)
+        return 0;
+    snprintf(tmpPath, sizeof(tmpPath), "%s.new", destExe);
+    unlink(tmpPath);
+    if (!copyFileNix(srcBin, tmpPath))
+        return 0;
+    if (chmod(tmpPath, 0755) != 0)
+    {
+        unlink(tmpPath);
+        return 0;
+    }
+    if (rename(tmpPath, destExe) != 0)
+    {
+        unlink(tmpPath);
+        return 0;
+    }
+    return 1;
+}
+
+/* Prefix install: binary in .../bin, data in .../share/atanua.
+ * Portable: data next to the binary. */
+static int installDataNix(const char *pkgRoot, const char *exeDir)
+{
+    char shareProbe[PATH_MAX];
+    char shareResolved[PATH_MAX];
+    char cmd[2200];
+    const char *dataDest;
+    if (!pkgRoot || !exeDir || !shellSafe(pkgRoot) || !shellSafe(exeDir))
+        return 0;
+    snprintf(shareProbe, sizeof(shareProbe), "%s/../share/atanua", exeDir);
+    if (realpath(shareProbe, shareResolved)
+        && shellSafe(shareResolved)
+        && access(shareResolved, W_OK) == 0)
+    {
+        dataDest = shareResolved;
+    }
+    else
+    {
+        dataDest = exeDir;
+    }
+    if (!shellSafe(dataDest))
+        return 0;
+    snprintf(cmd, sizeof(cmd), "mkdir -p '%s/data' && cp -a '%s/atanua-linux/data/.' '%s/data/'",
+        dataDest, pkgRoot, dataDest);
+    return runCmd(cmd) == 0 ? 1 : 0;
+}
+
+/* Reject packages whose dynamic libs are missing here (e.g. Ubuntu
+ * libtinyxml2.so.10 on Arch/Omarchy). Better to fail before replacing. */
+static int binaryDepsOkNix(const char *path)
+{
+    char cmd[1200];
+    FILE *p;
+    char line[512];
+    int sawLine = 0;
+    int bad = 0;
+    if (!path || !shellSafe(path) || access(path, X_OK) != 0)
+        return 0;
+    snprintf(cmd, sizeof(cmd), "ldd '%s' 2>/dev/null", path);
+    p = popen(cmd, "r");
+    if (!p)
+        return 0;
+    while (fgets(line, (int)sizeof(line), p))
+    {
+        sawLine = 1;
+        if (strstr(line, "not found"))
+            bad = 1;
+    }
+    pclose(p);
+    return (sawLine && !bad) ? 1 : 0;
+}
+
+static void cleanupStageNix(void)
+{
+    char rm[1100];
+    if (s_stageDir[0] && shellSafe(s_stageDir))
+    {
+        snprintf(rm, sizeof(rm), "rm -rf '%s'", s_stageDir);
+        runCmd(rm);
+    }
+    s_stageDir[0] = '\0';
+    s_linuxStaged = 0;
 }
 
 #endif
@@ -606,14 +764,17 @@ static int downloadThread(void *unused)
     }
 #else
     {
+        /* Stage only. Install + execve of the absolute binary path happen on
+         * the main thread in AppUpdate_ApplyAndRelaunch so a running binary
+         * can be replaced (temp + rename) and the same path the user launched
+         * comes back up. The old helper script waited for exit, cp'd the
+         * portable layout into the bin dir, then relaunched with stderr
+         * discarded — so a missing shared library killed the new process
+         * silently and left the user with no window. */
         const char *tmpBase = getenv("TMPDIR");
         char appExe[1024];
-        char appDir[1024];
         char pkgPath[1024];
-        char scriptPath[1024];
         ssize_t linkLen;
-        char *slash;
-        FILE *script;
         int dl;
         if (!tmpBase || !*tmpBase)
             tmpBase = "/tmp";
@@ -674,6 +835,12 @@ static int downloadThread(void *unused)
             failWith("Update failed: package layout unexpected.");
             return 0;
         }
+        if (!binaryDepsOkNix(pkgPath))
+        {
+            failWith("Update failed: this build needs libraries not "
+                "available on this system.");
+            return 0;
+        }
         linkLen = readlink("/proc/self/exe", appExe, sizeof(appExe) - 1);
         if (linkLen <= 0)
         {
@@ -681,61 +848,14 @@ static int downloadThread(void *unused)
             return 0;
         }
         appExe[linkLen] = '\0';
-        slash = strrchr(appExe, '/');
-        if (!slash || !slash[1])
+        if (!strrchr(appExe, '/') || !shellSafe(appExe) || !shellSafe(stageDir))
         {
             failWith("Update failed: current location unknown.");
             return 0;
         }
-        {
-            char exeName[256];
-            AppUpdate_CopyStr(exeName, (int)sizeof(exeName), slash + 1,
-                (int)strlen(slash + 1));
-            *slash = '\0';
-            strncpy(appDir, appExe, sizeof(appDir) - 1);
-            appDir[sizeof(appDir) - 1] = '\0';
-            snprintf(scriptPath, sizeof(scriptPath), "%s/update.sh", stageDir);
-            script = fopen(scriptPath, "w");
-            if (!script)
-            {
-                failWith("Update failed: restarter setup failed.");
-                return 0;
-            }
-            fprintf(script,
-                "#!/bin/sh\n"
-                "i=0\n"
-                "while kill -0 \"$1\" 2>/dev/null && [ \"$i\" -lt 60 ]; do sleep 1; i=$((i+1)); done\n"
-                "sleep 1\n"
-                "cp -rf \"$4/atanua-linux/.\" \"$2/\"\n"
-                "( cd \"$2\" && ./\"$3\" >/dev/null 2>&1 & )\n"
-                "rm -rf \"$4\"\n");
-            if (fclose(script) != 0)
-            {
-                failWith("Update failed: restarter setup failed.");
-                return 0;
-            }
-            if (chmod(scriptPath, 0755) != 0)
-            {
-                failWith("Update failed: restarter setup failed.");
-                return 0;
-            }
-            {
-                pid_t child = fork();
-                char pidTxt[32];
-                if (child < 0)
-                {
-                    failWith("Update failed: restarter setup failed.");
-                    return 0;
-                }
-                if (child == 0)
-                {
-                    setsid();
-                    snprintf(pidTxt, sizeof(pidTxt), "%ld", (long)getppid());
-                    execl("/bin/sh", "sh", scriptPath, pidTxt, appDir, exeName, stageDir, (char *)NULL);
-                    _exit(127);
-                }
-            }
-        }
+        AppUpdate_CopyStr(s_appExe, (int)sizeof(s_appExe), appExe, (int)strlen(appExe));
+        AppUpdate_CopyStr(s_stageDir, (int)sizeof(s_stageDir), stageDir, (int)strlen(stageDir));
+        s_linuxStaged = 1;
         AppUpdate_CopyStr(s_resultmsg, (int)sizeof(s_resultmsg),
             "Restarting to finish the update.", 31);
         SDL_AtomicSet(&s_phase, AUP_READY);
@@ -804,4 +924,102 @@ int AppUpdate_ConsumeReady(char *msgOut, int msgCap)
     if (msgOut && msgCap > 0)
         AppUpdate_CopyStr(msgOut, msgCap, s_resultmsg, (int)strlen(s_resultmsg));
     return phase == AUP_READY ? 1 : 2;
+}
+
+int AppUpdate_ApplyAndRelaunch(void)
+{
+#ifdef _WIN32
+    /* Windows restarter bat was already launched from the download thread. */
+    return 1;
+#else
+    char pkgBin[1100];
+    char bakPath[1080];
+    char exeDir[1024];
+    char *slash;
+    char *args[2];
+    pid_t child;
+    int status = 0;
+    int i;
+
+    if (!s_linuxStaged || !s_appExe[0] || !s_stageDir[0])
+        return 0;
+
+    snprintf(pkgBin, sizeof(pkgBin), "%s/atanua-linux/atanua", s_stageDir);
+    if (access(pkgBin, R_OK) != 0)
+    {
+        cleanupStageNix();
+        return 0;
+    }
+    /* Never replace a working binary with one that cannot load here. */
+    if (!binaryDepsOkNix(pkgBin))
+    {
+        cleanupStageNix();
+        return 0;
+    }
+
+    AppUpdate_CopyStr(exeDir, (int)sizeof(exeDir), s_appExe, (int)strlen(s_appExe));
+    slash = strrchr(exeDir, '/');
+    if (!slash)
+    {
+        cleanupStageNix();
+        return 0;
+    }
+    *slash = '\0';
+
+    snprintf(bakPath, sizeof(bakPath), "%s.bak", s_appExe);
+    unlink(bakPath);
+    if (!copyFileNix(s_appExe, bakPath))
+    {
+        cleanupStageNix();
+        return 0;
+    }
+
+    if (!installBinaryNix(pkgBin, s_appExe))
+    {
+        unlink(bakPath);
+        cleanupStageNix();
+        return 0;
+    }
+    if (!installDataNix(s_stageDir, exeDir))
+    {
+        rename(bakPath, s_appExe);
+        cleanupStageNix();
+        return 0;
+    }
+
+    child = fork();
+    if (child < 0)
+    {
+        rename(bakPath, s_appExe);
+        cleanupStageNix();
+        return 0;
+    }
+    if (child == 0)
+    {
+        /* Detach from the dying parent's session; keep environ so Wayland /
+         * display / library path match the process the user was running. */
+        setsid();
+        args[0] = s_appExe;
+        args[1] = NULL;
+        execve(s_appExe, args, environ);
+        _exit(127);
+    }
+
+    /* If the new process dies immediately, restore the previous binary so
+     * the user is not left with a closed app and nothing that can start. */
+    for (i = 0; i < 15; i++)
+    {
+        SDL_Delay(100);
+        if (waitpid(child, &status, WNOHANG) == child)
+        {
+            rename(bakPath, s_appExe);
+            cleanupStageNix();
+            return 0;
+        }
+    }
+
+    unlink(bakPath);
+    cleanupStageNix();
+    return 1;
+#endif
 }

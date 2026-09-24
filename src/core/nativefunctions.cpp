@@ -727,72 +727,62 @@ void *getdllproc(int dllhandle, const char *procname)
 #include <gtk/gtk.h>
 #include <dlfcn.h> // dll functions
 #include <unistd.h>
+#include "applocation.h"
 
-
-static char *gtkfilename;
 static bool selected = false; // is a file selected?
 
-static void
-selected_file(GtkWidget * widget, gint arg1, gpointer data)
+static void ensure_gtk_init(void)
 {
-  if(arg1==GTK_RESPONSE_ACCEPT)
-  {
-  	const gchar* filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(data));  	
-  	if (!g_file_test(filename, G_FILE_TEST_IS_DIR))
-  	{
-  		strncpy(gtkfilename, filename, 255);
-  		gtkfilename[255] = 0;
-  		selected = true;
-  	}
-  }
-  gtk_widget_destroy(GTK_WIDGET(data));
-  gtk_main_quit();
-
-}
-
-static void
-selected_dlg(GtkWidget * widget, gint arg1, gpointer data)
-{
-  if(arg1==GTK_RESPONSE_OK)
-  {
-      selected = true;
-  }
-
-  gtk_widget_destroy(GTK_WIDGET(data));
-  gtk_main_quit();
+    static int inited = 0;
+    if (!inited)
+    {
+        gtk_init(NULL, NULL);
+        inited = 1;
+    }
 }
 
 static bool select_file (char *buf, int mode, const char*title)
 {
-	gtkfilename = buf;
-	selected = false;
-	GtkWidget *dialog;
-	if (mode == 0)
+    GtkWidget *dialog;
+    gint response;
+    ensure_gtk_init();
+    selected = false;
+    if (mode == 0)
     {
-        dialog = gtk_file_chooser_dialog_new (title,
-    				      NULL, 
-    				      GTK_FILE_CHOOSER_ACTION_OPEN,
-    				      GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
-    				      GTK_STOCK_OPEN, GTK_RESPONSE_ACCEPT,
-    				      (char*)0);//NULL);
+        dialog = gtk_file_chooser_dialog_new(title,
+            NULL,
+            GTK_FILE_CHOOSER_ACTION_OPEN,
+            "_Cancel", GTK_RESPONSE_CANCEL,
+            "_Open", GTK_RESPONSE_ACCEPT,
+            NULL);
     }
     else
     {
-        dialog = gtk_file_chooser_dialog_new (title,
-    				      NULL, 
-    				      GTK_FILE_CHOOSER_ACTION_SAVE,
-    				      GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
-    				      GTK_STOCK_SAVE, GTK_RESPONSE_ACCEPT,
-    				      (char*)0);//NULL);
-    if (gFilename)
-        gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), gFilename);
+        dialog = gtk_file_chooser_dialog_new(title,
+            NULL,
+            GTK_FILE_CHOOSER_ACTION_SAVE,
+            "_Cancel", GTK_RESPONSE_CANCEL,
+            "_Save", GTK_RESPONSE_ACCEPT,
+            NULL);
+        if (gFilename)
+            gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), gFilename);
     }
-	
-	g_signal_connect(G_OBJECT(dialog), "destroy", G_CALLBACK(gtk_main_quit), NULL);
-	g_signal_connect(G_OBJECT(GTK_FILE_CHOOSER_DIALOG(dialog)), "response", G_CALLBACK(selected_file), G_OBJECT(dialog));
-	gtk_widget_show(GTK_WIDGET(dialog));
-	gtk_main();
-	return selected;
+    response = gtk_dialog_run(GTK_DIALOG(dialog));
+    if (response == GTK_RESPONSE_ACCEPT)
+    {
+        gchar *filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+        if (filename && !g_file_test(filename, G_FILE_TEST_IS_DIR))
+        {
+            strncpy(buf, filename, 255);
+            buf[255] = 0;
+            selected = true;
+        }
+        g_free(filename);
+    }
+    gtk_widget_destroy(dialog);
+    while (gtk_events_pending())
+        gtk_main_iteration();
+    return selected;
 }
 
 
@@ -819,8 +809,11 @@ FILE * savefiledialog(const char *title)
   FILE * f = NULL;
   if (selected)
   {
-    if (strstr(temp, ".atanua") == NULL)
-        strcat(temp, ".atanua");
+    {
+        const char *ext = strrchr(temp, '.');
+        if (!ext || strcasecmp(ext, ".atanua") != 0)
+            strcat(temp, ".atanua");
+    }
     f = fopen(temp, "wb");
     if (title == NULL)
         storefilename(temp);    
@@ -830,32 +823,26 @@ FILE * savefiledialog(const char *title)
 
 int okcancel(const char *prompt)
 {
-	selected = false;
-	GtkWidget *dialog;
+    GtkWidget *dialog;
+    gint response;
+    ensure_gtk_init();
+    selected = false;
     dialog = gtk_message_dialog_new(NULL,
-                                  GTK_DIALOG_MODAL,
-                                  GTK_MESSAGE_WARNING,
-                                  GTK_BUTTONS_OK_CANCEL,
-                                  "%s", prompt);
-	g_signal_connect(G_OBJECT(dialog), "destroy", G_CALLBACK(gtk_main_quit), NULL);
-	g_signal_connect(G_OBJECT(GTK_MESSAGE_DIALOG(dialog)), "response", G_CALLBACK(selected_dlg), G_OBJECT(dialog));
-	gtk_widget_show(GTK_WIDGET(dialog));
-	gtk_main();
+        GTK_DIALOG_MODAL,
+        GTK_MESSAGE_WARNING,
+        GTK_BUTTONS_OK_CANCEL,
+        "%s", prompt);
+    response = gtk_dialog_run(GTK_DIALOG(dialog));
+    selected = (response == GTK_RESPONSE_OK);
+    gtk_widget_destroy(dialog);
+    while (gtk_events_pending())
+        gtk_main_iteration();
     return selected;
 }
 
 void gotoappdirectory(int parc, char ** pars)
 {
-    // as good place as any..
-    gtk_init(&parc, &pars);
-    
-    // only works if pars[0] points to application and not to a link. 
-    char *rch = strrchr(pars[0], '/');
-    if (rch != NULL) 
-    {
-      *rch = 0;
-      chdir(pars[0]);
-    }  
+    AppLocation_Init(parc, pars);
 }
 
 void* opendll(const char *dllfilename)
