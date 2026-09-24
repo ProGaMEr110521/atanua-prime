@@ -26,11 +26,7 @@ distribution.
 #include <stdint.h>
 
 
-<<<<<<< HEAD
-#define ATANUAVERSION "1.3.141230"
-=======
 #define ATANUAVERSION "1.3.141231"
->>>>>>> dev-warexpor
 
 #ifdef __APPLE__
 #define ATANUAPLATFORM "OSX"
