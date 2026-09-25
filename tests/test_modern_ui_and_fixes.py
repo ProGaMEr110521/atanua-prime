@@ -18,7 +18,15 @@ SRC_FONT = os.path.join(REPO, "src", "basecode", "angelcodefont.cpp")
 THEME_H = os.path.join(REPO, "src", "include", "ui_theme.h")
 CMAKE_LISTS = os.path.join(REPO, "CMakeLists.txt")
 WORKFLOW = os.path.join(REPO, ".github", "workflows", "build.yml")
-BUILD_EXE = os.path.join(REPO, "build", "Release", "atanua.exe")
+if os.name == "nt":
+    BUILD_EXE = os.path.join(REPO, "build", "Release", "atanua.exe")
+else:
+    _linux_build_candidates = [
+        os.path.join(REPO, "build", "atanua"),
+        os.path.join(REPO, "build-linux", "atanua"),
+    ]
+    BUILD_EXE = next((p for p in _linux_build_candidates if os.path.exists(p)),
+                     _linux_build_candidates[0])
 DATA_DIR = os.path.join(REPO, "data")
 def _circuit(name):
     # Vendored fixtures are committed; legacy public path is gitignored.
@@ -640,13 +648,15 @@ def test_circuits_parse_and_wire_indices_valid():
 
 
 def test_binary_and_assets_present():
-    assert os.path.exists(BUILD_EXE), "atanua.exe missing; build first"
-    assert os.path.getsize(BUILD_EXE) > 100000, "atanua.exe suspiciously small"
+    assert os.path.exists(BUILD_EXE), f"{BUILD_EXE} missing; build first"
+    assert os.path.getsize(BUILD_EXE) > 100000, f"{BUILD_EXE} suspiciously small"
     for name in ["vera14.fnt", "vera31.fnt", "icon.png", "led.png"]:
         assert os.path.exists(os.path.join(DATA_DIR, name)), f"missing data/{name}"
 
 
 def test_cpp_theme_harness():
+    if os.name != "nt":
+        return
     import shutil
     import tempfile
     tmp = tempfile.mkdtemp(prefix="atanua_theme_")

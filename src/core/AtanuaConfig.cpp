@@ -23,6 +23,7 @@ distribution.
 #include "atanua.h"
 #include "atanua_internal.h"
 #include "app_settings.h"
+#include "applocation.h"
 #include <tinyxml2.h>
 #include <time.h>
 
@@ -81,10 +82,19 @@ static int h2i(char d)
 }
 
 
+static FILE *openConfigRead(void)
+{
+    const char *cfg = AppLocation_ConfigFile();
+    FILE *f = fopen(cfg, "rb");
+    if (!f && stricmp(cfg, "atanua.xml") != 0)
+        f = fopen("atanua.xml", "rb");
+    return f;
+}
+
 void AtanuaConfig::load()
 {
     XMLDocument doc;
-    FILE * f = fopen("atanua.xml", "rb");
+    FILE * f = openConfigRead();
 
     if (!f)
     {
@@ -205,7 +215,8 @@ void AtanuaConfig::load()
         topelement->InsertEndChild(element);
         element->SetAttribute("value", mLiveWires);
 
-        f = fopen("atanua.xml", "wb");
+        AppLocation_EnsureConfigDir();
+        f = fopen(AppLocation_ConfigFile(), "wb");
         if (f)
         {
             doc.SaveFile(f);
@@ -455,7 +466,7 @@ void AtanuaConfig::save()
 
     XMLDocument doc;
     int haveDoc = 0;
-    FILE *f = fopen("atanua.xml", "rb");
+    FILE *f = openConfigRead();
     if (f)
     {
         haveDoc = (doc.LoadFile(f) == XML_SUCCESS);
@@ -549,7 +560,8 @@ void AtanuaConfig::save()
         child = next;
     }
 
-    f = fopen("atanua.xml", "wb");
+    AppLocation_EnsureConfigDir();
+    f = fopen(AppLocation_ConfigFile(), "wb");
     if (f)
     {
         doc.SaveFile(f);

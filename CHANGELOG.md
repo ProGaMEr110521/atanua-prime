@@ -7,6 +7,12 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 ## [Unreleased] / [В разработке]
 
 ### Added / Добавлено
+- Linux install layout: binary, data, `.desktop` entry, and hicolor icon via `cmake --install`. Config follows XDG at `~/.config/atanua/atanua.xml`, with the old working-directory file still read if present.
+- Установка на Linux: бинарник, данные, `.desktop` и иконка hicolor через `cmake --install`. Конфиг по XDG в `~/.config/atanua/atanua.xml`, старый файл из рабочей папки по-прежнему читается, если он есть.
+- Linux update check downloads release info with `curl`.
+- Проверка обновлений на Linux скачивает сведения о релизе через `curl`.
+- READMEs rewritten to match the current build, controls, and vendored libraries.
+- README переписаны под текущую сборку, управление и vendored-библиотеки.
 - Top bar grouped by function with uniform button widths, separators, rounded controls and hover shortcut hints, plus a shortcuts reference window.
 - Верхняя панель сгруппирована по функциям: одинаковая ширина кнопок в группе, разделители, скруглённые элементы, подсказки с хоткеями и окно-справка по сочетаниям.
 - All twelve action buttons share one measured width with tighter toolbar spacing; separators slimmed.
@@ -25,6 +31,20 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 - Иконки приложения и документов по вашему арту: многоразмерные иконки вшиты в exe, ассоциация указывает на иконку документа, проводник обновляется при переключении.
 - Support section in the shortcuts window: issues link plus developer email (`mailto:`), wrapped to keep the window on screen.
 - Секция поддержки в окне горячих клавиш: ссылка на issues и почта разработчика (`mailto:`), текст переносится, чтобы окно не вылезало за экран.
+
+### Fixed / Исправлено
+- Linux data files resolve from the executable path (`/proc/self/exe`), so tarball, install prefix, and `/usr/share/atanua` launches work from any directory.
+- Файлы данных на Linux находятся от пути к исполняемому файлу (`/proc/self/exe`), поэтому архив, установочный префикс и `/usr/share/atanua` запускаются из любой папки.
+- Linux file dialogs no longer nest a GTK main loop; screenshots go to `~/Pictures`.
+- Диалоги выбора файлов на Linux больше не вкладывают цикл GTK; скриншоты сохраняются в `~/Pictures`.
+
+## [v1.3.141231] - 2026-09-24
+
+### Fixed / Исправлено
+- Linux release builds static-link TinyXML2 even when the distro only ships a shared `libtinyxml2.so` (CMake FetchContent of TinyXML2 10.0.0). `libtinyxml2.a` is still preferred when present. Ubuntu CI keeps failing if `ldd` shows `libtinyxml2.so` or unresolved libraries.
+- Linux-релизы линкуют TinyXML2 статически даже если в дистрибутиве есть только общий `libtinyxml2.so` (CMake FetchContent TinyXML2 10.0.0). Если есть `libtinyxml2.a`, он по-прежнему предпочтителен. Ubuntu CI по-прежнему валит сборку, если `ldd` показывает `libtinyxml2.so` или неразрешённые библиотеки.
+- Linux in-app update: `ldd` preflight refuses packages with missing libraries; apply copies the current binary to `atanua.bak`, `execve`s the same absolute path, rolls back if the child dies within ~1.5s, and keeps the running session on failure instead of quitting into a dead launcher.
+- Обновление на Linux: предпроверка `ldd` отклоняет пакеты с недостающими библиотеками; установка копирует текущий бинарник в `atanua.bak`, делает `execve` того же абсолютного пути, откатывается если новый процесс сразу умирает (~1.5 с), и при ошибке оставляет текущую сессию вместо выхода в мёртвый лаунчер.
 
 ## [v1.3.141226] - 2026-09-20
 

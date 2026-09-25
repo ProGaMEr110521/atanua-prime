@@ -26,7 +26,7 @@ distribution.
 #include <stdint.h>
 
 
-#define ATANUAVERSION "1.3.141230"
+#define ATANUAVERSION "1.3.141231"
 
 #ifdef __APPLE__
 #define ATANUAPLATFORM "OSX"
@@ -166,6 +166,9 @@ extern void AppUpdate_BeginDownload();
 extern int AppUpdate_DownloadActive(int *aPercentOut);
 extern void AppUpdate_CancelDownload();
 extern int AppUpdate_ConsumeReady(char *aMsgOut, int aMsgCap);
+/* Linux: replace the running binary and execve it. Windows: no-op (bat
+ * restarter already launched). Returns 1 if a new process is running. */
+extern int AppUpdate_ApplyAndRelaunch();
 extern BoxStitchingInformation * do_preparse_box(const char *aFname);
 
 // from nativefunctions.cpp

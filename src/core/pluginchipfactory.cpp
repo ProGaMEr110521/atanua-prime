@@ -22,6 +22,7 @@ distribution.
 */
 #include "atanua.h"
 #include "atanua_internal.h"
+#include "applocation.h"
 #include "pluginchipfactory.h"
 #include <tinyxml2.h>
 #include "pluginchip.h"
@@ -35,7 +36,9 @@ PluginChipFactory::~PluginChipFactory()
 PluginChipFactory::PluginChipFactory()
 {
     XMLDocument doc;
-    FILE * f = fopen("atanua.xml", "rb");
+    FILE * f = fopen(AppLocation_ConfigFile(), "rb");
+    if (!f && stricmp(AppLocation_ConfigFile(), "atanua.xml") != 0)
+        f = fopen("atanua.xml", "rb");
     if (!f)
         return;
     if (doc.LoadFile(f) != XML_SUCCESS)
