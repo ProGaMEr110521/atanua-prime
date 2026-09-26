@@ -6,6 +6,40 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 
 ## [Unreleased] / [В разработке]
 
+### UI remake / Переделка интерфейса
+- New application chrome in `src/core/ui_chrome.cpp`: header with File / Edit / View / Help menus, document name and icon actions; resizable component library with search across all categories, category tabs, family grouping, Recent parts and hover cards; status bar with simulation rate, counts, selection, Snap / Colored wires toggles and zoom; Settings with theme previews, a key-cap shortcuts sheet (F1) and About.
+- Новая оболочка в `src/core/ui_chrome.cpp`: шапка с меню Файл / Правка / Вид / Справка, именем схемы и кнопками-иконками; библиотека компонентов с изменяемой шириной, поиском по всем категориям, вкладками, группами, «Недавними» и карточками; строка состояния с частотой, счётчиками, выделением, привязкой, цветными проводами и масштабом; Настройки с превью тем, шпаргалка клавиш (F1) и «О программе».
+- Command palette (Ctrl+K): fuzzy search over every command and component in English and Russian; Enter runs a command or picks up a part to drop with a click.
+- Палитра команд (Ctrl+K): нечёткий поиск по всем командам и компонентам на русском и английском; Enter выполняет команду или берёт компонент, который ставится кликом.
+- Edit > Select all (Ctrl+A); View > Zoom in / Zoom out (PgUp / PgDn).
+- Правка > Выделить всё (Ctrl+A); Вид > Приблизить / Отдалить (PgUp / PgDn).
+- Design tokens in `src/include/ui_theme.h`: one palette per theme (Dark graphite with amber, new Light, Contrast) for chrome and canvas.
+- Токены дизайна в `src/include/ui_theme.h`: одна палитра на тему (тёмная графитовая с янтарным акцентом, новая светлая, контрастная) для оболочки и холста.
+- All chip, display and hardware art redrawn as generated vector sprites at 4x resolution (`tools/sprites/`), laid out from real pin coordinates; flat DIP packages, keycaps, switches, clock, LEDs, 7/16-seg and TIL309 displays, LED grid, logic probe (dark screen), stepper, audio DAC.
+- Вся графика микросхем, индикаторов и «железа» перерисована генераторами в `tools/sprites/` в 4 раза детальнее, по реальным координатам пинов: корпуса DIP, клавиши, переключатели, генератор, светодиоды, 7/16-сегментные индикаторы и TIL309, LED-матрица, логический пробник (тёмный экран), шаговый двигатель, аудио-ЦАП.
+- Canvas: infinite grid, outline selection, wires drawn at the art's stroke weight with round caps, hover cards for parts, pins and wires with live High / Low / Floating / Conflict tags, an empty-canvas start panel.
+- Холст: бесконечная сетка, выделение контуром, провода толщиной как линии компонентов со скруглёнными концами, карточки для компонентов, пинов и проводов с живым сигналом, стартовая подсказка на пустом холсте.
+- Type: Inter with its ss04 disambiguation frozen in (distinct I / l / 1) and JetBrains Mono for numbers and part names; canvas text is rasterized from these fonts at the on-screen size (`tools/fonts/`). Header and About use the app's "At" monogram as vectors.
+- Шрифты: Inter с зашитым ss04 (различимые I / l / 1) и JetBrains Mono для чисел и названий; текст холста растеризуется этими шрифтами в экранном размере (`tools/fonts/`). В шапке и «О программе» векторная монограмма «At».
+
+### Fixed in the UI remake / Исправлено при переделке интерфейса
+- Canvas keys (Delete, arrows, Ctrl shortcuts) stopped working after clicking the toolbar or library until the canvas was clicked.
+- Клавиши холста (Delete, стрелки, Ctrl-сочетания) переставали работать после клика по панели или библиотеке, пока не кликнуть по холсту.
+- Zoomed-out textures shimmered and looked pixelated: the mipmap builder sampled one texel per block and ignored alpha.
+- Уменьшенные текстуры мерцали и выглядели пиксельными: генератор мип-уровней брал один тексель на блок и не учитывал альфу.
+- A quick click (press and release in one event batch) now registers on the canvas.
+- Быстрый клик (нажатие и отпускание в одной пачке событий) теперь срабатывает на холсте.
+- Clicks on menus or dialogs over the canvas no longer also click the circuit underneath.
+- Клики по меню и окнам поверх холста больше не срабатывают на схеме под ними.
+- Logic probe mouse mapping used a hard-coded 40 px header height.
+- Логический пробник считал позицию мыши с зашитой высотой шапки 40 px.
+- Linux file dialogs fell back to English titles.
+- Диалоги выбора файлов на Linux показывали заголовки на английском.
+- Windows detection keyed on MSVC only; the app now also builds with MinGW-w64.
+- Windows определялся только по MSVC; теперь приложение собирается и через MinGW-w64.
+- Linux install ships the 256 px icon instead of the 64 px one.
+- Установка на Linux кладёт иконку 256 px вместо 64 px.
+
 ### Added / Добавлено
 - Linux install layout: binary, data, `.desktop` entry, and hicolor icon via `cmake --install`. Config follows XDG at `~/.config/atanua/atanua.xml`, with the old working-directory file still read if present.
 - Установка на Linux: бинарник, данные, `.desktop` и иконка hicolor через `cmake --install`. Конфиг по XDG в `~/.config/atanua/atanua.xml`, старый файл из рабочей папки по-прежнему читается, если он есть.
@@ -19,6 +53,18 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 - Все двенадцать кнопок действий одной измеренной ширины, компактные отступы панели.
 - Light canvas palette reworked: soft paper background with readable grid instead of harsh white.
 - Светлая тема холста переработана: мягкий бумажный фон с читаемой сеткой вместо резкого белого.
+- Open .atanua by double-click or drag-and-drop onto the window: shared extension-checked helper, dirty-canvas confirm before discarding work, per-user file association behind an explicit Settings toggle (HKCU, no admin), shipped `atanua.ico` and Linux `.desktop` with MimeType.
+- Открытие .atanua двойным кликом или перетаскиванием в окно: общая проверка расширения, подтверждение при несохранённых изменениях, ассоциация файлов по явному тогглу в настройках (HKCU, без админа), `atanua.ico` и Linux `.desktop` с MimeType в поставке.
+- External opens made reliable: non-ASCII paths, relative argv, no false filename in the title on failed loads; covered by scripted argv/drop trials.
+- Надёжное открытие извне: не-ASCII пути, относительный argv и честный заголовок при неудачной загрузке; покрыто скриптовыми argv/drop-пробами.
+- Russian consistency pass: distinct Out/Quit labels, unified Save wording, clearer zoom label, localized file dialogs and confirmations.
+- Проверка русского языка: разные подписи Out/Quit, единое слово для сохранения, понятная подпись масштаба, переведённые диалоги и подтверждения.
+- View split into persisted canvas background and wire mode: Settings gains Background (Dark/Paper) and user-name rows, the topbar button now toggles wires only, canvas corner shows title plus name without the promo link (credit moved to Support).
+- Разделение View: фон холста и режим проводов стали независимыми настройками с сохранением, в настройках появились строки фона и имени, кнопка включает только провода, в углу холста остались название и имя без рекламной ссылки (упоминание переехало в поддержку).
+- Application and document icons from user artwork: multi-size app and .atanua icons embedded in the exe, file association points at the document icon, Explorer refreshes on toggle.
+- Иконки приложения и документов по вашему арту: многоразмерные иконки вшиты в exe, ассоциация указывает на иконку документа, проводник обновляется при переключении.
+- Support section in the shortcuts window: issues link plus developer email (`mailto:`), wrapped to keep the window on screen.
+- Секция поддержки в окне горячих клавиш: ссылка на issues и почта разработчика (`mailto:`), текст переносится, чтобы окно не вылезало за экран.
 
 ### Fixed / Исправлено
 - Linux data files resolve from the executable path (`/proc/self/exe`), so tarball, install prefix, and `/usr/share/atanua` launches work from any directory.

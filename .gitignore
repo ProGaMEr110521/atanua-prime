@@ -1,12 +1,12 @@
 *.opensdf
-tests/
 out/
-data/
 Release/
 Debug/
 *.sdf
 build/
+build-*/
 out/
 .vcpkg/
 vcpkg_installed/
 atanua_build_public/
+__pycache__/

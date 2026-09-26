@@ -25,6 +25,8 @@ distribution.
 #include "fileutils.h"
 #include "ui_theme.h"
 #include "app_settings.h"
+#include "ui_chrome.h"
+#include "dropfile.h"
 #include "applocation.h"
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -36,12 +38,13 @@ distribution.
 
 #include "stb/stb_image_write.h"
 
-#define C_TEXTDIM 0xff8b93a7
-#define C_ACCENTTEXT 0xff7ddf8a
-
-#define UI_TOPBAR_H 48
-
-int gTopbarH = UI_TOPBAR_H;
+#include <string>
+#include <string.h>
+#ifdef WINDOWS_VERSION
+#include <direct.h>
+#else
+#include <unistd.h>
+#endif
 
 #define WORLDTOSCREENX(x) ((((x)+gWorldOfsX) * gZoomFactor) + gConfig.mToolkitWidth)
 #define WORLDTOSCREENY(y) ((((y)+gWorldOfsY) * gZoomFactor) + gTopbarH)
@@ -74,11 +77,8 @@ int gMultiselectDirty = 1;
 
 AtanuaConfig gConfig;
 int gVisibleChiplist = 0;
-int gSettingsOpen = 0;
-int gShortcutsOpen = 0;
-int gStatusH = 24;
-static ImFont *gSmallFont = NULL;
-static ImFont *gTopFont = NULL;
+extern char *gFilename;
+void storefilename(const char *fn);
 
 Chip * gNewChip = NULL;
 const char * gNewChipName = NULL;
@@ -110,8 +110,6 @@ int gCloneKeyMask;
 
 int gSavePNG = 0;
 
-char * gSidebarTooltip = NULL;
-int gSidebarTooltipId = -1;
 
 SDL_AudioSpec *gAudioSpec = NULL;
 
@@ -128,9 +126,15 @@ void initvideo();
 // While an ImGui text input is active, keys belong to it: the app must not
 // also act on them (otherwise typing a filter would nudge chips or fire
 // shortcuts). Escape is always shared.
+// Clicking a header button or the library gives that ImGui window nav
+// focus, which raises WantCaptureKeyboard; canvas keys (Delete, arrows,
+// Ctrl shortcuts) must keep working then. Only text entry and open
+// dialogs own the keyboard.
 static int imgui_wants_keys()
 {
-    return ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureKeyboard;
+    if (!ImGui::GetCurrentContext())
+        return 0;
+    return ImGui::GetIO().WantTextInput || UiChrome::dialogOpen();
 }
 
 void handle_key(int keysym, int down)
@@ -140,8 +144,7 @@ void handle_key(int keysym, int down)
     case SDLK_ESCAPE:
         if (down)
         {
-            gSettingsOpen = 0;
-            gShortcutsOpen = 0;
+            UiChrome::closeDialogs();
             do_cancel();
         }
         break;
@@ -192,9 +195,47 @@ void do_screengrab()
 	okcancel(tempout);
 }
 
+// A canvas counts as dirty (unsaved work exists) when it holds any chips
+// or wires, or when undo/redo stacks record earlier states. Boot-empty
+// canvases are clean, so opening the very first file never prompts.
+static int canvas_is_dirty()
+{
+    return !gChip.empty() || !gWire.empty() ||
+        !gUndoStack.empty() || !gRedoStack.empty();
+}
+
+// Open a file arriving from outside the Load dialog (argv double-click,
+// window drag-and-drop). Rejects non-.atanua paths silently; asks once
+// via the existing confirm pattern when the canvas holds unsaved work.
+static void open_external_file(const char *path)
+{
+    if (!DropFile::shouldAcceptDrop(path))
+        return;
+    if (canvas_is_dirty())
+    {
+        char prompt[300];
+        snprintf(prompt, sizeof(prompt),
+            AppSettings::text(AppSettings::S_CONFIRM_OPEN, gConfig.mLanguage, 0),
+            DropFile::baseName(path));
+        if (!okcancel(prompt))
+            return;
+    }
+    do_loaddialog(0, path);
+}
+
 void process_events()
 {
     SDL_Event event;
+    // A press and release inside one event batch would never be seen as
+    // "held" by the frame logic (a quick tap, or a trackpad click), so a
+    // release in the same batch as its press lands one frame later.
+    static int sPendingUp = 0;
+    int downThisBatch = 0;
+    if (sPendingUp)
+    {
+        gUIState.mousedown = 0;
+        sPendingUp = 0;
+    }
 
     while (SDL_PollEvent(&event))
     {
@@ -202,6 +243,13 @@ void process_events()
             ImGui_ImplSDL2_ProcessEvent(&event);
         switch (event.type)
         {
+        case SDL_DROPFILE:
+            if (event.drop.file)
+            {
+                open_external_file(event.drop.file);
+                SDL_free(event.drop.file);
+            }
+            break;
         case SDL_KEYDOWN:
             if (!imgui_wants_keys() || event.key.keysym.sym == SDLK_ESCAPE)
             {
@@ -303,6 +351,17 @@ void process_events()
             if (event.key.keysym.sym == SDLK_g &&
                 event.key.keysym.mod & KMOD_CTRL)
                 do_screengrab();
+            if (event.key.keysym.sym == SDLK_f &&
+                event.key.keysym.mod & KMOD_CTRL)
+                UiChrome::focusSearch();
+            if (event.key.keysym.sym == SDLK_F1)
+                gShortcutsOpen = !gShortcutsOpen;
+            if (event.key.keysym.sym == SDLK_k &&
+                event.key.keysym.mod & KMOD_CTRL)
+                UiChrome::togglePalette();
+            if (event.key.keysym.sym == SDLK_a &&
+                event.key.keysym.mod & KMOD_CTRL)
+                UiChrome::selectAll();
 
             }
             break;
@@ -316,6 +375,7 @@ void process_events()
             if (event.button.button == SDL_BUTTON_LEFT)
             {
                 gUIState.mousedown = 1;
+                downThisBatch = 1;
                 gUIState.mousedownx = (float)event.button.x;
                 gUIState.mousedowny = (float)event.button.y;
                 gUIState.mousedownkeymod = gUIState.keymod;
@@ -335,7 +395,12 @@ void process_events()
         case SDL_MOUSEBUTTONUP:
             // update button down state if left-clicking
             if (event.button.button == SDL_BUTTON_LEFT)
-                gUIState.mousedown = 0;
+            {
+                if (downThisBatch)
+                    sPendingUp = 1;
+                else
+                    gUIState.mousedown = 0;
+            }
             break;
         case SDL_QUIT:
             SDL_Quit();
@@ -673,6 +738,14 @@ void move_chip(Chip *c, int charcode)
 
 void do_build_nets();
 
+// Canvas text goes through the chrome's vector fonts: fn (labels, part
+// numbers) as JetBrains Mono, fn14 (title, user name) as Inter.
+static int canvas_text_hook(const ACFont *aFont, const char *aString, float aX, float aY,
+    int aColor, float aDesiredHt)
+{
+    return UiChrome::drawCanvasText(aFont == &fn, aString, aX, aY, aColor, aDesiredHt);
+}
+
 static void imgui_init()
 {
     static int done = 0;
@@ -682,598 +755,114 @@ static void imgui_init()
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
     io.IniFilename = NULL;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    ImGui::StyleColorsDark();
-    ImGui::GetStyle().FontScaleMain = AppSettings::clampUiScale(gConfig.mUiScale);
-    ImGui::GetStyle().FrameRounding = 4.0f;
-    ImGui::GetStyle().PopupRounding = 4.0f;
+    // No ImGui keyboard nav: it would let Space/Enter "press" whichever
+    // header button was clicked last, and fight the canvas for arrows.
+    io.ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;
     ImGui_ImplSDL2_InitForOpenGL((SDL_Window *)gMainWindow, gGLContext);
     ImGui_ImplOpenGL2_Init();
-    ImFont *font = io.Fonts->AddFontFromFileTTF("data/fonts/DejaVuSans.ttf", 19.0f,
-        NULL, io.Fonts->GetGlyphRangesCyrillic());
-    if (!font)
-        fprintf(stderr, "settings font missing: data/fonts/DejaVuSans.ttf\n");
-    gSmallFont = io.Fonts->AddFontFromFileTTF("data/fonts/DejaVuSans.ttf", 15.0f,
-        NULL, io.Fonts->GetGlyphRangesCyrillic());
-    gTopFont = io.Fonts->AddFontFromFileTTF("data/fonts/DejaVuSans.ttf", 17.0f,
-        NULL, io.Fonts->GetGlyphRangesCyrillic());
-    if (!font && !gSmallFont && !gTopFont)
-        io.Fonts->AddFontDefault();
+    UiChrome::init();
+    gACFontTextHook = canvas_text_hook;
     done = 1;
 }
 
-// Radio with an explicit ID scope so options that share a visible label
-// (e.g. the two "Off" radios) never collide in ImGui's ID space.
-static bool settings_radio(int idKey, const char *label, int selected)
+static void gl_color_argb(int c, float alpha)
 {
-    ImGui::PushID(idKey);
-    bool hit = ImGui::RadioButton(label, selected);
-    ImGui::PopID();
-    return hit;
+    glColor4f(((c >> 16) & 0xff) / 255.0f, ((c >> 8) & 0xff) / 255.0f,
+        (c & 0xff) / 255.0f, alpha);
 }
 
-static void draw_shortcuts_window(int lang)
+// Thick-line batch for wires: collects segments (pairs of vertex() calls)
+// with the current color, then draws each as a quad plus round caps.
+struct WireBatch
 {
-    ImGui::SetNextWindowPos(ImVec2((float)gScreenWidth * 0.5f, (float)gScreenHeight * 0.5f),
-        ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_AlwaysAutoResize;
-    if (!ImGui::Begin(AppSettings::text(AppSettings::S_SHORTCUTS, lang, 0), NULL, flags))
+    struct Seg { float x0, y0, x1, y1, r, g, b, a; };
+    std::vector<Seg> segs;
+    float hw, r, g, b, a;
+    int half;
+    float px, py;
+
+    void begin(float halfWidth) { segs.clear(); hw = halfWidth; r = g = b = a = 1; half = 0; }
+    void color(float cr, float cg, float cb, float ca) { r = cr; g = cg; b = cb; a = ca; }
+    void colorArgb(int c, float alpha)
     {
-        ImGui::End();
-        return;
+        color(((c >> 16) & 0xff) / 255.0f, ((c >> 8) & 0xff) / 255.0f, (c & 0xff) / 255.0f, alpha);
     }
-    struct CutRow { int key; const char *combo; int arrows; };
-    static const CutRow rows[] = {
-        { AppSettings::S_NEW, "Ctrl+N", 0 },
-        { AppSettings::S_LOAD, "Ctrl+L", 0 },
-        { AppSettings::S_MERGE, "Ctrl+M", 0 },
-        { AppSettings::S_BOX, "Ctrl+B", 0 },
-        { AppSettings::S_SAVE, "Ctrl+S", 0 },
-        { AppSettings::S_UNDO, "Ctrl+Z", 0 },
-        { AppSettings::S_REDO, "Ctrl+Y", 0 },
-        { AppSettings::S_HOME, "Ctrl+H", 0 },
-        { AppSettings::S_ZOOM, "Ctrl+E", 0 },
-        { AppSettings::S_SNAP_ON, "Ctrl+P", 0 },
-        { AppSettings::S_VIEW_LIVE, "Ctrl+W", 0 },
-        { AppSettings::S_PNG, "Ctrl+G", 0 },
-        { AppSettings::S_ROTATE, "Ctrl+R", 0 },
-        { AppSettings::S_OPTIMIZE, "Ctrl+O", 0 },
-        { AppSettings::S_DELETE, "Del / Ctrl+D", 0 },
-        { AppSettings::S_NUDGE, NULL, 1 },
-        { AppSettings::S_CANCEL, "Esc", 0 },
-    };
-    if (ImGui::BeginTable("##scuts", 2, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV))
+    void vertex(float x, float y)
     {
-        ImGui::TableSetupColumn(AppSettings::text(AppSettings::S_ACTION, lang, 0));
-        ImGui::TableSetupColumn(AppSettings::text(AppSettings::S_SHORTCUT, lang, 0));
-        ImGui::TableHeadersRow();
-        for (unsigned r = 0; r < sizeof(rows) / sizeof(rows[0]); r++)
+        if (!half) { px = x; py = y; half = 1; return; }
+        Seg sg = { px, py, x, y, r, g, b, a };
+        segs.push_back(sg);
+        half = 0;
+    }
+    void cap(float x, float y)
+    {
+        const int N = 10;
+        glVertex2f(x, y);
+        for (int k = 0; k <= N; k++)
         {
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted(AppSettings::text(rows[r].key, lang, 1));
-            ImGui::TableNextColumn();
-            if (rows[r].arrows)
-                ImGui::TextUnformatted(AppSettings::text(AppSettings::S_ARROWS, lang, 0));
-            else
-                ImGui::TextUnformatted(rows[r].combo);
-        }
-        ImGui::EndTable();
-    }
-    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_ISSUES, lang, 0));
-    ImGui::TextLinkOpenURL("https://github.com/ProGaMEr110521/atanua-prime/issues");
-    if (ImGui::Button(AppSettings::text(AppSettings::S_CLOSE, lang, 0)))
-        gShortcutsOpen = 0;
-    ImGui::End();
-}
-
-static void draw_settings_panel(int lang)
-{
-    // Auto-sized: the window grows to fit any label length, so translated
-    // strings can never overflow their controls.
-    ImGui::SetNextWindowPos(ImVec2((float)gScreenWidth * 0.5f, (float)gScreenHeight * 0.5f),
-        ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_AlwaysAutoResize;
-    if (!ImGui::Begin(AppSettings::text(AppSettings::S_SETTINGS, lang, 0), NULL, flags))
-    {
-        ImGui::End();
-        return;
-    }
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_LANGUAGE, lang, 0));
-    ImGui::SameLine(150.0f);
-    int curLang = AppSettings::clampLang(gConfig.mLanguage);
-    if (settings_radio(AppSettings::S_ENGLISH, AppSettings::langName(AppSettings::LANG_EN, lang),
-        curLang == AppSettings::LANG_EN))
-    {
-        gConfig.mLanguage = AppSettings::LANG_EN;
-        gConfig.save();
-    }
-    ImGui::SameLine();
-    if (settings_radio(AppSettings::S_RUSSIAN, AppSettings::langName(AppSettings::LANG_RU, lang),
-        curLang == AppSettings::LANG_RU))
-    {
-        gConfig.mLanguage = AppSettings::LANG_RU;
-        gConfig.save();
-    }
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_THEME, lang, 0));
-    ImGui::SameLine(150.0f);
-    int curTheme = AppSettings::clampTheme(gConfig.mThemeVariant);
-    if (settings_radio(AppSettings::S_THEME_DARK, AppSettings::text(AppSettings::S_THEME_DARK, lang, 0),
-        curTheme == AppSettings::THEME_DARK))
-    {
-        gConfig.mThemeVariant = AppSettings::THEME_DARK;
-        gConfig.save();
-    }
-    ImGui::SameLine();
-    if (settings_radio(AppSettings::S_THEME_CONTRAST, AppSettings::text(AppSettings::S_THEME_CONTRAST, lang, 0),
-        curTheme == AppSettings::THEME_CONTRAST))
-    {
-        gConfig.mThemeVariant = AppSettings::THEME_CONTRAST;
-        gConfig.save();
-    }
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_TOOLTIPS, lang, 0));
-    ImGui::SameLine(150.0f);
-    int curTt = AppSettings::tooltipPresetIndex(gConfig.mTooltipDelay);
-    const int ttKey[4] = { AppSettings::S_TT_OFF, AppSettings::S_TT_SHORT,
-        AppSettings::S_TT_NORMAL, AppSettings::S_TT_LONG };
-    for (int i = 0; i < 4; i++)
-    {
-        if (i > 0)
-            ImGui::SameLine();
-        if (settings_radio(ttKey[i], AppSettings::text(ttKey[i], lang, 0), curTt == i))
-        {
-            gConfig.mTooltipDelay = AppSettings::tooltipPreset(i);
-            gConfig.save();
-        }
-    }
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_SOUND, lang, 0));
-    ImGui::SameLine(150.0f);
-    int curAudio = AppSettings::clampAudio(gConfig.mAudioEnable);
-    if (settings_radio(AppSettings::S_ON, AppSettings::text(AppSettings::S_ON, lang, 0), curAudio == 1))
-    {
-        gConfig.mAudioEnable = 1;
-        gConfig.save();
-    }
-    ImGui::SameLine();
-    if (settings_radio(AppSettings::S_OFF, AppSettings::text(AppSettings::S_OFF, lang, 0), curAudio == 0))
-    {
-        gConfig.mAudioEnable = 0;
-        gConfig.save();
-    }
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_UISCALE, lang, 0));
-    ImGui::SameLine(150.0f);
-    int curScale = AppSettings::uiScalePresetIndex(AppSettings::clampUiScale(gConfig.mUiScale));
-    const int scaleKey[3] = { AppSettings::S_SCALE_SMALL, AppSettings::S_SCALE_NORMAL,
-        AppSettings::S_SCALE_LARGE };
-    for (int i = 0; i < 3; i++)
-    {
-        if (i > 0)
-            ImGui::SameLine();
-        if (settings_radio(scaleKey[i], AppSettings::text(scaleKey[i], lang, 0), curScale == i))
-        {
-            gConfig.mUiScale = AppSettings::uiScalePreset(i);
-            gConfig.save();
-            ImGui::GetStyle().FontScaleMain = gConfig.mUiScale;
-        }
-    }
-    ImGui::TextDisabled("%s", AppSettings::text(AppSettings::S_SOUND_RESTART_NOTE, lang, 0));
-    ImGui::TextDisabled("%s", AppSettings::text(AppSettings::S_SAVED_NOTE, lang, 0));
-    if (ImGui::Button(AppSettings::text(AppSettings::S_CLOSE, lang, 0)))
-        gSettingsOpen = 0;
-    ImGui::End();
-}
-
-static ImVec4 toImVec(int c)
-{
-    return ImVec4(((c >> 16) & 0xff) / 255.0f, ((c >> 8) & 0xff) / 255.0f,
-        (c & 0xff) / 255.0f, (((c >> 24) & 0xff)) / 255.0f);
-}
-
-static float topbar_text_w(int strKey, int lang)
-{
-    return ImGui::CalcTextSize(AppSettings::text(strKey, lang, 1)).x +
-        ImGui::GetStyle().FramePadding.x * 2.0f;
-}
-
-static float topbar_group_w(const int *keys, int n, int lang)
-{
-    float w = 0.0f;
-    for (int i = 0; i < n; i++)
-    {
-        float kw = topbar_text_w(keys[i], lang);
-        if (kw > w)
-            w = kw;
-    }
-    return w;
-}
-
-// Top-bar button of fixed width: auto-sized single-line label, full
-// two-line label as the hover tooltip. highlighted renders with the theme
-// accent. Widths are uniform inside each functional group (the max of the
-// group), so labels can never overflow and neighbors never shift.
-// The ### suffix keeps the ImGui ID unique even when two languages give
-// different buttons the same visible text (e.g. RU "Выход" is both the
-// Out tab and Quit).
-static bool topbar_btn(int strKey, int lang, float w, int highlighted, int cAccent)
-{
-    if (highlighted)
-    {
-        ImVec4 acc = toImVec(cAccent);
-        ImGui::PushStyleColor(ImGuiCol_Button, acc);
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, acc);
-    }
-    char idlabel[64];
-    snprintf(idlabel, sizeof(idlabel), "%s###tb%d",
-        AppSettings::text(strKey, lang, 1), strKey);
-    bool hit = ImGui::Button(idlabel, ImVec2(w, 0));
-    if (highlighted)
-        ImGui::PopStyleColor(2);
-    if (ImGui::IsItemHovered())
-        ImGui::SetItemTooltip("%s", AppSettings::text(strKey, lang, 0));
-    ImGui::SameLine();
-    return hit;
-}
-
-static void topbar_sep()
-{
-    ImGui::SameLine(0, 6);
-    ImVec2 p = ImGui::GetCursorScreenPos();
-    float h = ImGui::GetFrameHeight();
-    ImGui::GetWindowDrawList()->AddLine(ImVec2(p.x, p.y), ImVec2(p.x, p.y + h),
-        ImGui::GetColorU32(ImGuiCol_Border));
-    ImGui::Dummy(ImVec2(2, 1));
-    ImGui::SameLine(0, 6);
-}
-
-static void draw_topbar_tabs(int lang, int cAccent, float w)
-{
-    const int tabKey[5] = { AppSettings::S_BASE, AppSettings::S_CHIPS,
-        AppSettings::S_IN, AppSettings::S_OUT, AppSettings::S_MISC };
-    for (int t = 0; t < 5; t++)
-    {
-        if (topbar_btn(tabKey[t], lang, w, gVisibleChiplist == t, cAccent))
-        {
-            int active = gUIState.kbditem;
-            do_cancel();
-            gUIState.kbditem = active;
-            gVisibleChiplist = t;
-        }
-    }
-}
-
-static void draw_topbar_actions(int lang, int cAccent, float actionW)
-{
-    if (topbar_btn(AppSettings::S_NEW, lang, actionW, 0, cAccent))
-        do_resetdialog();
-    if (topbar_btn(AppSettings::S_LOAD, lang, actionW, 0, cAccent))
-        do_loaddialog();
-    if (topbar_btn(AppSettings::S_MERGE, lang, actionW, 0, cAccent))
-        do_loaddialog(1);
-    if (topbar_btn(AppSettings::S_BOX, lang, actionW, 0, cAccent))
-        do_loaddialog(2);
-    if (topbar_btn(AppSettings::S_SAVE, lang, actionW, 0, cAccent))
-        do_savedialog();
-    topbar_sep();
-    if (topbar_btn(AppSettings::S_UNDO, lang, actionW, 0, cAccent))
-    {
-        int active = gUIState.kbditem;
-        do_undo();
-        gUIState.kbditem = active;
-    }
-    if (topbar_btn(AppSettings::S_REDO, lang, actionW, 0, cAccent))
-    {
-        int active = gUIState.kbditem;
-        do_redo();
-        gUIState.kbditem = active;
-    }
-    topbar_sep();
-    if (topbar_btn(AppSettings::S_HOME, lang, actionW, 0, cAccent))
-        do_home();
-    if (topbar_btn(AppSettings::S_ZOOM, lang, actionW, 0, cAccent))
-        do_zoomext();
-    if (topbar_btn(gSnap ? AppSettings::S_SNAP_ON : AppSettings::S_SNAP_OFF, lang, actionW, gSnap, cAccent))
-        gSnap = !gSnap;
-    if (topbar_btn(gLiveWires ? AppSettings::S_VIEW_LIVE : AppSettings::S_VIEW_GREY, lang, actionW, gLiveWires, cAccent))
-    {
-        gLiveWires = !gLiveWires;
-        gBlackBackground ^= gLiveWires;
-    }
-    if (topbar_btn(AppSettings::S_PNG, lang, actionW, 0, cAccent))
-        gSavePNG = 1;
-}
-
-static void draw_topbar_right(int lang, int cAccent, float rightW)
-{
-    // Right-aligned help + Settings + Quit. Falls back to plain flow when
-    // the row is too narrow for the absolute position.
-    ImGuiStyle &st = ImGui::GetStyle();
-    float helpW = ImGui::CalcTextSize("?").x + st.FramePadding.x * 2.0f;
-    float want = ImGui::GetWindowContentRegionMax().x - helpW - rightW * 2.0f -
-        st.ItemSpacing.x * 2.0f;
-    if (want > ImGui::GetCursorPosX())
-        ImGui::SameLine(want);
-    else
-        ImGui::SameLine();
-    {
-        bool hit = ImGui::Button("?###tbhelp");
-        if (ImGui::IsItemHovered())
-            ImGui::SetItemTooltip("%s", AppSettings::text(AppSettings::S_SHORTCUTS, lang, 0));
-        if (hit)
-            gShortcutsOpen = !gShortcutsOpen;
-        ImGui::SameLine();
-    }
-    if (topbar_btn(AppSettings::S_SETTINGS, lang, rightW, gSettingsOpen, cAccent))
-        gSettingsOpen = !gSettingsOpen;
-    {
-        const char *quitLbl = AppSettings::text(AppSettings::S_QUIT, lang, 1);
-        char quitId[64];
-        snprintf(quitId, sizeof(quitId), "%s###tb%d", quitLbl, AppSettings::S_QUIT);
-        bool hit = ImGui::Button(quitId, ImVec2(rightW, 0));
-        if (ImGui::IsItemHovered())
-            ImGui::SetItemTooltip("%s", AppSettings::text(AppSettings::S_QUIT, lang, 0));
-        if (hit && okcancel("Are you sure you want to exit?\nAny unsaved changes will be lost."))
-            exit(0);
-    }
-    ImGui::SameLine();
-}
-
-static float draw_topbar_need(int lang, float tabW, float actionW, float rightW)
-{
-    // Deterministic single-row width from the uniform group widths (stable
-    // across frames, no transients). Must be called with the topbar font
-    // pushed.
-    ImGuiStyle &st = ImGui::GetStyle();
-    float helpW = ImGui::CalcTextSize("?").x + st.FramePadding.x * 2.0f;
-    float w = 5.0f * tabW + 12.0f * actionW + helpW + 2.0f * rightW;
-    w += 19.0f * st.ItemSpacing.x + 4.0f * 18.0f + 16.0f;
-    return w;
-}
-
-static void draw_topbar_imgui(int lang, int cAccent)
-{
-    ImGui::SetNextWindowPos(ImVec2(0, 0));
-    ImGui::SetNextWindowSize(ImVec2((float)gScreenWidth, 0));
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
-        ImGuiWindowFlags_AlwaysAutoResize;
-    if (!ImGui::Begin("##topbar", NULL, flags))
-    {
-        ImGui::End();
-        return;
-    }
-    gTopbarH = (int)ImGui::GetWindowSize().y;
-    if (gTopFont)
-        ImGui::PushFont(gTopFont);
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 4));
-
-    // Uniform widths: tabs share one, all twelve action buttons share one,
-    // Settings/Quit share one; measured live so any language fits.
-    static const int tabKeys[5] = { AppSettings::S_BASE, AppSettings::S_CHIPS,
-        AppSettings::S_IN, AppSettings::S_OUT, AppSettings::S_MISC };
-    static const int fileKeys[5] = { AppSettings::S_NEW, AppSettings::S_LOAD,
-        AppSettings::S_MERGE, AppSettings::S_BOX, AppSettings::S_SAVE };
-    static const int editKeys[2] = { AppSettings::S_UNDO, AppSettings::S_REDO };
-    static const int viewKeys[5] = { AppSettings::S_HOME, AppSettings::S_ZOOM,
-        AppSettings::S_SNAP_ON, AppSettings::S_VIEW_LIVE, AppSettings::S_PNG };
-    float tabW = topbar_group_w(tabKeys, 5, lang);
-    float actionW = topbar_group_w(fileKeys, 5, lang);
-    {
-        float w = topbar_group_w(editKeys, 2, lang);
-        if (w > actionW)
-            actionW = w;
-        w = topbar_group_w(viewKeys, 5, lang);
-        if (w > actionW)
-            actionW = w;
-    }
-    float rightW = topbar_text_w(AppSettings::S_SETTINGS, lang);
-    {
-        float qw = topbar_text_w(AppSettings::S_QUIT, lang);
-        if (qw > rightW)
-            rightW = qw;
-    }
-
-    // One row normally; two rows when the measured need overflows, settled
-    // over consecutive frames so the layout cannot flap.
-    static int sTwoRows = 0;
-    static int sSettle = 0;
-    float winW = ImGui::GetWindowContentRegionMax().x;
-    float need = draw_topbar_need(lang, tabW, actionW, rightW);
-    if (!sTwoRows)
-    {
-        draw_topbar_tabs(lang, cAccent, tabW);
-        topbar_sep();
-        draw_topbar_actions(lang, cAccent, actionW);
-        topbar_sep();
-        draw_topbar_right(lang, cAccent, rightW);
-        if (winW > 100.0f && need > winW + 4.0f)
-        {
-            if (++sSettle >= 3)
+            float t = k * 6.2831853f / N;
+            glVertex2f(x + cosf(t) * hw, y + sinf(t) * hw);
+            if (k < N)
             {
-                sTwoRows = 1;
-                sSettle = 0;
-            }
-        }
-        else
-            sSettle = 0;
-    }
-    else
-    {
-        draw_topbar_tabs(lang, cAccent, tabW);
-        draw_topbar_right(lang, cAccent, rightW);
-        ImGui::NewLine();
-        draw_topbar_actions(lang, cAccent, actionW);
-        if (winW > 100.0f && need < winW - 24.0f)
-        {
-            if (++sSettle >= 3)
-            {
-                sTwoRows = 0;
-                sSettle = 0;
-            }
-        }
-        else
-            sSettle = 0;
-    }
-    ImGui::PopStyleVar();
-    if (gTopFont)
-        ImGui::PopFont();
-    ImGui::End();
-}
-
-static int ascii_tolower(int c)
-{
-    return (c >= 'A' && c <= 'Z') ? c + 32 : c;
-}
-
-static int name_matches(const char *name, const char *filter)
-{
-    if (!filter || !filter[0])
-        return 1;
-    if (!name)
-        return 0;
-    for (const char *p = name; *p; p++)
-    {
-        const char *a = p;
-        const char *b = filter;
-        while (*a && *b && ascii_tolower(*a) == ascii_tolower(*b))
-        {
-            a++;
-            b++;
-        }
-        if (!*b)
-            return 1;
-    }
-    return 0;
-}
-
-static void draw_sidebar_imgui(int *locOut)
-{
-    ImGui::SetNextWindowPos(ImVec2(0, (float)gTopbarH));
-    ImGui::SetNextWindowSize(ImVec2((float)gConfig.mToolkitWidth,
-        (float)(gScreenHeight - gTopbarH - gStatusH)));
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
-        ImGuiWindowFlags_AlwaysAutoResize;
-    if (!ImGui::Begin("##sidebar", NULL, flags))
-    {
-        ImGui::End();
-        return;
-    }
-    if (gSmallFont)
-        ImGui::PushFont(gSmallFont);
-    if (gVisibleChiplist < 0 || gVisibleChiplist > 4)
-        gVisibleChiplist = 0;
-    int list = gVisibleChiplist;
-    static char sFilter[64] = { 0 };
-    ImGui::PushItemWidth(-1.0f);
-    ImGui::InputTextWithHint("##chipfilter", "Filter...", sFilter, (int)sizeof(sFilter));
-    ImGui::PopItemWidth();
-    int shown = 0;
-    for (int i = 0; i < (signed)gAvailableChip[list].size(); i++)
-    {
-        const char *name = gAvailableChip[list][i];
-        if (!name)
-            continue;
-        if (!name_matches(name, sFilter))
-            continue;
-        shown++;
-        char blank[32];
-        const char *label = name;
-        if (list == 3 && i == 8)
-        {
-            snprintf(blank, sizeof(blank), "##chiplist-%d", i);
-            label = blank;
-        }
-        ImGui::PushID(i);
-        ImGui::Selectable(label, false);
-        bool hovered = ImGui::IsItemHovered();
-        ImGui::PopID();
-        if (hovered)
-        {
-            *locOut = i;
-            gUIState.hotitem = NEWCHIP_ID(i);
-            if (gUIState.mousedown && gUIState.activeitem == 0)
-            {
-                if (gDragMode == DRAGMODE_NEWCHIP)
-                    do_cancel();
-                else if (gDragMode == DRAGMODE_NONE)
-                {
-                    gMultiSelectChip.clear();
-                    gMultiSelectWire.clear();
-                    gMultiselectDirty = 1;
-                    int j;
-                    for (j = 0; gNewChip == NULL && j < (signed)gChipFactory.size(); j++)
-                        gNewChip = gChipFactory[j]->build(gAvailableChip[list][i]);
-                    if (gNewChip)
-                    {
-                        gNewChipName = gAvailableChip[list][i];
-                        gDragMode = DRAGMODE_NEWCHIP;
-                        gUIState.mousedownkeymod &= ~gCloneKeyMask;
-                    }
-                    gUIState.activeitem = gUIState.hotitem;
-                }
+                glVertex2f(x + cosf(t) * hw, y + sinf(t) * hw);
+                glVertex2f(x, y);
             }
         }
     }
-    if (!shown)
-        ImGui::TextDisabled("(no matches)");
-    if (gSmallFont)
-        ImGui::PopFont();
-    ImGui::End();
-}
-
-static void draw_statusbar_imgui()
-{
-    ImGui::SetNextWindowPos(ImVec2(0, (float)(gScreenHeight - 24)));
-    ImGui::SetNextWindowSize(ImVec2((float)gScreenWidth, 0));
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
-        ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar |
-        ImGuiWindowFlags_HorizontalScrollbar;
-    if (!ImGui::Begin("##statusbar", NULL, flags))
+    void flush()
     {
-        ImGui::End();
-        return;
+        glBegin(GL_TRIANGLES);
+        for (size_t i = 0; i < segs.size(); i++)
+        {
+            const Seg &sg = segs[i];
+            glColor4f(sg.r, sg.g, sg.b, sg.a);
+            float dx = sg.x1 - sg.x0, dy = sg.y1 - sg.y0;
+            float l = sqrtf(dx * dx + dy * dy);
+            if (l > 1e-6f)
+            {
+                float nx = -dy / l * hw, ny = dx / l * hw;
+                glVertex2f(sg.x0 + nx, sg.y0 + ny);
+                glVertex2f(sg.x1 + nx, sg.y1 + ny);
+                glVertex2f(sg.x1 - nx, sg.y1 - ny);
+                glVertex2f(sg.x0 + nx, sg.y0 + ny);
+                glVertex2f(sg.x1 - nx, sg.y1 - ny);
+                glVertex2f(sg.x0 - nx, sg.y0 - ny);
+            }
+        }
+        glEnd();
+        // round caps keep bends and junctions clean
+        for (size_t i = 0; i < segs.size(); i++)
+        {
+            const Seg &sg = segs[i];
+            glColor4f(sg.r, sg.g, sg.b, sg.a);
+            glBegin(GL_TRIANGLES);
+            cap(sg.x0, sg.y0);
+            cap(sg.x1, sg.y1);
+            glEnd();
+        }
     }
-    gStatusH = (int)ImGui::GetWindowSize().y;
-    if (gSmallFont)
-        ImGui::PushFont(gSmallFont);
-    char status[256];
-    snprintf(status, sizeof(status), "Chips:%d  Wires:%d  Nets:%d   Zoom:%.0f   %s   %s   Undo:%d Redo:%d",
-        (int)gChip.size(), (int)gWire.size(), (int)gNet.size(),
-        gZoomFactor,
-        gSnap ? "Snap:on" : "Snap:off",
-        gLiveWires ? "Live" : "Grey",
-        (int)gUndoStack.size(), (int)gRedoStack.size());
-    ImGui::TextUnformatted(status);
-    if (gSmallFont)
-        ImGui::PopFont();
-    ImGui::End();
+};
+
+static void draw_outline(float x, float y, float w, float h, float t, int color)
+{
+    drawrect(x, y, w, t, color);
+    drawrect(x, y + h - t, w, t, color);
+    drawrect(x, y + t, t, h - 2 * t, color);
+    drawrect(x + w - t, y + t, t, h - 2 * t, color);
 }
 
 static void draw_screen()
 {
     int i;
     int tick = SDL_GetTicks();
-    int lang = AppSettings::clampLang(gConfig.mLanguage);
-    int theme = AppSettings::clampTheme(gConfig.mThemeVariant);
-    int cAccent = AppSettings::themeAccent(theme);
+    const UiTheme::Palette &pal = UiTheme::palette(AppSettings::clampTheme(gConfig.mThemeVariant));
     ImGui_ImplOpenGL2_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
     // Route all mouse input here while dragging so a focus change or a
     // release outside the window cannot strand a drag (or an ImGui press).
     SDL_CaptureMouse(gDragMode != DRAGMODE_NONE ? SDL_TRUE : SDL_FALSE);
-    draw_topbar_imgui(lang, cAccent);
-    draw_statusbar_imgui();
-    int loc = -1;
-    draw_sidebar_imgui(&loc);
+    UiChrome::drawFrame();
     float worldmousex = ((gUIState.mousex - gConfig.mToolkitWidth) / gZoomFactor) - gWorldOfsX;
     float worldmousey = ((gUIState.mousey - gTopbarH) / gZoomFactor) - gWorldOfsY;
     float worldmousedownx = ((gUIState.mousedownx - gConfig.mToolkitWidth) / gZoomFactor) - gWorldOfsX;
@@ -1289,11 +878,9 @@ static void draw_screen()
     sPrevDown_Move = gUIState.mousedown ? 1 : 0;
 
 
-	if (gSavePNG)
-	{
+	// Counts down so a menu that triggered the shot is gone from it.
+	if (gSavePNG && --gSavePNG == 0)
 		do_screengrab();
-		gSavePNG = 0;
-	}
 
     ////////////////////////////////////
     // Physics
@@ -1387,15 +974,16 @@ static void draw_screen()
         gScreenWidth = 100;
     if (gScreenHeight < 100)
         gScreenHeight = 100;
-    if (gBlackBackground)
-		glClearColor(0.086f, 0.094f, 0.114f, 1.0f);
-	else
-		glClearColor(0.906f, 0.898f, 0.875f, 1.0f);
+    {
+        int bg = gBlackBackground ? pal.canvasDark : pal.canvasPaper;
+        glClearColor(((bg >> 16) & 0xff) / 255.0f, ((bg >> 8) & 0xff) / 255.0f,
+            (bg & 0xff) / 255.0f, 1.0f);
+    }
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
     imgui_prepare();
 
-    if (!gSettingsOpen && gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > gTopbarH)
+    if (!UiChrome::canvasBlocked() && gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > gTopbarH)
     {
         if (gDragMode == DRAGMODE_NONE)
         {
@@ -2037,33 +1625,53 @@ static void draw_screen()
     glScalef(gZoomFactor, gZoomFactor, 1);
     glTranslatef(gWorldOfsX, gWorldOfsY, 0);
 
-    // Draw grid
-	if (gBlackBackground)
-		glColor4f(0.188f, 0.216f, 0.278f, 1.0f);
-	else
-		glColor4f(0.700f, 0.705f, 0.715f, 1.0f);
-    glBegin(GL_LINES);
-    for (i = 0; i < 20; i++)
+    // Grid across the visible world: major lines every 10 units, minor
+    // lines every unit once they are far enough apart to read as texture.
     {
-            glVertex2f(i * 10, 0);
-            glVertex2f(i * 10, 190);
-            glVertex2f(0     , i * 10);
-            glVertex2f(190   , i * 10);
+        float vx0 = -gWorldOfsX;
+        float vy0 = -gWorldOfsY;
+        float vx1 = vx0 + (gScreenWidth - gConfig.mToolkitWidth) / gZoomFactor;
+        float vy1 = vy0 + (gScreenHeight - gTopbarH) / gZoomFactor;
+        int minor = gBlackBackground ? pal.gridMinorDark : pal.gridMinorPaper;
+        int major = gBlackBackground ? pal.gridMajorDark : pal.gridMajorPaper;
+        glBegin(GL_LINES);
+        for (int pass = 0; pass < 2; pass++)
+        {
+            float step = pass == 0 ? 1.0f : 10.0f;
+            if (pass == 0 && !UiTheme::gridMinorVisible(gZoomFactor))
+                continue;
+            int c = pass == 0 ? minor : major;
+            glColor4f(((c >> 16) & 0xff) / 255.0f, ((c >> 8) & 0xff) / 255.0f, (c & 0xff) / 255.0f, 1.0f);
+            float gx = floorf(vx0 / step) * step;
+            float gy = floorf(vy0 / step) * step;
+            for (float x = gx; x <= vx1; x += step)
+            {
+                glVertex2f(x, vy0);
+                glVertex2f(x, vy1);
+            }
+            for (float y = gy; y <= vy1; y += step)
+            {
+                glVertex2f(vx0, y);
+                glVertex2f(vx1, y);
+            }
+        }
+        glEnd();
     }
-    glEnd();
-    fn.drawstring(TITLE,0.5,0.5,C_ACCENTTEXT,1);
-    fn.drawstring(gConfig.mUserInfo,0.5,2.0,C_ACCENTTEXT,1);
-    fn.drawstring("http://iki.fi/sol/",0.5,3.2,C_TEXTDIM,0.5);
+    // Title and user name stay on the canvas (and in PNG exports) as a
+    // quiet watermark rather than a headline.
+    int cWatermark = gBlackBackground ? 0xff4a4f58 : 0xffa8a49b;
+    fn14.drawstring(TITLE,0.5,0.5,cWatermark,1);
+    fn14.drawstring(gConfig.mUserInfo,0.5,2.0,cWatermark,1);
 
     if (gZoomFactor > 100)
     {
-        fn.drawstring("Congrats, you can zoom.",0.57,2.3,C_ACCENTTEXT,0.05);
+        fn.drawstring("Congrats, you can zoom.",0.57,2.3,cWatermark,0.05);
         if (gZoomFactor > 1000)
         {
-            fn.drawstring("Far enough.",0.63,2.342,C_ACCENTTEXT,0.005);
+            fn.drawstring("Far enough.",0.63,2.342,cWatermark,0.005);
             if (gZoomFactor > 10000)
             {
-                fn.drawstring("Are we there yet?",0.6515,2.346,C_ACCENTTEXT,0.0005);
+                fn.drawstring("Are we there yet?",0.6515,2.346,cWatermark,0.0005);
             }
         }
     }
@@ -2076,7 +1684,11 @@ static void draw_screen()
             worldmousedowny,
             worldmousex - worldmousedownx,
             worldmousey - worldmousedowny,
-            0x3fffff00);
+            UiTheme::withAlpha(pal.accent, 0x1c));
+        float rx = worldmousedownx < worldmousex ? worldmousedownx : worldmousex;
+        float ry = worldmousedowny < worldmousey ? worldmousedowny : worldmousey;
+        draw_outline(rx, ry, fabsf(worldmousex - worldmousedownx), fabsf(worldmousey - worldmousedowny),
+            1.0f / gZoomFactor, UiTheme::withAlpha(pal.accent, 0xb0));
     }
 
 	int color_hotitem1 = 0xffffafaf;
@@ -2085,9 +1697,9 @@ static void draw_screen()
 	int color_hotpin2 = 0x7fffffff;
 	int color_pinhilight = 0x9fff0000;
 	int color_normalpin = 0x3fffffff;
-	int color_hotchip = 0x7fffcf00;
-	int color_kbdchip = 0x3fffff00;
-	int color_multiselect = 0x1fffff00;
+	int color_hotchip = UiTheme::withAlpha(pal.accent, 0x90);
+	int color_kbdchip = UiTheme::withAlpha(pal.accent, 0x22);
+	int color_multiselect = UiTheme::withAlpha(pal.accent, 0x16);
 
 	if (!gBlackBackground)
 	{
@@ -2097,9 +1709,6 @@ static void draw_screen()
 		color_hotpin2 = 0x7f7f7f7f;
 		color_pinhilight = 0x9f7f0000;
 		color_normalpin = 0x3f7f7f7f;
-		color_hotchip = 0x7f7f5f00;
-		color_kbdchip = 0x3f7f7f00;
-		color_multiselect = 0x1f7f7f00;
 	}
 
     for (i = 0; i < (signed)gChip.size(); i++)
@@ -2112,14 +1721,21 @@ static void draw_screen()
         glTranslatef(gChip[i]->mX + gChip[i]->mW / 2, gChip[i]->mY + gChip[i]->mH / 2, 0);
         glRotatef(gChip[i]->mAngleIn90DegreeSteps * 90, 0, 0, 1);
         glTranslatef(-(gChip[i]->mX + gChip[i]->mW / 2), -(gChip[i]->mY + gChip[i]->mH / 2), 0);
-        if (gUIState.hotitem == CHIP_ID(0,i))
-            drawrect(gChip[i]->mX-0.5,gChip[i]->mY-0.5,gChip[i]->mW+1,gChip[i]->mH+1,color_hotchip);
-        else
-        if (gUIState.kbditem == CHIP_ID(0,i))
-            drawrect(gChip[i]->mX-0.5,gChip[i]->mY-0.5,gChip[i]->mW+1,gChip[i]->mH+1,color_kbdchip);
-        else
-        if (gChip[i]->mMultiSelectState)
-            drawrect(gChip[i]->mX-0.5,gChip[i]->mY-0.5,gChip[i]->mW+1,gChip[i]->mH+1,color_multiselect);
+        {
+            // Selection reads as a crisp accent outline over a faint tint;
+            // hover is the outline alone.
+            float sx = gChip[i]->mX - 0.35f, sy = gChip[i]->mY - 0.35f;
+            float sw = gChip[i]->mW + 0.7f, sh = gChip[i]->mH + 0.7f;
+            float line = 1.5f / gZoomFactor;
+            if (gUIState.kbditem == CHIP_ID(0,i) || gChip[i]->mMultiSelectState)
+            {
+                drawrect(sx, sy, sw, sh,
+                    gUIState.kbditem == CHIP_ID(0,i) ? color_kbdchip : color_multiselect);
+                draw_outline(sx, sy, sw, sh, line, pal.accent);
+            }
+            else if (gUIState.hotitem == CHIP_ID(0,i))
+                draw_outline(sx, sy, sw, sh, line, color_hotchip);
+        }
 
         gChip[i]->render(CHIP_ID(0, i));
 
@@ -2168,13 +1784,10 @@ static void draw_screen()
         glPopMatrix();
     }
 
-    if (gConfig.mAntialiasedLines)
-    {
-        glEnable(GL_LINE_SMOOTH);
-        glLineWidth(0.075 * gZoomFactor);
-    }
-
-    glBegin(GL_LINES);
+    // Wires are drawn as quads with round caps at the chip-art stroke
+    // weight (0.09 world units, at least 1.5 px), batched per frame.
+    WireBatch wb;
+    wb.begin(UiTheme::wireHalfWidth(gZoomFactor));
     for (i = 0; i < (signed)gWire.size(); i++)
     {
 		// Don't draw items in boxes
@@ -2191,18 +1804,20 @@ static void draw_screen()
             netState = gWire[i]->mFirst->mNet->mState;
         switch(netState)
         {
+        // Same meaning as ever (bright green = high, dark green = low,
+        // grey = floating, red = conflict), in calmer tones.
         case NETSTATE_NC:
-            rc = 0.5; gc = 0.5; bc = 0.5;
+            rc = 0.47f; gc = 0.5f; bc = 0.55f;
             break;
         case NETSTATE_HIGH:
-            rc = 0; gc = 1; bc = 0;
+            rc = 0.30f; gc = 0.93f; bc = 0.47f;
             break;
         case NETSTATE_LOW:
-            rc = 0; gc = 0.5; bc = 0;
+            rc = 0.10f; gc = 0.45f; bc = 0.24f;
             break;
         default:
         //case NETSTATE_INVALID:
-            rc = 0.75; gc = 0; bc = 0;
+            rc = 0.94f; gc = 0.33f; bc = 0.29f;
             break;
         }
 
@@ -2229,14 +1844,14 @@ static void draw_screen()
 
         if (gLiveWires)
         {
-            glColor4f(rc, gc, bc, 1);
+            wb.color(rc, gc, bc, 1);
         }
         else
         {
 			if (gBlackBackground)
-				glColor4f(0.75f,0.75f,0.75f,1.0f);
+				wb.color(0.75f,0.75f,0.75f,1.0f);
 			else
-				glColor4f(0,0,0,1.0f);
+				wb.color(0,0,0,1.0f);
         }
 
         Pin * a, * b;
@@ -2247,12 +1862,12 @@ static void draw_screen()
         if (hotWire >= 0 && hotWire < (int)gWire.size() && gWire[hotWire] && gWire[hotWire]->mFirst &&
             gWire[hotWire]->mFirst->mNet == a->mNet && a->mNet)
         {
-            glColor4f(1,1,0,0.5);
+            wb.colorArgb(pal.accent, 0.55f);
         }
 
         if (gUIState.hotitem == WIRE_ID(i))
         {
-            glColor4f(1,1,1,0.5);
+            wb.colorArgb(gBlackBackground ? 0xffffffff : 0xff000000, 0.5f);
             if (split_wire(0))
             {
                 float xv = (a->mHost->mRotatedX + a->mRotatedX + 0.25) - (b->mHost->mRotatedX + b->mRotatedX + 0.25);
@@ -2269,9 +1884,9 @@ static void draw_screen()
                     xv = yv = 0;
                 }
 
-                glVertex2f(worldmousex-(yv*16)/gZoomFactor,
+                wb.vertex(worldmousex-(yv*16)/gZoomFactor,
                            worldmousey+(xv*16)/gZoomFactor);
-                glVertex2f(worldmousex+(yv*16)/gZoomFactor,
+                wb.vertex(worldmousex+(yv*16)/gZoomFactor,
                            worldmousey-(xv*16)/gZoomFactor);
 
                 mousemode = 2;
@@ -2281,15 +1896,15 @@ static void draw_screen()
                 float mx = UiTheme::snapWorld(worldmousex, gSnap);
                 float my = UiTheme::snapWorld(worldmousey, gSnap);
                 float ms = 10.0f / gZoomFactor;
-                glVertex2f(mx - ms, my); glVertex2f(mx + ms, my);
-                glVertex2f(mx, my - ms); glVertex2f(mx, my + ms);
+                wb.vertex(mx - ms, my); wb.vertex(mx + ms, my);
+                wb.vertex(mx, my - ms); wb.vertex(mx, my + ms);
             }
-            glColor4f(1,1,0,1);
+            wb.colorArgb(pal.accent, 1.0f);
         }
 
-        glVertex2f(a->mHost->mRotatedX + a->mRotatedX + 0.25,
+        wb.vertex(a->mHost->mRotatedX + a->mRotatedX + 0.25,
                    a->mHost->mRotatedY + a->mRotatedY + 0.25);
-        glVertex2f(b->mHost->mRotatedX + b->mRotatedX + 0.25,
+        wb.vertex(b->mHost->mRotatedX + b->mRotatedX + 0.25,
                    b->mHost->mRotatedY + b->mRotatedY + 0.25);
     }
 
@@ -2298,21 +1913,15 @@ static void draw_screen()
     {
         if (gWireStartDrag && gWireStartDrag->mHost)
         {
-        glColor4f(0.5,1,0.5,1);
-        glVertex2f(worldmousex, worldmousey);
-        glVertex2f(gWireStartDrag->mHost->mRotatedX + gWireStartDrag->mRotatedX + 0.25f,
+        wb.colorArgb(pal.accent, 1.0f);
+        wb.vertex(worldmousex, worldmousey);
+        wb.vertex(gWireStartDrag->mHost->mRotatedX + gWireStartDrag->mRotatedX + 0.25f,
                    gWireStartDrag->mHost->mRotatedY + gWireStartDrag->mRotatedY + 0.25f);
         }
     }
-    glEnd();
+    wb.flush();
 
-    if (gConfig.mAntialiasedLines)
-    {
-        glLineWidth(1);
-        glDisable(GL_LINE_SMOOTH);
-    }
-
-    if (!gSettingsOpen && gDragMode == DRAGMODE_NEWCHIP && gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > gTopbarH && gUIState.mousedown)
+    if (!UiChrome::canvasBlocked() && gDragMode == DRAGMODE_NEWCHIP && gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > gTopbarH && gUIState.mousedown)
     {
         if (gNewChip && gNewChipName)
         {
@@ -2428,69 +2037,31 @@ static void draw_screen()
             }
         }
     }
-    // Tooltips
+    // Tooltips: a hover card for parts, pins (with their live signal) and
+    // wires (signal plus what a floating or conflicting net means).
     if (gUIState.activeitem == 0 && gUIState.hotitem != 0 && (tick - gUIState.lasthottick) > gConfig.mTooltipDelay)
     {
-        const char *tooltip = NULL;
-
-        if (loc != -1 && gVisibleChiplist >= 0 && gVisibleChiplist <= 4 && loc >= 0 && loc < (int)gAvailableChip[gVisibleChiplist].size() && !(gVisibleChiplist == 2 && loc == 8))
-        {
-            if ((loc | (gVisibleChiplist << 16)) != gSidebarTooltipId)
-            {
-                gSidebarTooltipId = loc | (gVisibleChiplist << 16);
-                // Now, *this* is quite wasteful.
-                Chip * nChip = NULL;
-                int j;
-                const char *want = gAvailableChip[gVisibleChiplist][loc];
-                if (want)
-                {
-                for (j = 0; nChip == NULL && j < (signed)gChipFactory.size(); j++)
-                    nChip = gChipFactory[j]->build(want);
-                }
-                if (nChip)
-                {
-                    delete[] gSidebarTooltip;
-                    if (nChip->mTooltip)
-                        gSidebarTooltip = mystrdup(nChip->mTooltip);
-                    else
-                        gSidebarTooltip = mystrdup(gAvailableChip[gVisibleChiplist][loc]);
-                    delete nChip;
-                    nChip = NULL;
-                    tooltip = gSidebarTooltip;
-                }
-                else
-                {
-                    tooltip = NULL;
-                }
-            }
-            else
-            {
-                tooltip = gSidebarTooltip;
-            }
-        }
-
         if (IS_CHIP_ID(gUIState.hotitem))
         {
             int hc = GET_CHIP_ID(gUIState.hotitem);
             int hp = GET_PIN_ID(gUIState.hotitem);
             if (hc >= 0 && hc < (int)gChip.size() && gChip[hc])
             {
-            if (hp == 0)
-            {
-                if (gChip[hc]->mTooltip == NULL)
+                const char *name = hc < (int)gChipName.size() ? gChipName[hc] : NULL;
+                if (hp == 0)
                 {
-                    tooltip = gChipName[hc];
+                    const char *tip = gChip[hc]->mTooltip;
+                    if (!tip || (name && strcmp(tip, name) == 0))
+                        UiChrome::canvasTooltip(NULL, name, -1);
+                    else
+                        UiChrome::canvasTooltip(name, tip, -1);
                 }
-                else
+                else if (hp - 1 < (int)gChip[hc]->mPin.size() && gChip[hc]->mPin[hp-1])
                 {
-                    tooltip = gChip[hc]->mTooltip;
+                    Pin *pin = gChip[hc]->mPin[hp-1];
+                    int st = pin->mNet ? pin->mNet->mState : NETSTATE_NC;
+                    UiChrome::canvasTooltip(name, pin->mTooltip, st);
                 }
-            }
-            else
-            {
-                if (hp - 1 < (int)gChip[hc]->mPin.size() && gChip[hc]->mPin[hp-1])
-                    tooltip = gChip[hc]->mPin[hp-1]->mTooltip;
-            }
             }
         }
         if (IS_WIRE_ID(gUIState.hotitem))
@@ -2500,24 +2071,8 @@ static void draw_screen()
             int st = NETSTATE_NC;
             if (w && w->mFirst && w->mFirst->mNet)
                 st = w->mFirst->mNet->mState;
-            switch (st)
-            {
-            case NETSTATE_NC:
-                tooltip = "Not connected:\nNet not connected\nto an input";
-                break;
-            case NETSTATE_INVALID:
-                tooltip = "Invalid state:\nTwo or more outputs\nconnected together\nor invalid wiring\non a chip.";
-                break;
-            case NETSTATE_HIGH:
-                tooltip = "Signal 'High'";
-                break;
-            case NETSTATE_LOW:
-                tooltip = "Signal 'Low'";
-                break;
-            }
+            UiChrome::canvasTooltip(NULL, NULL, st);
         }
-        if (tooltip && tooltip[0])
-            ImGui::SetTooltip("%s", tooltip);
     }
 
     imgui_finish();
@@ -2561,7 +2116,7 @@ static void draw_screen()
         {
         int w = (int)(gNewChip->mW * gZoomFactor);
         int h = (int)(gNewChip->mH * gZoomFactor);
-        drawrect((float)(gUIState.mousex - w/2), (float)(gUIState.mousey - h/2), (float)w, (float)h, 0x7fffffff);
+        drawrect((float)(gUIState.mousex - w/2), (float)(gUIState.mousey - h/2), (float)w, (float)h, UiTheme::withAlpha(pal.accent, 0x50));
         }
     }
 
@@ -2585,10 +2140,7 @@ static void draw_screen()
             SDL_SetCursor(want);
     }
 
-    if (gSettingsOpen)
-        draw_settings_panel(lang);
-    if (gShortcutsOpen)
-        draw_shortcuts_window(lang);
+    UiChrome::drawOverlays();
     ImGui::Render();
     ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
 
@@ -2619,6 +2171,8 @@ void initvideo()
             SDL_Quit();
             exit(0);
         }
+        // Accept .atanua files dropped onto the window (SDL_DROPFILE).
+        SDL_EventState(SDL_DROPFILE, SDL_ENABLE);
     }
     else
     {
@@ -2672,9 +2226,54 @@ int main(int argc, char** args)
 {
     memset(gAudioBuffer,0,AUDIOBUF_SIZE);
 
+    // Resolve argv[1] before gotoappdirectory chdirs to the exe dir;
+    // otherwise relative double-click/test paths no longer resolve.
+    // Absolute paths pass through untouched.
+    std::string sArgvPath;
+    if (argc > 1 && args[1] && args[1][0])
+    {
+        const char *p = args[1];
+        bool isAbs = false;
+#ifdef WINDOWS_VERSION
+        if (p[0] == '\\' || p[0] == '/')
+            isAbs = true;
+        else if (strlen(p) >= 3 && p[1] == ':' && (p[2] == '\\' || p[2] == '/'))
+            isAbs = true;
+#else
+        if (p[0] == '/')
+            isAbs = true;
+#endif
+        if (isAbs)
+            sArgvPath = p;
+        else
+        {
+            char startupDir[1024] = { 0 };
+#ifdef WINDOWS_VERSION
+            _getcwd(startupDir, sizeof(startupDir) - 1);
+#else
+            getcwd(startupDir, sizeof(startupDir) - 1);
+#endif
+            if (startupDir[0])
+            {
+#ifdef WINDOWS_VERSION
+                sArgvPath = std::string(startupDir) + "\\" + p;
+#else
+                sArgvPath = std::string(startupDir) + "/" + p;
+#endif
+            }
+            else
+                sArgvPath = p;
+        }
+    }
+
     gotoappdirectory(argc, args);
 
     gConfig.load();
+
+    // Canvas and wire mode persist across restarts; the globals drive
+    // the frame loop, the config owns the values.
+    gBlackBackground = gConfig.mCanvasDark ? 1 : 0;
+    gLiveWires = gConfig.mLiveWires ? 1 : 0;
 
     if (gConfig.mSwapShiftAndCtrl)
     {
@@ -2790,8 +2389,11 @@ int main(int argc, char** args)
     for (i = 0; i < (signed)gChipFactory.size(); i++)
         gChipFactory[i]->getSupportedChips(gAvailableChip);
 
-    if (argc > 1)
-        do_loaddialog(0, args[1]);
+    // Double-clicked .atanua files arrive as argv[1] (resolved above
+    // before the exe-dir chdir). The canvas is boot-empty here, so no
+    // dirty prompt can fire; non-.atanua args are ignored silently.
+    if (!sArgvPath.empty())
+        open_external_file(sArgvPath.c_str());
 
     AppUpdate_StartCheck();
 

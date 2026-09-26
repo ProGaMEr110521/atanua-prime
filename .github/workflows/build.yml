@@ -32,6 +32,7 @@ jobs:
           if (!(Test-Path data)) { throw "data/ missing from checkout" }
           Copy-Item -Recurse data dist/atanua-windows/
           Copy-Item README.md,CHANGELOG.md dist/atanua-windows/
+          if (Test-Path atanua.ico) { Copy-Item atanua.ico dist/atanua-windows/ }
       - name: Zip windows package
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -77,6 +78,7 @@ jobs:
           cp build/atanua dist/atanua-linux/
           cp README.md CHANGELOG.md dist/atanua-linux/
           cp -r data dist/atanua-linux/
+          [ -f atanua.desktop ] && cp atanua.desktop dist/atanua-linux/
           tar -czf artifacts/atanua-linux-x86_64.tar.gz -C dist atanua-linux
       - uses: actions/upload-artifact@v4
         if: startsWith(github.ref, 'refs/tags/v')

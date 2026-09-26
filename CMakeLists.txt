@@ -5,8 +5,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD 11)
 
-if(MSVC)
+# Exported for clangd/VS Code/Zed when the generator supports it
+# (Ninja, Makefiles); silently ignored by the Visual Studio generator.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+if(WIN32)
   add_compile_definitions(_CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN)
+endif()
+if(MSVC)
   add_compile_options(/W3 /MP)
 endif()
 
@@ -181,11 +187,18 @@ set(ATANUA_SOURCES
   src/core/pluginchip.cpp
   src/core/pluginchipfactory.cpp
   src/core/simutils.cpp
+  src/core/ui_chrome.cpp
   src/core/slidingaverage.cpp
   src/core/wire.cpp
   src/stb/stb_image.c
   src/stb/stb_image_write.c
 )
+
+# Windows exe icon + document icon (MSVC compiles the .rc with rc.exe;
+# other platforms ignore it, so Linux/macOS builds stay untouched).
+if(WIN32)
+  list(APPEND ATANUA_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/atanua.rc)
+endif()
 
 add_executable(atanua ${ATANUA_SOURCES})
 
@@ -257,7 +270,7 @@ else()
 endif()
 
 if(WIN32)
-  target_link_libraries(atanua PRIVATE OpenGL::GLU winmm wininet)
+  target_link_libraries(atanua PRIVATE OpenGL::GLU winmm wininet shell32)
   set_target_properties(atanua PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
 
@@ -269,11 +282,11 @@ if(UNIX AND NOT APPLE)
   install(TARGETS atanua RUNTIME DESTINATION bin)
   install(DIRECTORY data/ DESTINATION share/atanua/data)
   install(FILES packaging/atanua.desktop DESTINATION share/applications)
-  install(FILES data/icon.png DESTINATION share/icons/hicolor/256x256/apps RENAME atanua.png)
+  install(FILES atanua.png DESTINATION share/icons/hicolor/256x256/apps)
 endif()
 
 # Runtime assets (fonts, textures) live in data/ next to the exe.
-# data/ is git-ignored; copy it there if present (e.g. from a release zip).
+# Copied after every link so the build dir always runs with current assets.
 if(EXISTS "${CMAKE_SOURCE_DIR}/data")
   add_custom_command(TARGET atanua POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory

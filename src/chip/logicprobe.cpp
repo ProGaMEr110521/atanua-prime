@@ -23,6 +23,7 @@ distribution.
 #include "atanua.h"
 #include "atanua_internal.h"
 #include "logicprobe.h"
+#include "ui_chrome.h"
 
 LogicProbe::LogicProbe()
 {
@@ -69,7 +70,7 @@ void LogicProbe::render(int aChipId)
     int i, j, k;
     drawtexturedrect(mTexture,mX, mY, mW, mH, 0xffffffff);
     float ourmousex = (((gUIState.mousex - gConfig.mToolkitWidth) / gZoomFactor) - gWorldOfsX) - (mX + 1.6);
-    float ourmousey = (((gUIState.mousey - 40) / gZoomFactor) - gWorldOfsY) - mY;
+    float ourmousey = (((gUIState.mousey - gTopbarH) / gZoomFactor) - gWorldOfsY) - mY;
     float ystep = ((mH - 5.5) / 8);
     float yht = (ystep * 0.9) / 5;
 
@@ -88,23 +89,23 @@ void LogicProbe::render(int aChipId)
     {
         int pos = (int)floor((ourmousex * 1000)/(mW - 3));
         int dpos = (((999 - pos) + mPlayhead) % 1000);
-        drawrect(mX+1.6+(pos/1000.0f)*(mW-3),mY+2.75,(mW-3)/1000.0f,mH-5.5,0x3f000000);
+        drawrect(mX+1.6+(pos/1000.0f)*(mW-3),mY+2.75,(mW-3)/1000.0f,mH-5.5,0x60ffffff);
         for (i = 0; i < 8; i++)
         {
             if (mData[i][dpos] == 0)
                 data |= 1 << i;
-            drawrect(mX+1.6,mY+2.75 + i * ystep - ystep * 0.05,mW-3,(mW-3)/1000.0f,0x3f000000);
+            drawrect(mX+1.6,mY+2.75 + i * ystep - ystep * 0.05,mW-3,(mW-3)/1000.0f,0x30ffffff);
         }
         sprintf(temp, "%4dms",pos);
-        fn.drawstring(temp,mX+1.6,mY+2.75+2.5,0x3f000000,1);
+        fn.drawstring(temp,mX+1.6,mY+2.75+2.5,0xc08cffb0,1);
     }
 
     sprintf(temp, "%02X", data);
-    fn.drawstring(temp,mX+1.6,mY+2.75,0x3f000000,3);
+    fn.drawstring(temp,mX+1.6,mY+2.75,0x405cff9a,3);
 
     //glVertexPointer(2,GL_FLOAT,0,mVtxArray);
     //glEnable(GL_VERTEX_ARRAY);
-    glColor4f(0, 1, 0, 0.5f);
+    glColor4f(0.36f, 1.0f, 0.6f, 0.9f);
     for (j = 0; j < 8; j++)
     {
         glBegin(GL_LINE_STRIP);

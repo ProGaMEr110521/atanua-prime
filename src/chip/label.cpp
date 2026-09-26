@@ -23,6 +23,7 @@ distribution.
 #include "atanua.h"
 #include "fileutils.h"
 #include "label.h"
+#include "ui_theme.h"
 
 Label::Label(float aSize)
 {
@@ -54,17 +55,18 @@ void Label::render(int aChipId)
 
         float w,h,llw;
         fn.stringmetrics(mData.c_str(),w,h,llw,mSize);
-        drawrect(mX, mY - mW * 0.1 + h, w, mH * 0.1, 0x7f7f0000);
-        drawrect(mX, mY, mW * 0.1, h, 0x7f7f0000);
-        
-        fn.drawstring(mData.c_str(),mX,mY,0xffbfffbf,mSize);
-        
+        // Editing: accent underline and caret in the theme accent.
+        const UiTheme::Palette &pal = UiTheme::palette(gConfig.mThemeVariant);
+        drawrect(mX, mY - mW * 0.1 + h, w, mH * 0.06, UiTheme::withAlpha(pal.accent, 0xa0));
+
+        fn.drawstring(mData.c_str(),mX,mY,UiTheme::canvasInk(gBlackBackground),mSize);
+
         if ((SDL_GetTicks() >> 9) & 1)
-            drawrect(mX + llw, mY + h - mH, mW * 0.05, mH, 0xffffffff);
+            drawrect(mX + llw, mY + h - mH, mW * 0.05, mH, pal.accent);
     }
     else
     {
-        fn.drawstring(mData.c_str(),mX,mY,0xff00bf00,mSize);
+        fn.drawstring(mData.c_str(),mX,mY,UiTheme::canvasInk(gBlackBackground),mSize);
     }
 }
 

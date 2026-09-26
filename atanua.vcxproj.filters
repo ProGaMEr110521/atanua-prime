@@ -308,6 +308,9 @@
     <ClCompile Include="src\core\main.cpp">
       <Filter>Source Files\core</Filter>
     </ClCompile>
+    <ClCompile Include="src\core\ui_chrome.cpp">
+      <Filter>Source Files\core</Filter>
+    </ClCompile>
     <ClCompile Include="src\core\nativefunctions.cpp">
       <Filter>Source Files\core</Filter>
     </ClCompile>

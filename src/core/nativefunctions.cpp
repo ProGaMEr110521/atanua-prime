@@ -22,10 +22,75 @@ distribution.
 */
 #include "atanua.h"
 #include "atanua_internal.h" // for TITLE
+#include "app_settings.h"
+#include "fileassoc.h"
+#ifdef WINDOWS_VERSION
+// shlobj.h drags COM headers that clash with std::byte, so declare the
+// one shell call we need (linked from shell32) by hand.
+extern "C" __declspec(dllimport) void __stdcall SHChangeNotify(LONG wEventId, UINT uFlags, LPCVOID dwItem1, LPCVOID dwItem2);
+#define SHCNE_ASSOCCHANGED 0x08000000
+#define SHCNF_IDLIST 0x0000
+#endif
 
 char * gFilename = NULL;
 char * gAltFilename = NULL;
 
+
+FILE * atanua_fopen_rb(const char *aPath)
+{
+	if (!aPath || !aPath[0])
+		return NULL;
+#ifdef WINDOWS_VERSION
+	// SDL argv and SDL_DROPFILE paths arrive as UTF-8; fopen expects
+	// ANSI, so non-ASCII directories would fail to open. Convert to
+	// wide and use _wfopen, falling back to fopen for odd input.
+	int wlen = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, aPath, -1, NULL, 0);
+	if (wlen > 0)
+	{
+		wchar_t *wpath = new wchar_t[wlen];
+		if (MultiByteToWideChar(CP_UTF8, 0, aPath, -1, wpath, wlen) > 0)
+		{
+			FILE *wf = NULL;
+			if (_wfopen_s(&wf, wpath, L"rb") == 0 && wf)
+			{
+				delete[] wpath;
+				return wf;
+			}
+		}
+		delete[] wpath;
+	}
+#endif
+	return fopen(aPath, "rb");
+}
+
+// The string table is UTF-8 but the native dialogs are ANSI builds, so
+// Cyrillic labels would show as mojibake. Convert per call through
+// round-robin static buffers; every shipped string is CP_ACP
+// representable, so nothing is lost. Callers must use the result
+// immediately (up to 4 live values).
+static const char *uiAnsi(const char *u)
+{
+#ifdef WINDOWS_VERSION
+	static char bufs[4][1024];
+	static int next = 0;
+	if (u && u[0])
+	{
+		int wlen = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, u, -1, NULL, 0);
+		if (wlen > 0 && wlen < 1024)
+		{
+			wchar_t wbuf[1024];
+			if (MultiByteToWideChar(CP_UTF8, 0, u, -1, wbuf, wlen) > 0 &&
+				WideCharToMultiByte(CP_ACP, 0, wbuf, -1, bufs[next], 1024, NULL, NULL) > 0)
+			{
+				const char *out = bufs[next];
+				next = (next + 1) & 3;
+				return out;
+			}
+		}
+	}
+#endif
+	return u;
+}
 
 FILE * openfileinsamedir(const char * aFname)
 {
@@ -48,7 +113,7 @@ FILE * openfileinsamedir(const char * aFname)
 	}
 	strcat(temp,aFname);
 	
-	return fopen(temp, "rb");
+	return atanua_fopen_rb(temp);
 }
 
 void resetfilename()
@@ -162,7 +227,7 @@ FILE * openfiledialog(const char *title)
 			}
 		}
         
-        ofn.lpstrTitle = "Open Atanua design file";
+        ofn.lpstrTitle = uiAnsi(AppSettings::text(AppSettings::S_OPENTITLE, gConfig.mLanguage, 0));
     }
     else
         ofn.lpstrTitle = title;
@@ -204,7 +269,7 @@ FILE * savefiledialog(const char *title)
     {
         ofn.lpstrFilter = "Atanua Design Files (*.atanua)\0*.atanua\0All Files (*.*)\0*.*\0\0";
         ofn.lpstrDefExt = "atanua";
-        ofn.lpstrTitle = "Save Atanua design file";
+        ofn.lpstrTitle = uiAnsi(AppSettings::text(AppSettings::S_SAVETITLE, gConfig.mLanguage, 0));
     }
     else
     {
@@ -243,7 +308,8 @@ FILE * savefiledialog(const char *title)
 int okcancel(const char *prompt)
 {
     HWND hWnd = AtanuaGetHWND();
-    if (MessageBox(hWnd, prompt, TITLE, MB_OKCANCEL | MB_ICONWARNING) == IDOK)
+    // Prompts arrive as UTF-8 (table strings, drop/argv file names).
+    if (MessageBox(hWnd, uiAnsi(prompt), TITLE, MB_OKCANCEL | MB_ICONWARNING) == IDOK)
         return 1;
     return 0;
 }
@@ -267,7 +333,156 @@ DLLHANDLETYPE opendll(const char *dllfilename)
 void *getdllproc(DLLHANDLETYPE dllhandle, const char *procname)
 {
     HMODULE dllh = (HMODULE)dllhandle;
-    return GetProcAddress(dllh, procname);
+    return (void *)GetProcAddress(dllh, procname);
+}
+
+// Per-user .atanua association under HKCU\Software\Classes. Every write
+// happens only from the explicit Settings toggle; startup never touches
+// the registry.
+static HKEY assocRoot()
+{
+    return HKEY_CURRENT_USER;
+}
+
+static void assocFullKey(const char *aSubkey, char *aOut, int aCap)
+{
+    // "Software\Classes\" + subkey, truncated safely.
+    const char *prefix = "Software\\Classes\\";
+    int i = 0;
+    for (const char *p = prefix; *p && i + 1 < aCap; p++)
+        aOut[i++] = *p;
+    if (aSubkey)
+    {
+        for (const char *p = aSubkey; *p && i + 1 < aCap; p++)
+            aOut[i++] = *p;
+    }
+    aOut[i] = 0;
+}
+
+int assocReadString(const char *aSubkey, const char *aValueName, char *aOut, int aCap)
+{
+    if (!aSubkey || !aOut || aCap <= 0)
+        return 0;
+    char key[512];
+    assocFullKey(aSubkey, key, sizeof(key));
+    HKEY h = 0;
+    if (RegOpenKeyExA(assocRoot(), key, 0, KEY_QUERY_VALUE, &h) != ERROR_SUCCESS)
+        return 0;
+    DWORD type = 0;
+    DWORD size = (DWORD)aCap;
+    LONG rc = RegQueryValueExA(h, aValueName, 0, &type, (LPBYTE)aOut, &size);
+    RegCloseKey(h);
+    if (rc != ERROR_SUCCESS || (type != REG_SZ && type != REG_EXPAND_SZ))
+        return 0;
+    if (size >= (DWORD)aCap)
+        aOut[aCap - 1] = 0;
+    else
+        aOut[size] = 0;
+    return 1;
+}
+
+int assocWriteString(const char *aSubkey, const char *aValueName, const char *aValue)
+{
+    if (!aSubkey || !aValue)
+        return 0;
+    char key[512];
+    assocFullKey(aSubkey, key, sizeof(key));
+    HKEY h = 0;
+    if (RegCreateKeyExA(assocRoot(), key, 0, NULL, 0, KEY_SET_VALUE, NULL, &h, NULL) != ERROR_SUCCESS)
+        return 0;
+    LONG rc = RegSetValueExA(h, aValueName, 0, REG_SZ,
+        (const BYTE *)aValue, (DWORD)(strlen(aValue) + 1));
+    RegCloseKey(h);
+    return rc == ERROR_SUCCESS;
+}
+
+int assocDeleteKey(const char *aSubkey)
+{
+    if (!aSubkey)
+        return 0;
+    char key[512];
+    assocFullKey(aSubkey, key, sizeof(key));
+    // RegDeleteTree removes the key with all values/subkeys; missing keys
+    // count as success so toggle-off never errors on a clean machine.
+    LONG rc = RegDeleteTreeA(assocRoot(), key);
+    return rc == ERROR_SUCCESS || rc == ERROR_FILE_NOT_FOUND;
+}
+
+int currentExePath(char *aOut, int aCap)
+{
+    if (!aOut || aCap <= 0)
+        return 0;
+    DWORD n = GetModuleFileNameA(NULL, aOut, (DWORD)aCap);
+    if (n == 0 || n >= (DWORD)aCap)
+        return 0;
+    return 1;
+}
+
+int assocState(const char *aExePath)
+{
+    char exe[1024];
+    if (!aExePath || !aExePath[0])
+    {
+        if (!currentExePath(exe, sizeof(exe)))
+            return -1;
+        aExePath = exe;
+    }
+    char extVal[256];
+    char cmd[1024];
+    char cmdKey[256];
+    sprintf(cmdKey, "%s\\%s", FileAssoc::progId(), FileAssoc::openCommandSubkey());
+    if (!assocReadString(FileAssoc::extensionKey(), NULL, extVal, sizeof(extVal)))
+        return 0;
+    if (strcmp(extVal, FileAssoc::progId()) != 0)
+        return 0;
+    if (!assocReadString(cmdKey, NULL, cmd, sizeof(cmd)))
+        return 0;
+    return FileAssoc::openCommandMatchesExe(cmd, aExePath) ? 1 : 0;
+}
+
+int assocInstall(const char *aExePath)
+{
+    char exe[1024];
+    if (!aExePath || !aExePath[0])
+    {
+        if (!currentExePath(exe, sizeof(exe)))
+            return 0;
+        aExePath = exe;
+    }
+    char cmd[1024];
+    char icon[1024];
+    char cmdKey[256];
+    char iconKey[256];
+    if (!FileAssoc::formatOpenCommand(aExePath, cmd, sizeof(cmd)))
+        return 0;
+    if (!FileAssoc::formatDefaultIcon(aExePath, icon, sizeof(icon)))
+        return 0;
+    sprintf(cmdKey, "%s\\%s", FileAssoc::progId(), FileAssoc::openCommandSubkey());
+    sprintf(iconKey, "%s\\%s", FileAssoc::progId(), FileAssoc::defaultIconSubkey());
+    if (!assocWriteString(cmdKey, NULL, cmd))
+        return 0;
+    if (!assocWriteString(iconKey, NULL, icon))
+        return 0;
+    if (!assocWriteString(FileAssoc::extensionKey(), NULL, FileAssoc::progId()))
+        return 0;
+    // Tell Explorer to pick up the new verb and icon immediately.
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+    return 1;
+}
+
+int assocRemove()
+{
+    // Remove only our own keys; never touch a foreign ProgID. The .atanua
+    // extension key is removed only when it still points at us.
+    char extVal[256];
+    int owned = assocReadString(FileAssoc::extensionKey(), NULL, extVal, sizeof(extVal)) &&
+        strcmp(extVal, FileAssoc::progId()) == 0;
+    if (!assocDeleteKey(FileAssoc::progId()))
+        return 0;
+    if (owned && !assocDeleteKey(FileAssoc::extensionKey()))
+        return 0;
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+    return 1;
 }
 
 #endif
@@ -585,7 +800,7 @@ FILE * openfiledialog(const char *title)
 { 
   char temp[256];
 
-  select_file(temp, 0, (title == NULL)?"Open Atanua design file":title);
+  select_file(temp, 0, (title == NULL) ? AppSettings::text(AppSettings::S_OPENTITLE, gConfig.mLanguage, 0) : title);
   FILE * f = NULL;
   if (selected)
   {
@@ -600,7 +815,7 @@ FILE * savefiledialog(const char *title)
 {
   char temp[256];
 
-  select_file(temp, 1, (title == NULL)?"Save Atanua design file":title);
+  select_file(temp, 1, (title == NULL) ? AppSettings::text(AppSettings::S_SAVETITLE, gConfig.mLanguage, 0) : title);
   FILE * f = NULL;
   if (selected)
   {
@@ -651,4 +866,43 @@ void *getdllproc(void* dllhandle, const char *procname)
     void* library = dllhandle;
     return dlsym(library,procname);
 }
+
+// File association is Windows-only; elsewhere the helpers are inert
+// stubs so shared callers compile unchanged.
+#ifndef WINDOWS_VERSION
+int assocReadString(const char *aSubkey, const char *aValueName, char *aOut, int aCap)
+{
+    (void)aSubkey; (void)aValueName; (void)aOut; (void)aCap;
+    return 0;
+}
+int assocWriteString(const char *aSubkey, const char *aValueName, const char *aValue)
+{
+    (void)aSubkey; (void)aValueName; (void)aValue;
+    return 0;
+}
+int assocDeleteKey(const char *aSubkey)
+{
+    (void)aSubkey;
+    return 0;
+}
+int currentExePath(char *aOut, int aCap)
+{
+    (void)aOut; (void)aCap;
+    return 0;
+}
+int assocState(const char *aExePath)
+{
+    (void)aExePath;
+    return 0;
+}
+int assocInstall(const char *aExePath)
+{
+    (void)aExePath;
+    return 0;
+}
+int assocRemove()
+{
+    return 1;
+}
+#endif
 #endif

@@ -6,10 +6,18 @@ static int failures = 0;
 
 int main()
 {
-    CHECK(UI_THEME_MENUBG == 0xff20242c, "menubg is modern dark");
-    CHECK(UI_THEME_TOPBAR_H == 48, "topbar height 48");
-    CHECK(UI_THEME_TAB_W == 68 && UI_THEME_BTN_W == 68, "tab/btn widths 68");
-    CHECK(UI_THEME_ROW_H == 30, "row height 30");
+    for (int t = 0; t < UiTheme::PALETTE_COUNT; t++)
+    {
+        const UiTheme::Palette &p = UiTheme::palette(t);
+        CHECK((p.chrome >> 24) == 0xff && (p.text >> 24) == 0xff && (p.accent >> 24) == 0xff,
+            "palette colors are opaque");
+        CHECK(p.text != p.panel && p.accent != p.surface, "palette keeps text and accent distinct");
+    }
+    CHECK(&UiTheme::palette(99) == &UiTheme::palette(UiTheme::PALETTE_DARK), "bad theme falls back to dark");
+    CHECK((unsigned)UiTheme::withAlpha((int)0xff112233, 0x40) == 0x40112233u, "withAlpha swaps alpha");
+    CHECK(UiTheme::gridMinorVisible(20.0f) && !UiTheme::gridMinorVisible(4.0f), "minor grid fades out");
+    CHECK(UiTheme::clampSidebarWidth(150) == 200 && UiTheme::clampSidebarWidth(9999) == 460,
+        "sidebar width clamps");
 
     CHECK(UiTheme::clampSliderMax(10, 30, 800) == 0, "short list clamps to 0");
     CHECK(UiTheme::clampSliderMax(100, 30, 800) == 2200, "tall list max");

@@ -26,12 +26,12 @@ distribution.
 #include <stdint.h>
 
 
-#define ATANUAVERSION "1.3.141231"
+#define ATANUAVERSION "1.3.141232"
 
 #ifdef __APPLE__
 #define ATANUAPLATFORM "OSX"
 #define DLLHANDLETYPE intptr_t
-#elif _MSC_VER
+#elif defined(_WIN32)
 #define ATANUAPLATFORM "Win32"
 #define DLLHANDLETYPE intptr_t
 #else
@@ -173,10 +173,21 @@ extern BoxStitchingInformation * do_preparse_box(const char *aFname);
 
 // from nativefunctions.cpp
 
+extern FILE * atanua_fopen_rb(const char *aPath);
 extern FILE * openfiledialog(const char *aPrompt);
 extern FILE * savefiledialog(const char *aPrompt);
 extern int okcancel(const char *prompt);
 extern void gotoappdirectory(int parc, char ** pars);
 extern DLLHANDLETYPE opendll(const char *dllfilename);
 extern void *getdllproc(DLLHANDLETYPE dllhandle, const char *procname);
+// Per-user .atanua file association (Windows HKCU; stubs elsewhere).
+// Paths use forward constants from fileassoc.h; assocState returns
+// 1 = this exe owns the association, 0 = missing/foreign, -1 = error.
+extern int assocReadString(const char *aSubkey, const char *aValueName, char *aOut, int aCap);
+extern int assocWriteString(const char *aSubkey, const char *aValueName, const char *aValue);
+extern int assocDeleteKey(const char *aSubkey);
+extern int assocState(const char *aExePath);
+extern int assocInstall(const char *aExePath);
+extern int assocRemove();
+extern int currentExePath(char *aOut, int aCap);
 #endif

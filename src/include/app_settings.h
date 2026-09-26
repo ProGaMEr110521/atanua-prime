@@ -9,6 +9,7 @@ without opening a window.
 
 #include <stddef.h>
 #include <string.h>
+#include "ui_theme.h"
 
 namespace AppSettings {
 
@@ -25,7 +26,8 @@ enum Theme
 {
     THEME_DARK = 0,
     THEME_CONTRAST = 1,
-    THEME_COUNT = 2
+    THEME_LIGHT = 2,
+    THEME_COUNT = 3
 };
 
 // Tooltip delay presets in milliseconds (0 = off).
@@ -123,6 +125,69 @@ enum StrKey
     S_NUDGE,
     S_ARROWS,
     S_ISSUES,
+    S_EMAIL,
+    S_FILEASSOC,
+    S_OPENTITLE,
+    S_SAVETITLE,
+    S_CONFIRM_EXIT,
+    S_CONFIRM_RESET,
+    S_CONFIRM_OPEN,
+    S_ERR_BOXLIMIT,
+    S_ERR_BOXNOPINS,
+    S_ERR_BADWIRE,
+    S_USERNAME,
+    S_CREDIT,
+    S_CANVAS,
+    S_PAPER,
+    S_LIVE,
+    S_GREY,
+    S_THEME_LIGHT,
+    S_MENU_FILE,
+    S_MENU_EDIT,
+    S_MENU_VIEW,
+    S_MENU_HELP,
+    S_LIBRARY,
+    S_SEARCH,
+    S_NO_MATCHES,
+    S_DRAG_HINT,
+    S_UNTITLED,
+    S_OPEN_ITEM,
+    S_MERGE_ITEM,
+    S_BOX_ITEM,
+    S_SAVE_ITEM,
+    S_PNG_ITEM,
+    S_FIT_ITEM,
+    S_HOME_ITEM,
+    S_SNAP_ITEM,
+    S_LIVE_ITEM,
+    S_PERF_ITEM,
+    S_ABOUT,
+    S_APPEARANCE,
+    S_BEHAVIOR,
+    S_SYSTEM,
+    S_ST_CHIPS,
+    S_ST_WIRES,
+    S_ST_NETS,
+    S_ST_SIM,
+    S_SELECTION,
+    S_EMPTY_TITLE,
+    S_EMPTY_BODY,
+    S_REPORT_ISSUE,
+    S_PALETTE,
+    S_PALETTE_HINT,
+    S_KIND_COMMAND,
+    S_RECENT,
+    S_PALETTE_FOOT,
+    S_ZOOM_IN,
+    S_ZOOM_OUT,
+    S_SELECT_ALL,
+    S_NET_HIGH,
+    S_NET_LOW,
+    S_NET_NC,
+    S_NET_INVALID,
+    S_NET_NC_BODY,
+    S_NET_INVALID_BODY,
+    S_PIN_ON,
     S_COUNT
 };
 
@@ -144,21 +209,21 @@ inline const StrEntry *stringTable(int *countOut)
         { S_BASE, "Base", "Base", "База", "База" },
         { S_CHIPS, "Chips", "Chips", "Чипы", "Чипы" },
         { S_IN, "In", "In", "Вход", "Вход" },
-        { S_OUT, "Out", "Out", "Выход", "Выход" },
+        { S_OUT, "Out", "Out", "Выходы", "Выходы" },
         { S_MISC, "Misc", "Misc", "Разное", "Разное" },
         { S_NEW, "New\nCtrl-N", "New", "Новый\nCtrl-N", "Новый" },
         { S_LOAD, "Load\nCtrl-L", "Load", "Открыть\nCtrl-L", "Открыть" },
         { S_MERGE, "Merge\nCtrl-M", "Merge", "Слияние\nCtrl-M", "Слияние" },
         { S_BOX, "Box\nCtrl-B", "Box", "Блок\nCtrl-B", "Блок" },
-        { S_SAVE, "Save\nCtrl-S", "Save", "Записать\nCtrl-S", "Записать" },
+        { S_SAVE, "Save\nCtrl-S", "Save", "Сохранить\nCtrl-S", "Сохранить" },
         { S_UNDO, "Undo\nCtrl-Z", "Undo", "Отменить\nCtrl-Z", "Отменить" },
         { S_REDO, "Redo\nCtrl-Y", "Redo", "Вернуть\nCtrl-Y", "Вернуть" },
         { S_HOME, "Home", "Home", "Домой", "Домой" },
-        { S_ZOOM, "Zoom\next", "Zoom", "Масштаб\nвесь", "Масштаб" },
+        { S_ZOOM, "Zoom\next", "Zoom", "Вся\nсхема", "Вся схема" },
         { S_SNAP_ON, "Snap\n(on)", "Snap", "Привязка\n(вкл)", "Привязка" },
         { S_SNAP_OFF, "Snap\n(off)", "Snap", "Привязка\n(выкл)", "Привязка" },
-        { S_VIEW_LIVE, "View\n(live)", "View", "Вид\n(цвет)", "Вид" },
-        { S_VIEW_GREY, "View\n(grey)", "View", "Вид\n(серый)", "Вид" },
+        { S_VIEW_LIVE, "Wires\n(live)", "Wires", "Провода\n(цветные)", "Провода" },
+        { S_VIEW_GREY, "Wires\n(grey)", "Wires", "Провода\n(серые)", "Провода" },
         { S_PNG, "PNG it\nCtrl-G", "PNG", "PNG\nCtrl-G", "PNG" },
         { S_QUIT, "Quit", "Quit", "Выход", "Выход" },
         { S_SETTINGS, "Settings", "Settings", "Настройки", "Настройки" },
@@ -189,15 +254,105 @@ inline const StrEntry *stringTable(int *countOut)
         { S_ACTION, "Action", "Action", "Действие", "Действие" },
         { S_SHORTCUT, "Shortcut", "Shortcut", "Сочетание", "Сочетание" },
         { S_ROTATE, "Rotate", "Rotate", "Повернуть", "Повернуть" },
-        { S_OPTIMIZE, "Optimize box", "Optimize", "Оптимизировать", "Оптимизация" },
+        { S_OPTIMIZE, "Optimize box", "Optimize", "Оптимизировать", "Оптимизировать" },
         { S_DELETE, "Delete", "Delete", "Удалить", "Удалить" },
         { S_CANCEL, "Cancel", "Cancel", "Отмена", "Отмена" },
         { S_NUDGE, "Nudge", "Nudge", "Сдвиг", "Сдвиг" },
         { S_ARROWS, "Arrows", "Arrows", "Стрелки", "Стрелки" },
-        { S_ISSUES, "If you find any kind of bug or error, feel free to open a issue ticket on my github",
-            "If you find any kind of bug or error, feel free to open a issue ticket on my github"
-            , "Если вы нашли баг или испытываете трудности в работе с какими либо функциями или хотите добавить что-либо, пожалуйста сообщите разработчику на GitHub",
-            "Если вы нашли баг или испытываете трудности в работе с какими либо функциями или хотите добавить что-либо, пожалуйста сообщите разработчику на GitHub"}
+        { S_ISSUES, "If you find any kind of bug or error, feel free to open an issue ticket on my github",
+            "If you find any kind of bug or error, feel free to open an issue ticket on my github"
+            , "Если вы нашли баг или испытываете трудности в работе с какими-либо функциями или хотите добавить что-либо, пожалуйста сообщите разработчику на GitHub",
+            "Если вы нашли баг или испытываете трудности в работе с какими-либо функциями или хотите добавить что-либо, пожалуйста сообщите разработчику на GitHub"},
+        { S_EMAIL, "or contact the developer directly by email",
+            "or contact the developer directly by email",
+            "или свяжитесь с разработчиком напрямую по почте",
+            "или свяжитесь с разработчиком напрямую по почте"},
+        { S_FILEASSOC, "Open .atanua files with this app",
+            "Associate .atanua",
+            "Открывать файлы .atanua в этом приложении",
+            "Ассоциация .atanua"},
+        { S_OPENTITLE, "Open Atanua design file", "Open Atanua design file",
+            "Открыть файл проекта Atanua", "Открыть файл проекта Atanua" },
+        { S_SAVETITLE, "Save Atanua design file", "Save Atanua design file",
+            "Сохранить файл проекта Atanua", "Сохранить файл проекта Atanua" },
+        { S_CONFIRM_EXIT, "Are you sure you want to exit?\nAny unsaved changes will be lost.",
+            "Are you sure you want to exit?\nAny unsaved changes will be lost.",
+            "Точно выйти?\nНесохранённые изменения будут потеряны.",
+            "Точно выйти?\nНесохранённые изменения будут потеряны." },
+        { S_CONFIRM_RESET, "Are you sure you want to reset?\nAny unsaved changes will be lost.",
+            "Are you sure you want to reset?\nAny unsaved changes will be lost.",
+            "Точно сбросить схему?\nНесохранённые изменения будут потеряны.",
+            "Точно сбросить схему?\nНесохранённые изменения будут потеряны." },
+        { S_CONFIRM_OPEN, "Open %s?\nAny unsaved changes will be lost.",
+            "Open %s?\nAny unsaved changes will be lost.",
+            "Открыть %s?\nНесохранённые изменения будут потеряны.",
+            "Открыть %s?\nНесохранённые изменения будут потеряны." },
+        { S_ERR_BOXLIMIT, "Maximum number of active boxes exceeded.\nContinue loading anyway?\n\nIf you really need more boxes, adjust the limit in atanua.xml",
+            "Maximum number of active boxes exceeded.\nContinue loading anyway?\n\nIf you really need more boxes, adjust the limit in atanua.xml",
+            "Превышено максимальное число активных боксов.\nПродолжить загрузку?\n\nЕсли нужно больше, измените лимит в atanua.xml",
+            "Превышено максимальное число активных боксов.\nПродолжить загрузку?\n\nЕсли нужно больше, измените лимит в atanua.xml" },
+        { S_ERR_BOXNOPINS, "Trying to box an .atanua file with no external pins!\nBuild it anyway?",
+            "Trying to box an .atanua file with no external pins!\nBuild it anyway?",
+            "В .atanua файле нет внешних пинов!\nВсё равно собрать бокс?",
+            "В .atanua файле нет внешних пинов!\nВсё равно собрать бокс?" },
+        { S_ERR_BADWIRE, "Invalid wire definition found.\nTry to continue loading?",
+            "Invalid wire definition found.\nTry to continue loading?",
+            "Найдено неверное описание провода.\nПродолжить загрузку?",
+            "Найдено неверное описание провода.\nПродолжить загрузку?" },
+        { S_USERNAME, "User name", "User name", "Имя", "Имя" },
+        { S_CREDIT, "Based on Atanua by Jari Komppa", "Based on Atanua by Jari Komppa",
+            "Основано на Atanua, автор: Jari Komppa", "Основано на Atanua, автор: Jari Komppa" },
+        { S_CANVAS, "Background", "Background", "Фон", "Фон" },
+        { S_PAPER, "Paper", "Paper", "Бумага", "Бумага" },
+        { S_LIVE, "Live", "Live", "Цветные", "Цветные" },
+        { S_GREY, "Grey", "Grey", "Серые", "Серые" },
+        { S_THEME_LIGHT, "Light", "Light", "Светлая", "Светлая" },
+        { S_MENU_FILE, "File", "File", "Файл", "Файл" },
+        { S_MENU_EDIT, "Edit", "Edit", "Правка", "Правка" },
+        { S_MENU_VIEW, "View", "View", "Вид", "Вид" },
+        { S_MENU_HELP, "Help", "Help", "Справка", "Справка" },
+        { S_LIBRARY, "Library", "Library", "Библиотека", "Библиотека" },
+        { S_SEARCH, "Search components", "Search", "Поиск компонентов", "Поиск" },
+        { S_NO_MATCHES, "Nothing matches", "Nothing matches", "Ничего не найдено", "Ничего не найдено" },
+        { S_DRAG_HINT, "Drag onto the canvas", "Drag onto the canvas", "Перетащите на холст", "Перетащите на холст" },
+        { S_UNTITLED, "Untitled", "Untitled", "Без имени", "Без имени" },
+        { S_OPEN_ITEM, "Open...", "Open", "Открыть...", "Открыть" },
+        { S_MERGE_ITEM, "Merge into design...", "Merge", "Добавить в схему...", "Добавить" },
+        { S_BOX_ITEM, "Import as box...", "Box", "Импорт как блок...", "Блок" },
+        { S_SAVE_ITEM, "Save as...", "Save", "Сохранить как...", "Сохранить" },
+        { S_PNG_ITEM, "Export screenshot (PNG)", "PNG", "Снимок экрана (PNG)", "Снимок" },
+        { S_FIT_ITEM, "Zoom to fit", "Fit", "Показать всю схему", "Вся схема" },
+        { S_HOME_ITEM, "Reset view", "Home", "Сбросить вид", "Сброс вида" },
+        { S_SNAP_ITEM, "Snap to grid", "Snap", "Привязка к сетке", "Привязка" },
+        { S_LIVE_ITEM, "Colored wires", "Live wires", "Цветные провода", "Цветные" },
+        { S_PERF_ITEM, "Performance overlay", "Perf", "Счётчик производительности", "Счётчик" },
+        { S_ABOUT, "About Atanua Prime", "About", "О программе", "О программе" },
+        { S_APPEARANCE, "Appearance", "Appearance", "Оформление", "Оформление" },
+        { S_BEHAVIOR, "Behavior", "Behavior", "Поведение", "Поведение" },
+        { S_SYSTEM, "System", "System", "Система", "Система" },
+        { S_ST_CHIPS, "chips", "chips", "чипов", "чипов" },
+        { S_ST_WIRES, "wires", "wires", "проводов", "проводов" },
+        { S_ST_NETS, "nets", "nets", "цепей", "цепей" },
+        { S_ST_SIM, "Simulating", "Sim", "Симуляция", "Сим." },
+        { S_SELECTION, "selected", "selected", "выбрано", "выбрано" },
+        { S_EMPTY_TITLE, "Start a circuit", "Start a circuit", "Начните схему", "Начните схему" },
+        { S_EMPTY_BODY, "Drag a component from the library, or open a design with Ctrl+L", "Drag a component from the library", "Перетащите компонент из библиотеки или откройте проект через Ctrl+L", "Перетащите компонент из библиотеки" },
+        { S_REPORT_ISSUE, "Report an issue", "Report an issue", "Сообщить о проблеме", "Сообщить о проблеме" },
+        { S_PALETTE, "Command palette", "Commands", "Палитра команд", "Команды" },
+        { S_PALETTE_HINT, "Type a command or component", "Search", "Введите команду или компонент", "Поиск" },
+        { S_KIND_COMMAND, "Command", "Command", "Команда", "Команда" },
+        { S_RECENT, "Recent", "Recent", "Недавние", "Недавние" },
+        { S_PALETTE_FOOT, "Enter to run, arrows to move, Esc to close", "Enter / Esc", "Enter - выполнить, стрелки - выбор, Esc - закрыть", "Ввод / Esc" },
+        { S_ZOOM_IN, "Zoom in", "Zoom in", "Приблизить", "Приблизить" },
+        { S_ZOOM_OUT, "Zoom out", "Zoom out", "Отдалить", "Отдалить" },
+        { S_SELECT_ALL, "Select all", "Select all", "Выделить всё", "Выделить всё" },
+        { S_NET_HIGH, "High", "High", "Высокий", "Высокий" },
+        { S_NET_LOW, "Low", "Low", "Низкий", "Низкий" },
+        { S_NET_NC, "Not connected", "Floating", "Не подключено", "Не подкл." },
+        { S_NET_INVALID, "Conflict", "Conflict", "Конфликт", "Конфликт" },
+        { S_NET_NC_BODY, "Nothing drives this net yet.", "Nothing drives this net.", "Эту цепь пока ничто не питает.", "Цепь ничто не питает." },
+        { S_NET_INVALID_BODY, "Two or more outputs drive this net, or a chip is wired wrong.", "Outputs collide.", "Цепь питают два и более выхода, или микросхема подключена неверно.", "Выходы конфликтуют." },
+        { S_PIN_ON, "on", "on", "на", "на" }
     };
     if (countOut)
         *countOut = (int)(sizeof(kTable) / sizeof(kTable[0]));
@@ -269,31 +424,23 @@ inline int clampTooltipMs(int ms)
     return ms;
 }
 
-// Theme surface colors. THEME_DARK matches the long-standing chrome values
-// so the default look does not change; CONTRAST lifts panels and the accent.
+// Theme colors live in UiTheme::palette(); these keep the old call sites
+// and the settings tests readable.
 inline int themeMenuBg(int theme)
 {
-    return theme == THEME_CONTRAST ? 0xff2b3550 : 0xff20242c;
-}
-
-inline int themeMenuLine(int theme)
-{
-    return theme == THEME_CONTRAST ? 0xff4a5878 : 0xff333947;
-}
-
-inline int themeWidgetBg(int theme)
-{
-    return theme == THEME_CONTRAST ? 0xff3b4a6e : 0xff2c313c;
+    return UiTheme::palette(clampTheme(theme)).chrome;
 }
 
 inline int themeAccent(int theme)
 {
-    return theme == THEME_CONTRAST ? 0xff5fd0ff : 0xff4c8dff;
+    return UiTheme::palette(clampTheme(theme)).accent;
 }
 
-inline int themeHotRow(int theme)
+// Canvas flavor that suits a chrome theme; picked when the theme changes
+// (the canvas stays its own persisted setting afterwards).
+inline int themeWantsDarkCanvas(int theme)
 {
-    return theme == THEME_CONTRAST ? 0xff3d5a8f : 0xff31406b;
+    return clampTheme(theme) == THEME_LIGHT ? 0 : 1;
 }
 
 // Persisted values. Tooltip delay and audio mirror AtanuaConfig fields;
@@ -305,6 +452,8 @@ struct Values
     int tooltipMs;
     int audio;
     float uiScale;
+    int canvasDark;
+    int liveWires;
 };
 
 inline void defaults(Values &v)
@@ -314,6 +463,8 @@ inline void defaults(Values &v)
     v.tooltipMs = 1500;
     v.audio = 1;
     v.uiScale = 1.0f;
+    v.canvasDark = 1;
+    v.liveWires = 1;
 }
 
 inline void validate(Values &v)
@@ -323,6 +474,8 @@ inline void validate(Values &v)
     v.tooltipMs = clampTooltipMs(v.tooltipMs);
     v.audio = clampAudio(v.audio);
     v.uiScale = clampUiScale(v.uiScale);
+    v.canvasDark = clampAudio(v.canvasDark);
+    v.liveWires = clampAudio(v.liveWires);
 }
 
 inline int parseDec(const char *s, int fallback)
@@ -398,7 +551,7 @@ inline float parseFloat(const char *s, float fallback)
 // attribute as a decimal string.
 inline int fieldCount()
 {
-    return 5;
+    return 7;
 }
 
 inline const char *fieldTag(int i)
@@ -410,6 +563,8 @@ inline const char *fieldTag(int i)
     case 2: return "TooltipDelay";
     case 3: return "AudioEnable";
     case 4: return "UiScale";
+    case 5: return "CanvasDark";
+    case 6: return "LiveWires";
     default: return "";
     }
 }
@@ -475,6 +630,10 @@ inline bool getField(const Values &v, const char *tag, char *out, int cap)
         val = v.audio;
     else if (strcmp(tag, "UiScale") == 0)
         return formatFloat2(v.uiScale, out, cap);
+    else if (strcmp(tag, "CanvasDark") == 0)
+        val = v.canvasDark;
+    else if (strcmp(tag, "LiveWires") == 0)
+        val = v.liveWires;
     else
         return false;
     // Decimal itoa without stdio so tests and app share one path.
@@ -529,6 +688,16 @@ inline bool setField(Values &v, const char *tag, const char *str)
     if (strcmp(tag, "UiScale") == 0)
     {
         v.uiScale = clampUiScale(parseFloat(str, 1.0f));
+        return true;
+    }
+    if (strcmp(tag, "CanvasDark") == 0)
+    {
+        v.canvasDark = clampAudio(parseDec(str, 1));
+        return true;
+    }
+    if (strcmp(tag, "LiveWires") == 0)
+    {
+        v.liveWires = clampAudio(parseDec(str, 1));
         return true;
     }
     return false;

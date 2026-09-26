@@ -162,4 +162,11 @@ protected:
     int findkern(int id1, int id2);
 };
 
+// Optional replacement renderer for drawstring(): returns 1 when it drew
+// the string (the bitmap path is then skipped). Set by the app to render
+// canvas text with vector-quality glyphs at the on-screen size.
+class ACFont;
+extern int (*gACFontTextHook)(const ACFont *aFont, const char *aString, float aX, float aY,
+    int aColor, float aDesiredHt);
+
 #endif

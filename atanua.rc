@@ -1,9 +1,8 @@
-// Microsoft Visual C++ generated resource script.
-//
+// Atanua Prime application resources (Windows only; see CMakeLists).
 #include "resource.h"
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
-IDI_ICON1               ICON                    "icon1.ico"
-
-
+IDI_ICON1               ICON                    "atanua-app.ico"
+// Document icon for .atanua files (referenced as "<exe>",1).
+IDI_ICON2               ICON                    "atanua-doc.ico"

@@ -42,7 +42,7 @@ distribution.
 //// /Configuration
 //// 
 
-#ifdef _MSC_VER
+#if defined(_WIN32)
 #define WINDOWS_VERSION
 #endif
 

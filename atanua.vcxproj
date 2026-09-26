@@ -254,6 +254,7 @@
     <ClCompile Include="src\core\pluginchip.cpp" />
     <ClCompile Include="src\core\pluginchipfactory.cpp" />
     <ClCompile Include="src\core\simutils.cpp" />
+    <ClCompile Include="src\core\ui_chrome.cpp" />
     <ClCompile Include="src\core\slidingaverage.cpp" />
     <ClCompile Include="src\core\wire.cpp" />
     <ClCompile Include="src\glee\GLee.c" />

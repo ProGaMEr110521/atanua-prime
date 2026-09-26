@@ -23,6 +23,7 @@ distribution.
 #include "atanua.h"
 #include "atanua_internal.h"
 #include "stepper.h"
+#include "ui_theme.h"
 #include "fileutils.h"
 
 
@@ -90,7 +91,7 @@ void StepperMotor::render(int aChipId)
     sprintf(temp,"%03.1f'",mCurrentAngle / 10.0f);
     float w,h,ll;
     fn.stringmetrics(temp,w,h,ll,0.75);
-    fn.drawstring(temp,mX+4.5-w,mY-0.4,0xff00ff00,0.75);
+    fn.drawstring(temp,mX+4.5-w,mY-0.4,UiTheme::canvasInk(gBlackBackground),0.75);
 
     float angle = mCurrentAngle / 10.0f;//(mCurrentAngle / 3600.0f) * M_PI * 2;
     drawarrow(mX+2.9,mY+1.9,angle+180.0f,0x7f000000);

@@ -16,6 +16,7 @@ SRC_TOOLKIT = os.path.join(REPO, "src", "basecode", "toolkit.cpp")
 SRC_EXTRAPIN = os.path.join(REPO, "src", "chip", "extrapin.cpp")
 SRC_FONT = os.path.join(REPO, "src", "basecode", "angelcodefont.cpp")
 THEME_H = os.path.join(REPO, "src", "include", "ui_theme.h")
+SRC_CHROME = os.path.join(REPO, "src", "core", "ui_chrome.cpp")
 CMAKE_LISTS = os.path.join(REPO, "CMakeLists.txt")
 WORKFLOW = os.path.join(REPO, ".github", "workflows", "build.yml")
 if os.name == "nt":
@@ -46,28 +47,42 @@ def read(p):
         return f.read()
 
 
+def read_app():
+    # The ImGui chrome lives in ui_chrome.cpp; main.cpp keeps the canvas.
+    return read(SRC_MAIN) + "\n" + read(SRC_CHROME)
+
+
 def test_modern_theme_is_default():
     main = read(SRC_MAIN)
+    chrome = read(SRC_CHROME)
     theme = read(THEME_H)
-    for token in ["UI_TOPBAR_H", "C_TEXTDIM", "C_ACCENTTEXT",
-                  "themeAccent", "toImVec", "gStatusH"]:
-        assert token in main, f"modern theme token missing: {token}"
+    # One palette table drives every chrome and canvas color.
+    assert "struct Palette" in theme and "palette(int theme)" in theme
+    assert "PALETTE_LIGHT" in theme and "PALETTE_CONTRAST" in theme
+    assert "UiTheme::palette(" in main, "canvas does not read the palette"
+    assert "UiTheme::palette(" in chrome, "chrome does not read the palette"
     for gone in ["#define C_MENUBG", "#define C_WIDGETBG", "#define C_WIDGETHOT",
-                 "#define C_HOTROW", "#define GEN_ID"]:
-        assert gone not in main, f"dead chrome token leftover: {gone}"
+                 "#define C_HOTROW", "#define GEN_ID", "#define C_TEXTDIM",
+                 "#define C_ACCENTTEXT", "#define UI_TOPBAR_H", "UI_THEME_MENUBG"]:
+        assert gone not in main and gone not in theme, f"dead chrome token leftover: {gone}"
     toolkit = read(os.path.join(REPO, "src", "include", "toolkit.h"))
     assert "GEN_ID" not in toolkit, "dead widget ID macro leftover"
     assert "0xff3f4f4f" not in main, "old 2008 menubg still active"
-    assert "UI_THEME_MENUBG" in theme and "UiTheme" in theme
     assert "UiTheme::wirePickTolerance" in main, "canvas theme helpers not used"
-    assert "Status bar" in main or "Chips:%d" in main
-    for token in ["draw_topbar_imgui", "draw_sidebar_imgui", "ImGui::Selectable",
-                  "AlwaysAutoResize", "GetGlyphRangesCyrillic", "###tb",
-                  "settings_radio", "PushID"]:
-        assert token in main, f"imgui chrome missing: {token}"
-    for gone in ["topbarLayout", "TopbarLayout", "topbarHeight", "compactLabels",
-                 "slidervalue", "tb.settingsX", "xofs += tabW", "xofs += btnW"]:
-        assert gone not in main and gone not in theme, f"manual layout leftover: {gone}"
+    # Chrome is a separate module: header menus, library, status, dialogs.
+    for token in ["BeginMainMenuBar", "BeginMenu(", "drawLibrary", "drawStatus",
+                  "BeginPopupModal", "segmented(", "iconButton(", "applyStyle",
+                  "Inter-Regular.otf", "MergeMode", "canvasBlocked"]:
+        assert token in chrome, f"chrome piece missing: {token}"
+    for token in ["UiChrome::drawFrame", "UiChrome::drawOverlays", "UiChrome::init",
+                  "UiChrome::canvasBlocked"]:
+        assert token in main, f"chrome not wired into main: {token}"
+    for gone in ["draw_topbar_imgui", "draw_sidebar_imgui", "settings_radio",
+                 "topbarLayout", "slidervalue", "xofs += tabW"]:
+        assert gone not in main, f"old chrome leftover: {gone}"
+    assert os.path.isfile(os.path.join(DATA_DIR, "fonts", "Inter-Regular.otf"))
+    assert os.path.isfile(os.path.join(DATA_DIR, "fonts", "Inter-SemiBold.otf"))
+    assert os.path.isfile(os.path.join(DATA_DIR, "fonts", "LICENSE_INTER"))
 
 
 def test_toolkit_and_font_guards():
@@ -127,15 +142,14 @@ def test_main_interaction_guards():
         "cursor_normal",
         "font assets missing",
         "gTopbarH",
-        "draw_topbar_imgui",
-        "draw_sidebar_imgui",
+        "UiChrome::drawFrame",
+        "UiChrome::canvasBlocked",
         "split_wire_middle_at",
         "drop_routing_anchor_at",
         "find_release_pin",
         "find_anchor_near",
         "sMoveUndoSaved",
         "shouldSaveNudge",
-        "Undo:%d Redo:%d",
         "wirePickTolerance",
         "pinGrabPad",
         "sClickWire",
@@ -190,6 +204,125 @@ def test_readme_and_changelog():    # Front page is bilingual and documents the 
     assert "## [Unreleased]" in changelog, "changelog needs an Unreleased section"
     assert "## [v1.3.141223]" in changelog, "changelog missing published tag section"
     assert "## [v1.3.141222]" in changelog, "changelog missing published tag section"
+
+
+def test_dropfile_units():
+    # Compiles the SHIPPED drop/argv helper header and drives extension
+    # checks, drop acceptance and basename handling without a window.
+    _compile_and_run(os.path.join(REPO, "tests", "test_dropfile.cpp"),
+                     [],
+                     "ALL DROPFILE TESTS PASSED")
+
+
+def test_dropfile_wired_into_app():
+    # argv double-click and window drag-and-drop must flow through the
+    # shared helper: extension-checked, dirty-guarded, SDL path freed.
+    main = read(SRC_MAIN)
+    assert '#include "dropfile.h"' in main, "drop helper header not included"
+    assert "case SDL_DROPFILE:" in main, "drop event not handled"
+    assert "SDL_free(event.drop.file)" in main, "SDL drop path never freed"
+    assert 'SDL_EventState(SDL_DROPFILE, SDL_ENABLE)' in main, "drop events not enabled"
+    assert "open_external_file" in main, "shared open helper missing"
+    assert "DropFile::shouldAcceptDrop" in main, "drop path not extension-checked"
+    assert "DropFile::baseName" in main, "dirty prompt lacks file name"
+    assert "canvas_is_dirty" in main, "dirty-canvas guard missing"
+    assert "open_external_file(sArgvPath.c_str())" in main, "argv[1] bypasses the helper"
+    assert "do_loaddialog(0, args[1])" not in main, "argv[1] still opens unchecked"
+    assert "do_loaddialog(0, sArgvPath" not in main, "argv still opens unchecked"
+    sim = read(SRC_SIM)
+    assert "atanua_fopen_rb(aFilename)" in sim, "loader must open via UTF-8 helper"
+    assert "if (!fh)" in sim, "loader must not claim failed opens"
+    assert "_getcwd" in main or "getcwd" in main, "argv relative-path resolve missing"
+    assert "gotoappdirectory(argc, args)" in main, "startup chdir missing"
+    dropfile = read(os.path.join(REPO, "src", "include", "dropfile.h"))
+    assert "shouldAcceptDrop" in dropfile and "hasAtanuaExtension" in dropfile, \
+        "helper API incomplete"
+
+
+def test_fileassoc_units():
+    # Compiles the SHIPPED association helper header and drives ProgID
+    # layout, command/icon formatting and exe matching without registry.
+    _compile_and_run(os.path.join(REPO, "tests", "test_fileassoc.cpp"),
+                     [],
+                     "ALL FILEASSOC TESTS PASSED")
+
+
+def test_fileassoc_wired_into_app():
+    # Association must live behind an explicit Settings toggle (HKCU, no
+    # admin), never write at startup; icon + .desktop must ship; the
+    # Support section must carry both issues and email links.
+    main = read_app()
+    assert '#include "dropfile.h"' in main, "drop helper header not included"
+    assert "S_FILEASSOC" in main, "no association toggle in settings"
+    assert "assocState(0)" in main, "toggle never reads association state"
+    assert "assocInstall(0)" in main, "toggle never installs association"
+    assert "assocRemove()" in main, "toggle never removes association"
+    assert "mailto:vladtem3943@gmail.com" in main, "email link missing"
+    assert "S_EMAIL" in main, "email string key missing"
+    assert "atanua-prime/issues" in main, "issues link missing"
+    native = read(os.path.join(REPO, "src", "core", "nativefunctions.cpp"))
+    assert "HKEY_CURRENT_USER" in native, "association must stay per-user (HKCU)"
+    assert "assocInstall" in native and "assocRemove" in native, "assoc impl missing"
+    for token in ["assocReadString", "assocWriteString", "assocDeleteKey",
+                  "currentExePath", "assocState"]:
+        assert token in native, f"assoc helper missing: {token}"
+    assert "RegDeleteTreeA" in native, "remove must clean the ProgID tree"
+    assert "SHChangeNotify" in native, "toggle must refresh Explorer"
+    internal = read(os.path.join(REPO, "src", "include", "atanua_internal.h"))
+    for token in ["assocReadString", "assocWriteString", "assocDeleteKey",
+                  "assocState", "assocInstall", "assocRemove", "currentExePath"]:
+        assert token in internal, f"missing assoc decl: {token}"
+    assert os.path.isfile(os.path.join(REPO, "atanua.ico")), "atanua.ico not shipped"
+    assert os.path.isfile(os.path.join(REPO, "atanua-app.ico")), "app icon not shipped"
+    assert os.path.isfile(os.path.join(REPO, "atanua-doc.ico")), "doc icon not shipped"
+    assert os.path.isfile(os.path.join(REPO, "atanua.png")), "icon source art not shipped"
+    rc = read(os.path.join(REPO, "atanua.rc"))
+    assert "atanua-app.ico" in rc and "atanua-doc.ico" in rc, "rc must embed both icons"
+    assert "IDI_ICON1" in rc and "IDI_ICON2" in rc, "doc icon needs its own resource id"
+    cmake = read(os.path.join(REPO, "CMakeLists.txt"))
+    assert "atanua.rc" in cmake and "if(WIN32)" in cmake, "rc must join the Windows build"
+    assert "shell32" in cmake, "assoc refresh needs shell32"
+    assoc = read(os.path.join(REPO, "src", "include", "fileassoc.h"))
+    assert '"<exe>",1' in assoc, "file icon must use exe index 1"
+    assert os.path.isfile(os.path.join(REPO, "atanua.desktop")), "linux .desktop not shipped"
+    desktop = read(os.path.join(REPO, "atanua.desktop"))
+    assert "MimeType=application/x-atanua;" in desktop, ".desktop lacks MimeType"
+    assert "%f" in desktop, ".desktop cannot receive dropped files"
+    wf = read(WORKFLOW)
+    assert "atanua.ico" in wf, "windows package must ship the icon"
+    assert "atanua.desktop" in wf, "linux package must ship the .desktop file"
+
+
+def test_settings_layout_no_overlap():
+    # Rows sharing a visible label (Sound on/off vs file-assoc on/off) must
+    # not collide in ImGui's ID space: every segmented control has its own
+    # ID scope. The long assoc label uses the compact form.
+    main = read(SRC_MAIN)
+    chrome = read(SRC_CHROME)
+    assert "ImGui::PushID(id)" in chrome, "segmented controls lack an ID scope"
+    assert 'segmented("sound"' in chrome and 'segmented("assoc"' in chrome, \
+        "sound/assoc rows lost their own scopes"
+    assert "TS(AppSettings::S_FILEASSOC)" in chrome, \
+        "assoc row must use the compact label form"
+    # The support block shows each address once and wraps.
+    assert 'TextUnformatted("vladtem3943@gmail.com")' not in chrome, \
+        "plain-text email duplicate is back"
+    assert "PushTextWrapPos" in chrome and "PopTextWrapPos" in chrome, \
+        "support text is not wrapped"
+    assert "S_CREDIT" in chrome and "iki.fi/sol" in chrome, "credit missing from About"
+    assert "drawstring(\"http://iki.fi/sol/\"" not in main, \
+        "promo link still stamped on the canvas"
+    assert "S_CANVAS" in chrome and "S_PAPER" in chrome, \
+        "canvas background setting missing"
+    assert "S_USERNAME" in chrome and "##username" in chrome, \
+        "user name settings row missing"
+    assert "gBlackBackground ^=" not in main + chrome, \
+        "wires toggle still flips the background"
+    assert "mLiveWires = gLiveWires" in chrome, "wire mode not persisted"
+    # The canvas corner prints the free-form user name with the
+    # Cyrillic-covered bitmap font.
+    assert "fn14.drawstring(gConfig.mUserInfo" in main, \
+        "corner username needs the Cyrillic bitmap font"
 
 
 def test_reset_saves_only_on_confirm():
@@ -324,6 +457,14 @@ def test_fileutils_roundtrip():
                      "ALL FILEUTILS TESTS PASSED")
 
 
+def test_ui_theme_units():
+    # Compiles the SHIPPED theme header: palettes, canvas hit-test and
+    # grid/wire helpers.
+    _compile_and_run(os.path.join(REPO, "tests", "test_ui_theme.cpp"),
+                     [],
+                     "ALL UI THEME TESTS PASSED")
+
+
 def test_settings_units():
     # Compiles the SHIPPED settings/language header and drives language
     # mapping, EN/RU lookup, validation and config field round-trip.
@@ -336,29 +477,50 @@ def test_settings_wired_into_app():
     # Language + settings must flow through the real paths: config fields
     # with save(), localized topbar labels, a settings panel that
     # persists, UTF-8 font decoding and a shipped Cyrillic glyph page.
-    main = read(SRC_MAIN)
+    main = read_app()
     assert '#include "app_settings.h"' in main, "settings header not included"
     assert "gSettingsOpen" in main, "settings open flag missing"
-    assert "topbar_btn(AppSettings::S_NEW" in main, "action labels not localized"
+    assert "TS(AppSettings::S_NEW)" in main, "action labels not localized"
     assert "AppSettings::S_BASE" in main, "tabs not localized"
-    assert "S_SETTINGS" in main and "draw_topbar_imgui" in main, "no settings entry point in topbar"
-    assert "draw_settings_panel" in main, "settings panel missing"
+    assert "S_SETTINGS" in main and "BeginMainMenuBar" in main, "no settings entry point in header"
+    assert "settingsBody" in main, "settings panel missing"
     assert "gConfig.save()" in main, "panel never persists"
     assert "S_SOUND_RESTART_NOTE" in main, "restart note missing"
+    assert "S_CONFIRM_EXIT" in main, "quit prompt not localized"
+    assert "S_CONFIRM_OPEN" in main, "drop open prompt not localized"
+    assert '"Are you sure you want to exit' not in main, "hardcoded EN quit prompt is back"
+    assert '"Open %s?' not in main, "hardcoded EN drop prompt is back"
+    sim = read(SRC_SIM)
+    assert "S_CONFIRM_RESET" in sim, "reset prompt not localized"
+    assert '"Are you sure you want to reset' not in sim, "hardcoded EN reset prompt is back"
+    native = read(os.path.join(REPO, "src", "core", "nativefunctions.cpp"))
+    assert "S_OPENTITLE" in native and "S_SAVETITLE" in native, \
+        "file dialog titles not localized"
+    assert '"Open Atanua design file"' not in native, "hardcoded EN open title is back"
+    assert '"Save Atanua design file"' not in native, "hardcoded EN save title is back"
+    assert "static const char *uiAnsi" in native, "UTF-8 to ANSI dialog helper missing"
+    assert "uiAnsi(prompt)" in native, "confirm prompts bypass the ANSI conversion"
+    fileio = read(os.path.join(REPO, "src", "core", "fileio.cpp"))
+    assert "S_ERR_BOXNOPINS" in fileio and "S_ERR_BADWIRE" in fileio, \
+        "load error prompts not localized"
+    base = read(os.path.join(REPO, "src", "core", "basechipfactory.cpp"))
+    assert "S_ERR_BOXLIMIT" in base, "box limit prompt not localized"
     assert "gSettingsOpen = 0" in main, "panel has no close path"
     font = read(os.path.join(REPO, "src", "basecode", "angelcodefont.cpp"))
     assert "acfont_nextcode" in font, "font has no UTF-8 decoder"
     cfg = read(os.path.join(REPO, "src", "core", "AtanuaConfig.cpp"))
     assert "mLanguage" in cfg and "mThemeVariant" in cfg, "config fields missing"
+    assert "mCanvasDark" in cfg and "mLiveWires" in cfg, "canvas/wires fields missing"
+    assert '"CanvasDark"' in cfg and '"LiveWires"' in cfg, "canvas/wires XML missing"
     assert "void AtanuaConfig::save()" in cfg, "config save() missing"
     assert '"Language"' in cfg and '"ThemeVariant"' in cfg, "new XML elements missing"
     assert "isKnownConfigElement" in cfg, "save() must preserve unknown elements"
     header = read(os.path.join(REPO, "src", "include", "atanua.h"))
     assert "void save();" in header and "mLanguage;" in header, "config decl missing"
+    assert "mCanvasDark;" in header and "mLiveWires;" in header, "canvas decl missing"
     theme = read(THEME_H)
     assert "TopbarLayout" not in theme and "topbarLayout" not in theme, \
         "manual topbar math must stay deleted"
-    assert "draw_topbar_need" in main, "no measured row wrap"
     # The shipped font must carry Cyrillic glyphs the RU strings need
     # (the original page was Latin-only). They live on the same single
     # texture page so the cached draw path stays on one texture.
@@ -413,12 +575,11 @@ def test_settings_wired_into_app():
         "font license missing"
     for token in ["ImGui::CreateContext", "ImGui_ImplSDL2_ProcessEvent",
                   "ImGui_ImplSDL2_NewFrame", "ImGui_ImplOpenGL2_RenderDrawData",
-                  "GetGlyphRangesCyrillic", "settings_radio", "ImGui::Begin",
-                  "AlwaysAutoResize", "##statusbar", "SetTooltip", "ProgressBar",
-                  "InputTextWithHint", "name_matches", "imgui_wants_keys",
-                  "FontScaleMain", "S_UISCALE", "uiScalePreset", "draw_topbar_need",
-                  "FrameRounding", "topbar_sep", "S_SHORTCUTS", "draw_shortcuts_window",
-                  "gShortcutsOpen", "draw_topbar_tabs", "topbar_group_w", "0.906f"]:
+                  "ImGui::Begin", "AlwaysAutoResize", "##status", "SetTooltip",
+                  "ProgressBar", "InputTextWithHint", "nameMatches", "imgui_wants_keys",
+                  "FontScaleMain", "S_UISCALE", "uiScalePreset", "FrameRounding",
+                  "S_SHORTCUTS", "shortcutsBody", "gShortcutsOpen", "categoryTabs",
+                  "canvasPaper"]:
         assert token in main, f"imgui wiring missing: {token}"
     assert "settings_opt" not in main, "old fixed-pixel panel helper still present"
     cmake = read(CMAKE_LISTS)
@@ -463,7 +624,9 @@ def test_updatecheck_wired_into_app():
     assert "tasklist" in src and "xcopy" in src, "windows restarter script missing"
     assert "Restarting to finish the update." in src, "no restart notice text"
     assert "tar -xf" in src or "tar.exe" in src, "windows unpack step missing"
-    assert "kill -0" in src and "cp -rf" in src, "linux restarter script missing"
+    # Linux swaps the binary in place and re-execs it (no shell restarter).
+    assert "AppUpdate_ApplyAndRelaunch" in src and "execve(" in src, "linux relaunch missing"
+    assert "bakPath" in src, "linux update must keep a backup to roll back to"
     cmake = read(CMAKE_LISTS)
     assert "appupdate.cpp" in cmake, "appupdate.cpp not built"
     assert "wininet" in cmake.lower(), "Windows HTTP link missing"
@@ -475,7 +638,7 @@ def test_anchor_visible_and_magnetic():
     assert "mRotatedW < 2.0f" in main, "tiny-chip-only padding missing"
     pin = read(SRC_EXTRAPIN)
     assert "anchor dot" in pin, "always-on anchor marker missing"
-    assert "UI_THEME_ACCENTTEXT" in pin, "anchor hover accent missing"
+    assert "pal.accent" in pin, "anchor hover accent missing"
     assert "ANCHOR_WIRE_GREEN" in pin, "inner wire-start square missing"
     assert "Outer ring" in pin, "outer move ring missing"
 
@@ -592,5 +755,10 @@ if __name__ == "__main__":
     test_anchor_visible_and_magnetic()
     test_circuits_parse_and_wire_indices_valid()
     test_binary_and_assets_present()
+    test_dropfile_units()
+    test_dropfile_wired_into_app()
+    test_fileassoc_units()
+    test_fileassoc_wired_into_app()
+    test_settings_layout_no_overlap()
     test_cpp_theme_harness()
     print("python structural checks passed")

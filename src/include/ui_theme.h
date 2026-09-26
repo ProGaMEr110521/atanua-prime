@@ -8,23 +8,123 @@ Pure, window-system independent helpers behind the SDL/OpenGL UI.
 #include <math.h>
 #include <stddef.h>
 
-// Modern dark chrome (default). Kept in one place so tests can pin it.
-#define UI_THEME_MENUBG     0xff20242c
-#define UI_THEME_MENULINE   0xff333947
-#define UI_THEME_WIDGETBG   0xff2c313c
-#define UI_THEME_WIDGETTHUMB 0xff59637a
-#define UI_THEME_WIDGETHOT  0xff4c8dff
-#define UI_THEME_TEXT       0xffeef1f6
-#define UI_THEME_TEXTDIM    0xff8b93a7
-#define UI_THEME_HOTROW     0xff31406b
-#define UI_THEME_ACCENTTEXT 0xff7ddf8a
-
-#define UI_THEME_TOPBAR_H 48
-#define UI_THEME_TAB_W 68
-#define UI_THEME_BTN_W 68
-#define UI_THEME_ROW_H 30
-
 namespace UiTheme {
+
+// Design tokens. One palette per chrome theme (AppSettings::Theme order:
+// dark, contrast, light), 0xAARRGGBB like the rest of the renderer. Chrome
+// code reads colors only from here, never from literals, so a theme is a
+// single table edit. Canvas colors come in dark and paper flavors because
+// the canvas background is its own setting.
+struct Palette
+{
+    // chrome surfaces, back to front
+    unsigned chrome;      // header + status bar
+    unsigned panel;       // library sidebar, modals
+    unsigned surface;     // inputs, idle buttons
+    unsigned surfaceHi;   // hover
+    unsigned surfaceAct;  // pressed / selected
+    unsigned border;
+    unsigned borderHi;
+    // type
+    unsigned text;
+    unsigned textDim;
+    unsigned textFaint;
+    // accent (selection, active toggles, focus)
+    unsigned accent;
+    unsigned accentHi;
+    unsigned accentText;  // text drawn on an accent fill
+    // semantic
+    unsigned ok;
+    unsigned danger;
+    // canvas, dark flavor
+    unsigned canvasDark;
+    unsigned gridMinorDark;
+    unsigned gridMajorDark;
+    // canvas, paper flavor
+    unsigned canvasPaper;
+    unsigned gridMinorPaper;
+    unsigned gridMajorPaper;
+};
+
+enum { PALETTE_DARK = 0, PALETTE_CONTRAST = 1, PALETTE_LIGHT = 2, PALETTE_COUNT = 3 };
+
+inline const Palette &palette(int theme)
+{
+    static const Palette kPal[PALETTE_COUNT] = {
+        // Graphite: neutral greys, warm amber accent (reads as "signal"
+        // and never fights the green/red wire states on the canvas).
+        { 0xff141619, 0xff191b1f, 0xff212429, 0xff2a2e34, 0xff333840,
+          0xff26292e, 0xff3a3f47,
+          0xffe6e7e9, 0xff9197a1, 0xff5f646d,
+          0xffe8a33d, 0xfff3b75e, 0xff1b1406,
+          0xff5cc98a, 0xffe5534b,
+          0xff101114, 0xff171a1e, 0xff23272d,
+          0xffe8e6e1, 0xffdcd9d2, 0xffc9c5bc },
+        // Contrast: pure black and white, yellow accent, hard borders.
+        { 0xff000000, 0xff050505, 0xff141414, 0xff262626, 0xff333333,
+          0xff8a8a8a, 0xffffffff,
+          0xffffffff, 0xffd6d6d6, 0xffa8a8a8,
+          0xffffd400, 0xffffe45c, 0xff000000,
+          0xff4cff8f, 0xffff5c5c,
+          0xff000000, 0xff141414, 0xff3a3a3a,
+          0xffffffff, 0xffd8d8d8, 0xff9a9a9a },
+        // Light: warm paper chrome, burnt-orange accent for contrast.
+        { 0xfff3f2ee, 0xfff8f7f4, 0xffffffff, 0xffeae8e2, 0xffdedbd3,
+          0xffdedbd4, 0xffc4c0b6,
+          0xff1c1d20, 0xff62666e, 0xff9a9ea6,
+          0xffc2560f, 0xffd9691f, 0xffffffff,
+          0xff1f8a4c, 0xffc62f28,
+          0xff14161a, 0xff1b1e23, 0xff282c33,
+          0xffebe9e4, 0xffdfdcd5, 0xffcbc7be },
+    };
+    if (theme < 0 || theme >= PALETTE_COUNT)
+        theme = PALETTE_DARK;
+    return kPal[theme];
+}
+
+// Replace the alpha byte of an 0xAARRGGBB color.
+inline int withAlpha(int c, int a)
+{
+    if (a < 0) a = 0;
+    if (a > 255) a = 255;
+    return (int)(((unsigned)c & 0x00ffffffu) | ((unsigned)a << 24));
+}
+
+// Canvas grid: minor lines every world unit only once they are at least
+// this many pixels apart, major lines every 10 units always.
+inline int gridMinorVisible(float zoom)
+{
+    return zoom >= 9.0f ? 1 : 0;
+}
+
+// Wire half width in world units: the chip-art stroke (0.09) but never
+// thinner on screen than 1.5 px.
+inline float wireHalfWidth(float zoom)
+{
+    if (zoom < 0.01f) zoom = 0.01f;
+    float w = 0.09f;
+    if (w * zoom < 1.5f) w = 1.5f / zoom;
+    return w * 0.5f;
+}
+
+// Ink for user text on the canvas (labels, readouts): near-white on the
+// dark canvas, near-black on paper.
+inline unsigned canvasInk(int darkCanvas)
+{
+    return darkCanvas ? 0xffdde1e7u : 0xff1f2126u;
+}
+
+// Spacing scale (px at 1.0 UI scale). Everything in the chrome snaps to
+// these so paddings line up across header, sidebar and modals.
+enum { SP_1 = 4, SP_2 = 8, SP_3 = 12, SP_4 = 16, SP_5 = 24 };
+
+// Library sidebar width bounds (px); the user drags the splitter.
+inline int clampSidebarWidth(int w)
+{
+    if (w < 200) return 200;
+    if (w > 460) return 460;
+    return w;
+}
 
 inline int clampSliderMax(int count, int rowH, int viewH)
 {

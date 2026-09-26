@@ -161,116 +161,75 @@ static void do_loadtexture(const char * aFilename, int clamp = 1)
     if (data == NULL)
         return;
 
-    int l, w, h;
-    w = x;
-    h = y;
-    l = 0;
-    unsigned int * mip = new unsigned int[w * h * 5];
-    unsigned int * src = (unsigned int*)data;
-
-    memset(mip, 0, w * h * 4);
-
     // mark all pixels with alpha = 0 to black
-    for (i = 0; i < h; i++)
+    unsigned int * src = (unsigned int*)data;
+    for (i = 0; i < x * y; i++)
     {
-        for (j = 0; j < w; j++)
-        {
-            if ((src[i * w + j] & 0xff000000) == 0)
-                src[i * w + j] = 0;
-        }
+        if ((src[i] & 0xff000000) == 0)
+            src[i] = 0;
     }
-
 
     // Tell OpenGL to read the texture
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, (GLvoid*)src);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, x, y, 0, GL_RGBA, GL_UNSIGNED_BYTE, (GLvoid*)data);
 
-    if (mip)
+    // Mip chain: each level is a 2x2 box filter of the previous one, with
+    // color weighted by alpha so transparent texels (black after the pass
+    // above) do not darken glyph and line edges. The old summed-area
+    // version sampled one texel per block (an off-by-one), which made
+    // zoomed-out text and sprites shimmer and look pixelated.
     {
-        // precalculate summed area tables
-        // it's a box filter, which isn't very good, but at least it's fast =)
-        int ra = 0, ga = 0, ba = 0, aa = 0;
-        int i, j, c;
-        unsigned int * rbuf = mip + (w * h * 1);
-        unsigned int * gbuf = mip + (w * h * 2);
-        unsigned int * bbuf = mip + (w * h * 3);
-        unsigned int * abuf = mip + (w * h * 4);
-        
-        for (j = 0, c = 0; j < h; j++)
-        {
-            ra = ga = ba = aa = 0;
-            for (i = 0; i < w; i++, c++)
-            {
-                ra += (src[c] >>  0) & 0xff;
-                ga += (src[c] >>  8) & 0xff;
-                ba += (src[c] >> 16) & 0xff;
-                aa += (src[c] >> 24) & 0xff;
-                if (j == 0)
-                {
-                    rbuf[c] = ra;
-                    gbuf[c] = ga;
-                    bbuf[c] = ba;
-                    abuf[c] = aa;
-                }
-                else
-                {
-                    rbuf[c] = ra + rbuf[c - w];
-                    gbuf[c] = ga + gbuf[c - w];
-                    bbuf[c] = ba + bbuf[c - w];
-                    abuf[c] = aa + abuf[c - w];
-                }
-            }
-        }
-
+        int w = x, h = y, l = 0;
+        unsigned char *prev = data;
+        unsigned char *owned = NULL;
         while (w > 1 || h > 1)
         {
-            l++;
-            w /= 2;
-            h /= 2;
-            if (w == 0) w = 1;
-            if (h == 0) h = 1;
-
-            int dw = x / w;
-            int dh = y / h;
-
-            for (j = 0, c = 0; j < h; j++)
+            int nw = w > 1 ? w / 2 : 1;
+            int nh = h > 1 ? h / 2 : 1;
+            unsigned char *next = new unsigned char[nw * nh * 4];
+            for (j = 0; j < nh; j++)
             {
-                for (i = 0; i < w; i++, c++)
+                for (i = 0; i < nw; i++)
                 {
-                    int x1 = i * dw;
-                    int y1 = j * dh;
-                    int x2 = x1 + dw - 1;
-                    int y2 = y1 + dh - 1;
-                    int div = (x2 - x1) * (y2 - y1);
-                    y1 *= x;
-                    y2 *= x;
-                    int r = rbuf[y2 + x2] - rbuf[y1 + x2] - rbuf[y2 + x1] + rbuf[y1 + x1];
-                    int g = gbuf[y2 + x2] - gbuf[y1 + x2] - gbuf[y2 + x1] + gbuf[y1 + x1];
-                    int b = bbuf[y2 + x2] - bbuf[y1 + x2] - bbuf[y2 + x1] + bbuf[y1 + x1];
-                    int a = abuf[y2 + x2] - abuf[y1 + x2] - abuf[y2 + x1] + abuf[y1 + x1];
-
-                    r /= div;
-                    g /= div;
-                    b /= div;
-                    a /= div;
-
+                    unsigned int r = 0, g = 0, b = 0, a = 0;
+                    for (int dy = 0; dy < 2; dy++)
+                    {
+                        int sy = j * 2 + dy;
+                        if (sy >= h) sy = h - 1;
+                        for (int dx = 0; dx < 2; dx++)
+                        {
+                            int sx = i * 2 + dx;
+                            if (sx >= w) sx = w - 1;
+                            const unsigned char *px = prev + (sy * w + sx) * 4;
+                            r += px[0] * px[3];
+                            g += px[1] * px[3];
+                            b += px[2] * px[3];
+                            a += px[3];
+                        }
+                    }
+                    unsigned char *o = next + (j * nw + i) * 4;
                     if (a == 0)
-                        mip[c] = 0;
+                    {
+                        o[0] = o[1] = o[2] = o[3] = 0;
+                    }
                     else
-                        mip[c] = ((r & 0xff) <<  0) | 
-                                 ((g & 0xff) <<  8) | 
-                                 ((b & 0xff) << 16) | 
-                                 ((a & 0xff) << 24); 
+                    {
+                        o[0] = (unsigned char)(r / a);
+                        o[1] = (unsigned char)(g / a);
+                        o[2] = (unsigned char)(b / a);
+                        o[3] = (unsigned char)((a + 2) / 4);
+                    }
                 }
             }
-            glTexImage2D(GL_TEXTURE_2D, l, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, (GLvoid*)mip);
+            l++;
+            glTexImage2D(GL_TEXTURE_2D, l, GL_RGBA, nw, nh, 0, GL_RGBA, GL_UNSIGNED_BYTE, (GLvoid*)next);
+            delete[] owned;
+            owned = next;
+            prev = next;
+            w = nw;
+            h = nh;
         }
+        delete[] owned;
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_LINEAR); // Linear Filtering
-        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR); // Linear Filtering
-        delete[] mip;
-    }
-    else
-    {
-        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR); // Linear Filtering
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR); // Linear Filtering
     }
 

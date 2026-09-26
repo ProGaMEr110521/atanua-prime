@@ -87,6 +87,7 @@ pluginchipfactory.cpp \
 sedchip.cpp \
 serchip.cpp \
 simutils.cpp \
+ui_chrome.cpp \
 srchip.cpp \
 srflipflop.cpp \
 srnegchip.cpp \

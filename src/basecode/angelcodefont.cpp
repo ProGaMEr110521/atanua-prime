@@ -291,9 +291,14 @@ int ACFont::findkern(int id1, int id2)
 
 volatile int crap = 0;
 
+int (*gACFontTextHook)(const ACFont *aFont, const char *aString, float aX, float aY,
+    int aColor, float aDesiredHt) = 0;
+
 void ACFont::drawstring(const char * string, float x, float y, int color, float desired_ht)
 {
     if (!string || !string[0])
+        return;
+    if (gACFontTextHook && desired_ht > 0.0f && gACFontTextHook(this, string, x, y, color, desired_ht))
         return;
     if (pages.pages == 0)
         return;
