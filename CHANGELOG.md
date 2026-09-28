@@ -7,6 +7,8 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 ## [Unreleased] / [В разработке]
 
 ### Added / Добавлено
+- Windows builds link the C runtime statically (x64-windows-static triplet): the exe imports only OS DLLs, so PCs without the VC++ redistributable — e.g. university labs — run it from a plain folder copy.
+- Сборки Windows статически линкуют CRT (триплет x64-windows-static): exe зависит только от системных DLL, поэтому на ПК без VC++ redistributable — например учебных — программа запускается из обычной папки.
 - Linux install layout: binary, data, `.desktop` entry, and hicolor icon via `cmake --install`. Config follows XDG at `~/.config/atanua/atanua.xml`, with the old working-directory file still read if present.
 - Установка на Linux: бинарник, данные, `.desktop` и иконка hicolor через `cmake --install`. Конфиг по XDG в `~/.config/atanua/atanua.xml`, старый файл из рабочей папки по-прежнему читается, если он есть.
 - Linux update check downloads release info with `curl`.

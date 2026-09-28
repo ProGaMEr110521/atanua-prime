@@ -169,6 +169,7 @@ def test_workflow_publishes_tagged_releases():
     assert "upload-artifact" in wf, "builds not uploaded for release"
     assert "atanua.exe" in wf and "data" in wf, "windows package incomplete"
     assert "dumpbin" in wf, "windows package must resolve runtime DLLs, not hardcode vcpkg paths"
+    assert "x64-windows-static" in wf, "windows CI must build the static triplet (no VC runtime)"
     assert "CHANGELOG.md" in wf, "release must publish changelog notes"
     assert "--notes" in wf, "release must prefer changelog notes over generated ones"
     assert "ATANUAVERSION" in wf, "release must verify version matches tag"
@@ -384,10 +385,12 @@ def _find_cl(path_env=None):
 
 def _sdl_include():
     cands = [
+        os.path.join(REPO, "build", "vcpkg_installed", "x64-windows-static", "include"),
         os.path.join(REPO, "build", "vcpkg_installed", "x64-windows", "include"),
     ]
     root = os.environ.get("VCPKG_INSTALLATION_ROOT")
     if root:
+        cands.append(os.path.join(root, "installed", "x64-windows-static", "include"))
         cands.append(os.path.join(root, "installed", "x64-windows", "include"))
     cands.append("/usr/include")
     for c in cands:
@@ -608,7 +611,8 @@ def test_updatecheck_wired_into_app():
     assert "tasklist" in src and "xcopy" in src, "windows restarter script missing"
     assert "Restarting to finish the update." in src, "no restart notice text"
     assert "tar -xf" in src or "tar.exe" in src, "windows unpack step missing"
-    assert "kill -0" in src and "cp -rf" in src, "linux restarter script missing"
+    assert "execve" in src and "AppUpdate_ApplyAndRelaunch" in src, "linux relaunch path missing"
+    assert "cp -a" in src, "linux data staging missing"
     cmake = read(CMAKE_LISTS)
     assert "appupdate.cpp" in cmake, "appupdate.cpp not built"
     assert "wininet" in cmake.lower(), "Windows HTTP link missing"
@@ -652,6 +656,24 @@ def test_binary_and_assets_present():
     assert os.path.getsize(BUILD_EXE) > 100000, f"{BUILD_EXE} suspiciously small"
     for name in ["vera14.fnt", "vera31.fnt", "icon.png", "led.png"]:
         assert os.path.exists(os.path.join(DATA_DIR, name)), f"missing data/{name}"
+
+
+def test_exe_has_no_vc_runtime_imports():
+    # University lab PCs have no VC++ redistributable, so the exe must
+    # not import the VC runtime DLLs (static CRT + static vcpkg triplet).
+    if os.name != "nt":
+        return
+    import shutil
+    cl = _find_cl()
+    dumpbin = os.path.join(os.path.dirname(cl), "dumpbin.exe")
+    if not os.path.isfile(dumpbin):
+        dumpbin = shutil.which("dumpbin.exe", path=_msvc_env().get("PATH", ""))
+    assert dumpbin, "no dumpbin.exe found"
+    p = subprocess.run([dumpbin, "/dependents", BUILD_EXE],
+                       capture_output=True, timeout=120)
+    out = p.stdout.decode("utf-8", errors="replace").lower()
+    for dll in ("vcruntime140", "msvcp140", "msvcr", "concrt", "vcomp"):
+        assert dll not in out, f"{BUILD_EXE} still imports {dll}"
 
 
 def test_cpp_theme_harness():
@@ -737,6 +759,7 @@ if __name__ == "__main__":
     test_anchor_visible_and_magnetic()
     test_circuits_parse_and_wire_indices_valid()
     test_binary_and_assets_present()
+    test_exe_has_no_vc_runtime_imports()
     test_dropfile_units()
     test_dropfile_wired_into_app()
     test_fileassoc_units()

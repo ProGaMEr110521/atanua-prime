@@ -14,6 +14,15 @@ if(MSVC)
   add_compile_options(/W3 /MP)
 endif()
 
+# University lab PCs have no VC++ redistributable and no admin to install
+# one, so Windows release builds link the CRT statically: with the
+# x64-windows-static vcpkg triplet every dependency is a static lib and
+# the exe imports only OS DLLs. The triplet flag and this setting must
+# stay in sync; dynamic-triplet builds keep the dynamic CRT as before.
+if(MSVC AND VCPKG_TARGET_TRIPLET MATCHES "static")
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
 find_package(SDL2 CONFIG QUIET)
 if(NOT SDL2_FOUND)
   find_package(SDL2 REQUIRED)
