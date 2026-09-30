@@ -195,6 +195,7 @@ set(ATANUA_SOURCES
   src/core/pluginchipfactory.cpp
   src/core/simutils.cpp
   src/core/slidingaverage.cpp
+  src/core/validate.cpp
   src/core/wire.cpp
   src/stb/stb_image.c
   src/stb/stb_image_write.c

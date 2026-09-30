@@ -583,6 +583,35 @@ def test_updatecheck_units():
                      "ALL UPDATE TESTS PASSED")
 
 
+def test_validate_units():
+    # Compiles the SHIPPED headless validator with the real tinyxml2 and
+    # drives good plus broken circuits (stubbed file open: the suite only
+    # feeds ASCII temp paths; UTF-8 opens are proven by the live CLI).
+    if os.name == "nt":
+        lib = os.path.join(REPO, "build", "vcpkg_installed",
+                           "x64-windows-static", "lib", "tinyxml2.lib")
+        assert os.path.isfile(lib), f"{lib} missing; configure the static triplet"
+        extra = [os.path.join(REPO, "src", "core", "validate.cpp"), lib]
+    else:
+        extra = [os.path.join(REPO, "src", "core", "validate.cpp"), "-ltinyxml2"]
+    _compile_and_run(os.path.join(REPO, "tests", "test_validate.cpp"),
+                     extra,
+                     "ALL VALIDATE TESTS PASSED")
+
+
+def test_validate_wired_into_app():
+    # --validate must dispatch before any window/GL/audio init and the
+    # loader rules it mirrors (positional pads, case-insensitive names,
+    # dynamic Box subfiles) must be visible in the code.
+    main = read(SRC_MAIN)
+    assert '"--validate"' in main, "validate flag missing"
+    assert "validate_circuit(resolve_argv_path(args[2]).c_str())" in main, \
+        "validate bypasses the startup-dir resolve"
+    assert "resolve_argv_path" in main, "argv resolve helper missing"
+    assert "chipPinCount" in read(os.path.join(REPO, "src", "core", "validate.cpp")), \
+        "validator must use the mined pin table"
+
+
 def test_updatecheck_wired_into_app():
     # The check must actually run at startup and surface exactly once,
     # and a Yes must flow into download -> install -> restart.
@@ -676,6 +705,39 @@ def test_exe_has_no_vc_runtime_imports():
         assert dll not in out, f"{BUILD_EXE} still imports {dll}"
 
 
+def test_chip_catalog_in_sync():
+    # tools/chips.json and src/include/chipdb.h are mined from the chip
+    # sources; if any chip changed without re-running the miner, the
+    # catalog lies to every generator built on it.
+    import json
+    committed = os.path.join(REPO, "tools", "chips.json")
+    header = os.path.join(REPO, "src", "include", "chipdb.h")
+    assert os.path.isfile(committed), "tools/chips.json missing; run tools/mine_pins.py"
+    assert os.path.isfile(os.path.join(REPO, "tools", "mine_pins.py")), "miner missing"
+    with open(header, encoding="utf-8") as f:
+        old_header = f.read()
+    tmp = tempfile.mkdtemp(prefix="atanua_pins_")
+    try:
+        fresh = os.path.join(tmp, "chips.json")
+        fresh_header = os.path.join(tmp, "chipdb.h")
+        p = subprocess.run([sys.executable, os.path.join(REPO, "tools", "mine_pins.py"),
+                            fresh, fresh_header],
+                           capture_output=True, timeout=120)
+        assert p.returncode == 0, f"miner failed:\n{p.stderr.decode('utf-8', errors='replace')}"
+        with open(committed, encoding="utf-8") as f:
+            old = json.load(f)
+        with open(fresh, encoding="utf-8") as f:
+            new = json.load(f)
+        assert old == new, "tools/chips.json out of sync; run tools/mine_pins.py and commit it"
+        assert old.get("version") == 1, "catalog version drift"
+        assert len(old["chips"]) > 200, "catalog suspiciously small"
+        with open(fresh_header, encoding="utf-8") as f:
+            assert f.read() == old_header, \
+                "src/include/chipdb.h out of sync; run tools/mine_pins.py and commit it"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_cpp_theme_harness():
     if os.name != "nt":
         return
@@ -750,6 +812,8 @@ if __name__ == "__main__":
     test_fileutils_roundtrip()
     test_updatecheck_units()
     test_updatecheck_wired_into_app()
+    test_validate_units()
+    test_validate_wired_into_app()
     test_undo_covers_every_mutation()
     test_ubuntu_ci_has_gtk()
     test_workflow_publishes_tagged_releases()
@@ -760,6 +824,7 @@ if __name__ == "__main__":
     test_circuits_parse_and_wire_indices_valid()
     test_binary_and_assets_present()
     test_exe_has_no_vc_runtime_imports()
+    test_chip_catalog_in_sync()
     test_dropfile_units()
     test_dropfile_wired_into_app()
     test_fileassoc_units()

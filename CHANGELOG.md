@@ -7,6 +7,8 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 ## [Unreleased] / [В разработке]
 
 ### Added / Добавлено
+- AI circuit tooling: mined chip catalog (`tools/chips.json`, 269 chips with pinouts) and headless `atanua --validate` with machine-readable diagnostics and exit codes.
+- Инструменты для ИИ-генерации схем: каталог компонентов (`tools/chips.json`, 269 чипов с распиновкой) и headless-проверка `atanua --validate` с машиночитаемой диагностикой и кодами выхода.
 - Windows builds link the C runtime statically (x64-windows-static triplet): the exe imports only OS DLLs, so PCs without the VC++ redistributable — e.g. university labs — run it from a plain folder copy.
 - Сборки Windows статически линкуют CRT (триплет x64-windows-static): exe зависит только от системных DLL, поэтому на ПК без VC++ redistributable — например учебных — программа запускается из обычной папки.
 - Linux install layout: binary, data, `.desktop` entry, and hicolor icon via `cmake --install`. Config follows XDG at `~/.config/atanua/atanua.xml`, with the old working-directory file still read if present.

@@ -171,6 +171,12 @@ extern int AppUpdate_ConsumeReady(char *aMsgOut, int aMsgCap);
 extern int AppUpdate_ApplyAndRelaunch();
 extern BoxStitchingInformation * do_preparse_box(const char *aFname);
 
+// from validate.cpp: headless circuit check, no window/GL/audio/config.
+// Prints machine-readable diagnostics; returns 0 = valid, 1 = invalid,
+// 2 = misuse (no path, unreadable file).
+extern int validate_circuit_to(const char *aPath, FILE *out);
+extern int validate_circuit(const char *aPath);
+
 // from nativefunctions.cpp
 
 extern FILE * atanua_fopen_rb(const char *aPath);

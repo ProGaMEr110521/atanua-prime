@@ -87,6 +87,7 @@ int gSettingsOpen = 0;
 int gShortcutsOpen = 0;
 extern char *gFilename;
 void storefilename(const char *fn);
+int validate_circuit(const char *aPath);
 // Editable user-name buffer for the settings row; re-synced from the
 // config every time the panel opens.
 static char sUserBuf[64];
@@ -2808,6 +2809,45 @@ void audiomixer(void *userdata, Uint8 *stream, int len)
 }
 
 
+// Resolve a possibly-relative argv path against the startup directory.
+// Must run before gotoappdirectory chdirs to the exe dir.
+static std::string resolve_argv_path(const char *p)
+{
+    std::string out;
+    if (!p || !p[0])
+        return out;
+    bool isAbs = false;
+#ifdef WINDOWS_VERSION
+    if (p[0] == '\\' || p[0] == '/')
+        isAbs = true;
+    else if (strlen(p) >= 3 && p[1] == ':' && (p[2] == '\\' || p[2] == '/'))
+        isAbs = true;
+#else
+    if (p[0] == '/')
+        isAbs = true;
+#endif
+    if (isAbs)
+        return std::string(p);
+    char startupDir[1024] = { 0 };
+#ifdef WINDOWS_VERSION
+    _getcwd(startupDir, sizeof(startupDir) - 1);
+#else
+    getcwd(startupDir, sizeof(startupDir) - 1);
+#endif
+    if (startupDir[0])
+    {
+#ifdef WINDOWS_VERSION
+        out = std::string(startupDir) + "\\" + p;
+#else
+        out = std::string(startupDir) + "/" + p;
+#endif
+    }
+    else
+        out = p;
+    return out;
+}
+
+
 int main(int argc, char** args)
 {
     memset(gAudioBuffer,0,AUDIOBUF_SIZE);
@@ -2816,41 +2856,13 @@ int main(int argc, char** args)
     // otherwise relative double-click/test paths no longer resolve.
     // Absolute paths pass through untouched.
     std::string sArgvPath;
-    if (argc > 1 && args[1] && args[1][0])
-    {
-        const char *p = args[1];
-        bool isAbs = false;
-#ifdef WINDOWS_VERSION
-        if (p[0] == '\\' || p[0] == '/')
-            isAbs = true;
-        else if (strlen(p) >= 3 && p[1] == ':' && (p[2] == '\\' || p[2] == '/'))
-            isAbs = true;
-#else
-        if (p[0] == '/')
-            isAbs = true;
-#endif
-        if (isAbs)
-            sArgvPath = p;
-        else
-        {
-            char startupDir[1024] = { 0 };
-#ifdef WINDOWS_VERSION
-            _getcwd(startupDir, sizeof(startupDir) - 1);
-#else
-            getcwd(startupDir, sizeof(startupDir) - 1);
-#endif
-            if (startupDir[0])
-            {
-#ifdef WINDOWS_VERSION
-                sArgvPath = std::string(startupDir) + "\\" + p;
-#else
-                sArgvPath = std::string(startupDir) + "/" + p;
-#endif
-            }
-            else
-                sArgvPath = p;
-        }
-    }
+    if (argc > 1)
+        sArgvPath = resolve_argv_path(args[1]);
+
+    // Machine diagnostics: validate a circuit file and exit before any
+    // window, GL, or audio init. Exit 0 = valid, 1 = invalid, 2 = misuse.
+    if (argc > 2 && strcmp(args[1], "--validate") == 0)
+        return validate_circuit(resolve_argv_path(args[2]).c_str());
 
     gotoappdirectory(argc, args);
 
