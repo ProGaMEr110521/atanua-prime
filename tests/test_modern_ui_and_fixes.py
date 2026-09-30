@@ -610,6 +610,75 @@ def test_validate_wired_into_app():
     assert "resolve_argv_path" in main, "argv resolve helper missing"
     assert "chipPinCount" in read(os.path.join(REPO, "src", "core", "validate.cpp")), \
         "validator must use the mined pin table"
+    assert os.path.isfile(os.path.join(REPO, "src", "include", "chipdb.h")), \
+        "mined C table missing; run tools/mine_pins.py"
+
+
+def test_simulate_wired_into_app():
+    # --simulate must reuse the shipped loader and propagation loop, not
+    # reimplement them, and stay headless (no video init before dispatch).
+    main = read(SRC_MAIN)
+    assert '"--simulate"' in main, "simulate flag missing"
+    assert "simulate_circuit(argc, args)" in main, "simulate dispatch missing"
+    sim = read(os.path.join(REPO, "src", "core", "simulate.cpp"))
+    assert "do_loaddialog(0," in sim, "simulate must load through the real loader"
+    assert "do_build_nets();" in sim, "simulate must build nets like the frame loop"
+    assert "mPhysicsKHz" in sim, "simulate must keep app timing"
+    assert "dynamic_cast<LEDChip" in sim, "LED readout must use the real chip type"
+    assert "SDL_GL_GetCurrentContext" in read(os.path.join(
+        REPO, "src", "basecode", "toolkit.cpp")), "headless texture guard missing"
+
+
+def test_simulate_cli():
+    # End to end with no window: generate a button+AND+LED circuit, drive
+    # it high and low, and read the LED back out of the JSON report.
+    import json
+    body = ("<Atanua>"
+            "<Chip Name=\"button ('1')\" xpos=\"226492416\" ypos=\"92274688\" rot=\"0\"/>"
+            "<Chip Name=\"logic '1'\" xpos=\"226492416\" ypos=\"134217728\" rot=\"0\"/>"
+            "<Chip Name=\"logic AND\" xpos=\"293601280\" ypos=\"92274688\" rot=\"0\"/>"
+            "<Chip Name=\"LED (red)\" xpos=\"360710144\" ypos=\"92274688\" rot=\"0\"/>"
+            "<Wire chip1=\"0\" pad1=\"0\" chip2=\"2\" pad2=\"0\"/>"
+            "<Wire chip1=\"1\" pad1=\"0\" chip2=\"2\" pad2=\"1\"/>"
+            "<Wire chip1=\"2\" pad1=\"2\" chip2=\"3\" pad2=\"0\"/></Atanua>")
+    tmp = tempfile.mkdtemp(prefix="atanua_sim_")
+    try:
+        fix = os.path.join(tmp, "and_led.atanua")
+        with open(fix, "w", encoding="utf-8") as f:
+            f.write(body)
+
+        def led_of(rep):
+            for led in rep["leds"]:
+                if led["chip"] == 3:
+                    return led["state"]
+            return None
+
+        r = subprocess.run([BUILD_EXE, "--simulate", fix, "--ticks", "20",
+                            "--set", "0:0=1"],
+                           capture_output=True, text=True, timeout=120)
+        assert r.returncode == 0, f"simulate failed:\n{r.stdout}\n{r.stderr}"
+        assert led_of(json.loads(r.stdout)) == "high", "driven LED must light"
+
+        r = subprocess.run([BUILD_EXE, "--simulate", fix, "--ticks", "20",
+                            "--set", "0:0=0"],
+                           capture_output=True, text=True, timeout=120)
+        assert r.returncode == 0, f"simulate failed:\n{r.stdout}\n{r.stderr}"
+        assert led_of(json.loads(r.stdout)) == "low", "released LED must go dark"
+
+        env = dict(os.environ)
+        env["SDL_VIDEODRIVER"] = "dummy"
+        r = subprocess.run([BUILD_EXE, "--simulate", fix, "--ticks", "5"],
+                           capture_output=True, text=True, timeout=120,
+                           env=env)
+        assert r.returncode == 0, "simulate must not need video"
+        assert json.loads(r.stdout)["chips"] == 4, "circuit must load headless"
+
+        r = subprocess.run([BUILD_EXE, "--simulate", fix, "--set", "bogus"],
+                           capture_output=True, text=True, timeout=60)
+        assert r.returncode == 2 and "ERROR" in (r.stdout or ""), \
+            "bad stimulus must fail loudly"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_updatecheck_wired_into_app():
@@ -814,6 +883,8 @@ if __name__ == "__main__":
     test_updatecheck_wired_into_app()
     test_validate_units()
     test_validate_wired_into_app()
+    test_simulate_wired_into_app()
+    test_simulate_cli()
     test_undo_covers_every_mutation()
     test_ubuntu_ci_has_gtk()
     test_workflow_publishes_tagged_releases()

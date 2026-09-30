@@ -193,6 +193,7 @@ set(ATANUA_SOURCES
   src/core/pin.cpp
   src/core/pluginchip.cpp
   src/core/pluginchipfactory.cpp
+  src/core/simulate.cpp
   src/core/simutils.cpp
   src/core/slidingaverage.cpp
   src/core/validate.cpp

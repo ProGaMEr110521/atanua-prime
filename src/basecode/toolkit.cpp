@@ -316,6 +316,10 @@ GLuint load_texture(const char * aFilename, int clamp)
     }
 
     // Create OpenGL texture handle and bind it to use
+    // Headless modes (--simulate) construct chips with no GL context;
+    // textures are never sampled there, so hand out a dummy handle.
+    if (SDL_GL_GetCurrentContext() == NULL)
+        return 0;
 
     GLuint texname;
     glGenTextures(1,&texname);

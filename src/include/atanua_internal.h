@@ -24,6 +24,10 @@ distribution.
 #define ATANUA_INTERNAL_H
 
 #include <stdint.h>
+#include <string>
+
+// Shared argv path resolve (must run before the exe-dir chdir).
+extern std::string resolve_argv_path(const char *p);
 
 
 #define ATANUAVERSION "1.3.141232"
@@ -136,6 +140,7 @@ extern const char * gNewChipName;
 
 
 extern void build_nets();
+extern void do_build_nets();
 extern void delete_chip(Chip *c);
 extern float line_point_distance(float x0, float y0, float x1, float y1, float x2, float y2);
 extern void add_wire(Pin *aFirst, Pin *aSecond);
@@ -176,6 +181,9 @@ extern BoxStitchingInformation * do_preparse_box(const char *aFname);
 // 2 = misuse (no path, unreadable file).
 extern int validate_circuit_to(const char *aPath, FILE *out);
 extern int validate_circuit(const char *aPath);
+// Headless batch simulation: JSON report on stdout, 0 ok / 1 unusable /
+// 2 misuse. Parses its own argv tail (file, --ticks, --set).
+extern int simulate_circuit(int argc, char **args);
 
 // from nativefunctions.cpp
 

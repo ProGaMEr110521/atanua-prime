@@ -2811,7 +2811,7 @@ void audiomixer(void *userdata, Uint8 *stream, int len)
 
 // Resolve a possibly-relative argv path against the startup directory.
 // Must run before gotoappdirectory chdirs to the exe dir.
-static std::string resolve_argv_path(const char *p)
+std::string resolve_argv_path(const char *p)
 {
     std::string out;
     if (!p || !p[0])
@@ -2863,6 +2863,10 @@ int main(int argc, char** args)
     // window, GL, or audio init. Exit 0 = valid, 1 = invalid, 2 = misuse.
     if (argc > 2 && strcmp(args[1], "--validate") == 0)
         return validate_circuit(resolve_argv_path(args[2]).c_str());
+
+    // Headless batch simulation: JSON report on stdout, same exit codes.
+    if (argc > 2 && strcmp(args[1], "--simulate") == 0)
+        return simulate_circuit(argc, args);
 
     gotoappdirectory(argc, args);
 

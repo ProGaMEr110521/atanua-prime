@@ -37,3 +37,21 @@ window (exit before GL/audio init, so it also runs headless):
   silently drop is an error here instead.
 - Pin counts come from `src/include/chipdb.h`, emitted by the same
   miner run as the JSON catalog.
+
+## atanua --simulate — headless batch runs
+
+`atanua.exe --simulate <file> [--ticks N] [--set C:P=V ...]` loads a
+circuit with the real loader, runs the real propagation loop on virtual
+time (same `mPhysicsKHz` substeps, same dirty marking), and prints one
+JSON object: file, ticks, chip/wire counts, `leds` (chip, name, state),
+`nets` (index, state, pin count), `pins` (chip, pad, net, state).
+States are `high`/`low`/`nc`/`invalid` (`unconnected` for loose pads).
+
+- `--set` forces an output pad for the whole run (ideal driver applied
+  after every chip-update phase); repeat the flag per stimulus.
+- Exit codes match `--validate` (0/1/2). Ticks default to 100.
+- Needs no window, GL context, or audio device (textures hand out
+  dummies headlessly); `SDL_VIDEODRIVER=dummy` works.
+- Limits, stated plainly: stimulus is constant per run (no timed
+  sequences), Box-heavy files above the config limit are refused
+  instead of prompting, and clocks follow virtual milliseconds.
