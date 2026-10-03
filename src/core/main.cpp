@@ -1766,10 +1766,15 @@ static void draw_screen()
                             continue;
                         if (tinyAnchor)
                         {
-                            // Inner square starts a connection, outer area moves.
+                            // Inner/outer roles follow the wire style:
+                            // modern connects from the inner square and
+                            // moves from the outer area, legacy swaps them
+                            // (inner moves, outer connects). Hover colors
+                            // follow hotitem, so no render change is needed.
                             float pcx = gChip[i]->mRotatedX + gChip[i]->mPin[j]->mRotatedX + 0.25f;
                             float pcy = gChip[i]->mRotatedY + gChip[i]->mPin[j]->mRotatedY + 0.25f;
-                            if (UiTheme::anchorHotZone(worldmousex - pcx, worldmousey - pcy))
+                            int inner = UiTheme::anchorHotZone(worldmousex - pcx, worldmousey - pcy);
+                            if (UiTheme::anchorPinGrab(inner, gConfig.mWireLegacy))
                                 gUIState.hotitem = CHIP_ID(j + 1, i);
                         }
                         else

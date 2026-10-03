@@ -116,12 +116,22 @@ inline float anchorGrabPad(float zoom)
     return px > 0.5f ? px : 0.5f;
 }
 
-// Anchor hover zones, measured from the pin center: 1 = inner wire-start
-// square (0.8 x 0.8 around the pin), 0 = outer move area.
+// Anchor hover zones, measured from the pin center: 1 = inner square
+// (0.8 x 0.8 around the pin), 0 = outer area inside the grab padding.
 inline int anchorHotZone(float dx, float dy)
 {
     const float h = 0.4f;
     return (dx >= -h && dx <= h && dy >= -h && dy <= h) ? 1 : 0;
+}
+
+// Which hover grabs the pin (starts a connection) instead of the body
+// (moves the anchor). Modern: the inner square connects, the outer area
+// moves. Legacy swaps the two squares: inner moves, outer connects.
+inline int anchorPinGrab(int innerHover, int legacyMode)
+{
+    if (legacyMode)
+        return innerHover ? 0 : 1;
+    return innerHover ? 1 : 0;
 }
 
 // Pin connection zone (world units, per side) so grabbing a pin to start a

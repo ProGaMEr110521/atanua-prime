@@ -23,7 +23,12 @@ int main()
     CHECK(wireZoneAt(0.5f, 0) == WIRE_ZONE_MODERN, "modern center stays modern");
     CHECK(wireZoneAt(1.0f, 0) == WIRE_ZONE_MODERN, "modern end stays modern");
 
-    /* Legacy mode: center band moves, outer squares connect. */
+    /* Anchor squares: modern connects from inner and moves from outer;
+     * legacy swaps them (inner moves, outer connects). */
+    CHECK(anchorPinGrab(1, 0) == 1, "modern inner grabs the pin");
+    CHECK(anchorPinGrab(0, 0) == 0, "modern outer grabs the body");
+    CHECK(anchorPinGrab(1, 1) == 0, "legacy inner grabs the body");
+    CHECK(anchorPinGrab(0, 1) == 1, "legacy outer grabs the pin");
     CHECK(wireZoneAt(0.5f, 1) == WIRE_ZONE_MOVE, "legacy center moves");
     CHECK(wireZoneAt(0.4f, 1) == WIRE_ZONE_MOVE, "legacy center band starts at 0.4");
     CHECK(wireZoneAt(0.6f, 1) == WIRE_ZONE_MOVE, "legacy center band ends at 0.6");

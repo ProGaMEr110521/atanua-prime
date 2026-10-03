@@ -476,6 +476,7 @@ def test_wiremode_tutorial_wired_into_app():
     assert "UiTheme::wireZoneAt" in main, "drag never consults legacy zones"
     assert "UiTheme::wireProjectionT" in main, "grab point never projected"
     assert "WIRE_ZONE_MOVE" in main, "legacy move branch missing"
+    assert "anchorPinGrab" in main, "anchor squares never swap per mode"
     assert "!gConfig.mWireLegacy" in main, "modern path not preserved"
     assert "split_wire_middle_at(worldmousedownx" in main, "legacy move drops no anchor"
     assert "S_WIREMODE" in main, "wire style row missing from settings"
