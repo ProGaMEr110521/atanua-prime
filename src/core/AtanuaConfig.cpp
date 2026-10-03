@@ -342,14 +342,14 @@ void AtanuaConfig::load()
             {
                 int legacy = mWireLegacy;
                 part->QueryIntAttribute("value", &legacy);
-                mWireLegacy = AppSettings::clampAudio(legacy);
+                mWireLegacy = (legacy == 1) ? 1 : 0;
             }
             else
             if (stricmp(part->Value(), "TutorialSeen") == 0)
             {
                 int seen = mTutorialSeen;
                 part->QueryIntAttribute("value", &seen);
-                mTutorialSeen = AppSettings::clampAudio(seen);
+                mTutorialSeen = (seen == 1) ? 1 : 0;
             }
             else
             if (stricmp(part->Value(), "ToolkitWidth") == 0)
@@ -487,8 +487,8 @@ void AtanuaConfig::save()
     mUiScale = AppSettings::clampUiScale(mUiScale);
     mCanvasDark = AppSettings::clampAudio(mCanvasDark);
     mLiveWires = AppSettings::clampAudio(mLiveWires);
-    mWireLegacy = AppSettings::clampAudio(mWireLegacy);
-    mTutorialSeen = AppSettings::clampAudio(mTutorialSeen);
+    mWireLegacy = (mWireLegacy == 1) ? 1 : 0;
+    mTutorialSeen = (mTutorialSeen == 1) ? 1 : 0;
 
     XMLDocument doc;
     int haveDoc = 0;

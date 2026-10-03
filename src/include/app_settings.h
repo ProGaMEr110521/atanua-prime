@@ -651,12 +651,14 @@ inline bool setField(Values &v, const char *tag, const char *str)
     }
     if (strcmp(tag, "WireLegacy") == 0)
     {
-        v.wireLegacy = clampAudio(parseDec(str, 0));
+        // Only 1 enables legacy; anything else falls back to modern.
+        v.wireLegacy = parseDec(str, 0) == 1 ? 1 : 0;
         return true;
     }
     if (strcmp(tag, "TutorialSeen") == 0)
     {
-        v.tutorialSeen = clampAudio(parseDec(str, 0));
+        // Only 1 marks the briefing seen; anything else shows it.
+        v.tutorialSeen = parseDec(str, 0) == 1 ? 1 : 0;
         return true;
     }
     return false;

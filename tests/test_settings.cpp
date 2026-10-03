@@ -146,6 +146,7 @@ int main()
     CHECK(setField(w, "WireLegacy", "1") && w.wireLegacy == 1, "wire style parses");
     CHECK(setField(w, "WireLegacy", "9") && w.wireLegacy == 0, "bad wire style clamps to modern");
     CHECK(setField(w, "TutorialSeen", "1") && w.tutorialSeen == 1, "tutorial flag parses");
+    CHECK(setField(w, "TutorialSeen", "9") && w.tutorialSeen == 0, "bad tutorial flag shows the tour");
     CHECK(!setField(w, "Nope", "1"), "unknown tag rejected on set");
     CHECK(!setField(w, 0, "1") && !setField(w, "Language", 0), "null guarded");
 
