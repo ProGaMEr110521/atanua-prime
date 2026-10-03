@@ -496,6 +496,43 @@ def test_wiremode_tutorial_wired_into_app():
     assert '"TutorialSeen"' in cfg, "seen flag missing from config save/load"
     header = read(os.path.join(REPO, "src", "include", "atanua.h"))
     assert "mWireLegacy;" in header and "mTutorialSeen;" in header, "config decl missing"
+    assert "GetBackgroundDrawList" in main, "briefing dim must sit behind windows"
+    assert "GetForegroundDrawList" in main, "spotlight ring must stay on top"
+    assert "sHaveBtnRects" in main, "spotlight never measures the real buttons"
+    assert "GetItemRectMin" in main, "button rects never captured"
+    assert "S_REVIEW_TUTORIAL" in main, "no re-run entry for the briefing"
+    sim = read(os.path.join(REPO, "src", "core", "simulate.cpp"))
+    assert '\\"wireLegacy\\"' in sim, "headless report hides the loaded mode"
+
+
+def test_wiremode_flag_reaches_binary():
+    # End to end through the real binary: a cwd config with WireLegacy=1
+    # must surface in the --simulate JSON; a fresh cwd defaults to modern
+    # and the run writes both new elements back to atanua.xml.
+    import json
+    if not os.path.isfile(BUILD_EXE):
+        return
+    fix = os.path.join(REPO, "tools", "examples", "and_led_L.atanua")
+    tmp = tempfile.mkdtemp(prefix="atanua_wiremode_")
+    try:
+        with open(os.path.join(tmp, "atanua.xml"), "w", encoding="utf-8") as f:
+            f.write('<AtanuaConfig><WireLegacy value="1"/></AtanuaConfig>')
+        r = subprocess.run([BUILD_EXE, "--simulate", fix, "--ticks", "5"],
+                           capture_output=True, text=True, timeout=120, cwd=tmp)
+        assert r.returncode == 0, "simulate failed:\n%s\n%s" % (r.stdout, r.stderr)
+        assert json.loads(r.stdout)["wireLegacy"] == 1, "loaded legacy mode lost"
+
+        fresh = os.path.join(tmp, "fresh")
+        os.mkdir(fresh)
+        r = subprocess.run([BUILD_EXE, "--simulate", fix, "--ticks", "5"],
+                           capture_output=True, text=True, timeout=120, cwd=fresh)
+        assert r.returncode == 0, "simulate failed:\n%s\n%s" % (r.stdout, r.stderr)
+        assert json.loads(r.stdout)["wireLegacy"] == 0, "default must stay modern"
+        written = read(os.path.join(fresh, "atanua.xml"))
+        assert '<WireLegacy value="0"/>' in written, "run never persisted the mode"
+        assert '<TutorialSeen value="0"/>' in written, "run never persisted the flag"
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_settings_wired_into_app():
@@ -926,6 +963,7 @@ if __name__ == "__main__":
     test_updatecheck_wired_into_app()
     test_wiremode_tutorial_units()
     test_wiremode_tutorial_wired_into_app()
+    test_wiremode_flag_reaches_binary()
     test_validate_units()
     test_validate_wired_into_app()
     test_simulate_wired_into_app()

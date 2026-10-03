@@ -13,6 +13,8 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 - Переключатель стиля проводов (Современный/Классический) в настройках: классический режим двигает провод за центр и соединяет с краев, современный оставляет изгибы по клику; выбор сохраняется в atanua.xml.
 - First-start briefing with spotlight focus: a short tour of tools, components, settings, and help on the very first launch, with Back/Next, one-shot Skip (Esc works too), and a persisted seen-flag so it never nags again.
 - Приветственный обзор при первом запуске с подсветкой областей: короткий тур по инструментам, компонентам, настройкам и помощи, с кнопками Назад/Далее, пропуском в один клик (Esc тоже работает) и флагом просмотра, чтобы больше не показываться.
+- Briefing fixes: the step panel renders above the dim, the help spotlight rings the real ? button instead of Quit, the ? window offers a tutorial re-run, the status bar shows the active wire style, and the headless report carries the loaded wire mode.
+- Исправления обзора: панель шагов поверх затемнения, подсветка помощи на настоящей кнопке ?, повтор обучения из окна помощи, стиль проводов в строке состояния, режим проводов в headless-отчёте.
 - AI circuit tooling: mined chip catalog (`tools/chips.json`, 269 chips with pinouts) and headless `atanua --validate` with machine-readable diagnostics and exit codes.
 - Инструменты для ИИ-генерации схем: каталог компонентов (`tools/chips.json`, 269 чипов с распиновкой) и headless-проверка `atanua --validate` с машиночитаемой диагностикой и кодами выхода.
 - Headless `atanua --simulate`: batch runs of the real propagation loop with `--set` stimuli and a JSON report (LED/net/pin states), no window needed.

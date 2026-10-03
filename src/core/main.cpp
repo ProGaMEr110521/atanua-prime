@@ -89,6 +89,12 @@ int gShortcutsOpen = 0;
 int gTutorialOpen = 0;
 static AppTutorial::State sTutState;
 static int sTutInit = 0;
+// Live screen rects of the topbar ? and Settings buttons, captured while
+// drawing them; the tutorial spotlight rings the exact buttons instead of
+// guessing where the right-aligned cluster landed.
+static float sHelpRect[4] = { 0, 0, 0, 0 };
+static float sSettingsRect[4] = { 0, 0, 0, 0 };
+static int sHaveBtnRects = 0;
 
 // Dismiss the first-start briefing at once and remember it so later
 // starts stay quiet.
@@ -847,6 +853,15 @@ static void draw_shortcuts_window(int lang)
     ImGui::TextUnformatted(AppSettings::text(AppSettings::S_CREDIT, lang, 0));
     ImGui::TextLinkOpenURL("http://iki.fi/sol/");
     ImGui::PopTextWrapPos();
+    // Re-run the first-start briefing on demand: restarts the tour from
+    // welcome without touching the persisted flag (finish/skip saves it).
+    if (ImGui::Button(AppSettings::text(AppSettings::S_REVIEW_TUTORIAL, lang, 0)))
+    {
+        AppTutorial::init(sTutState, 0);
+        gShortcutsOpen = 0;
+        gTutorialOpen = 1;
+    }
+    ImGui::SameLine();
     if (ImGui::Button(AppSettings::text(AppSettings::S_CLOSE, lang, 0)))
         gShortcutsOpen = 0;
     ImGui::End();
@@ -861,21 +876,32 @@ static void draw_tutorial_overlay(int lang)
     float scrH = (float)gScreenHeight;
     AppTutorial::Rect focus = AppTutorial::focusRect(sTutState.step, scrW, scrH,
         (float)gConfig.mToolkitWidth, (float)gTopbarH);
-    ImDrawList *dl = ImGui::GetForegroundDrawList();
+    if (sHaveBtnRects &&
+        (sTutState.step == AppTutorial::TUT_SETTINGS || sTutState.step == AppTutorial::TUT_HELP))
+    {
+        const float *m = (sTutState.step == AppTutorial::TUT_SETTINGS) ? sSettingsRect : sHelpRect;
+        focus.x = m[0]; focus.y = m[1]; focus.w = m[2] - m[0]; focus.h = m[3] - m[1];
+        focus.hasFocus = (focus.w > 0 && focus.h > 0) ? 1 : 0;
+    }
+    // Dim on the background list so every window (including this panel)
+    // renders above it and stays readable; the accent ring goes on the
+    // foreground list so it stays visible over everything.
+    ImDrawList *dimDl = ImGui::GetBackgroundDrawList();
+    ImDrawList *ringDl = ImGui::GetForegroundDrawList();
     const ImU32 dim = IM_COL32(0, 0, 0, 140);
     if (focus.hasFocus)
     {
-        dl->AddRectFilled(ImVec2(0, 0), ImVec2(scrW, focus.y), dim);
-        dl->AddRectFilled(ImVec2(0, focus.y + focus.h), ImVec2(scrW, scrH), dim);
-        dl->AddRectFilled(ImVec2(0, focus.y), ImVec2(focus.x, focus.y + focus.h), dim);
-        dl->AddRectFilled(ImVec2(focus.x + focus.w, focus.y), ImVec2(scrW, focus.y + focus.h), dim);
-        dl->AddRect(ImVec2(focus.x, focus.y),
+        dimDl->AddRectFilled(ImVec2(0, 0), ImVec2(scrW, focus.y), dim);
+        dimDl->AddRectFilled(ImVec2(0, focus.y + focus.h), ImVec2(scrW, scrH), dim);
+        dimDl->AddRectFilled(ImVec2(0, focus.y), ImVec2(focus.x, focus.y + focus.h), dim);
+        dimDl->AddRectFilled(ImVec2(focus.x + focus.w, focus.y), ImVec2(scrW, focus.y + focus.h), dim);
+        ringDl->AddRect(ImVec2(focus.x, focus.y),
             ImVec2(focus.x + focus.w, focus.y + focus.h),
             IM_COL32(0x4c, 0x8d, 0xff, 255), 0.0f, 0, 3.0f);
     }
     else
     {
-        dl->AddRectFilled(ImVec2(0, 0), ImVec2(scrW, scrH), dim);
+        dimDl->AddRectFilled(ImVec2(0, 0), ImVec2(scrW, scrH), dim);
     }
     AppTutorial::Text tx = AppTutorial::stepText(sTutState.step);
     ImGui::SetNextWindowPos(ImVec2(scrW * 0.5f, scrH - 24.0f),
@@ -1260,10 +1286,21 @@ static void draw_topbar_right(int lang, int cAccent, float rightW)
             ImGui::SetItemTooltip("%s", AppSettings::text(AppSettings::S_SHORTCUTS, lang, 0));
         if (hit)
             gShortcutsOpen = !gShortcutsOpen;
+        ImVec2 rmn = ImGui::GetItemRectMin();
+        ImVec2 rmx = ImGui::GetItemRectMax();
+        sHelpRect[0] = rmn.x; sHelpRect[1] = rmn.y;
+        sHelpRect[2] = rmx.x; sHelpRect[3] = rmx.y;
+        sHaveBtnRects = 1;
         ImGui::SameLine();
     }
     if (topbar_btn(AppSettings::S_SETTINGS, lang, rightW, gSettingsOpen, cAccent))
         gSettingsOpen = !gSettingsOpen;
+    {
+        ImVec2 rmn = ImGui::GetItemRectMin();
+        ImVec2 rmx = ImGui::GetItemRectMax();
+        sSettingsRect[0] = rmn.x; sSettingsRect[1] = rmn.y;
+        sSettingsRect[2] = rmx.x; sSettingsRect[3] = rmx.y;
+    }
     {
         const char *quitLbl = AppSettings::text(AppSettings::S_QUIT, lang, 1);
         char quitId[64];
@@ -1498,12 +1535,13 @@ static void draw_statusbar_imgui(int lang)
     if (gSmallFont)
         ImGui::PushFont(gSmallFont);
     char status[256];
-    snprintf(status, sizeof(status), "Chips:%d  Wires:%d  Nets:%d   Zoom:%.0f   %s   %s   Undo:%d Redo:%d",
+    snprintf(status, sizeof(status), "Chips:%d  Wires:%d  Nets:%d   Zoom:%.0f   %s   %s   %s   Undo:%d Redo:%d",
         (int)gChip.size(), (int)gWire.size(), (int)gNet.size(),
         gZoomFactor,
         gSnap ? "Snap:on" : "Snap:off",
         gLiveWires ? AppSettings::text(AppSettings::S_LIVE, lang, 0)
                    : AppSettings::text(AppSettings::S_GREY, lang, 0),
+        AppSettings::text(gConfig.mWireLegacy ? AppSettings::S_WIRE_LEGACY : AppSettings::S_WIRE_MODERN, lang, 1),
         (int)gUndoStack.size(), (int)gRedoStack.size());
     ImGui::TextUnformatted(status);
     if (gSmallFont)

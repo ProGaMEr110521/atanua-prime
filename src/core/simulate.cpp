@@ -261,8 +261,8 @@ int simulate_circuit(int argc, char **args)
 
     printf("{\"file\":");
     json_escape(stdout, file.c_str());
-    printf(",\"ticks\":%d,\"chips\":%d,\"wires\":%d,\"leds\":[",
-           ticks, (int)gChip.size(), (int)gWire.size());
+    printf(",\"ticks\":%d,\"chips\":%d,\"wires\":%d,\"wireLegacy\":%d,\"leds\":[",
+           ticks, (int)gChip.size(), (int)gWire.size(), gConfig.mWireLegacy ? 1 : 0);
     int first = 1;
     for (n = 0; n < gChip.size(); n++)
     {

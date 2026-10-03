@@ -149,6 +149,7 @@ enum StrKey
     S_BACK,
     S_SKIP,
     S_FINISH,
+    S_REVIEW_TUTORIAL,
     S_COUNT
 };
 
@@ -281,7 +282,9 @@ inline const StrEntry *stringTable(int *countOut)
         { S_NEXT, "Next", "Next", "Далее", "Далее" },
         { S_BACK, "Back", "Back", "Назад", "Назад" },
         { S_SKIP, "Skip", "Skip", "Пропустить", "Пропустить" },
-        { S_FINISH, "Finish", "Finish", "Готово", "Готово" }
+        { S_FINISH, "Finish", "Finish", "Готово", "Готово" },
+        { S_REVIEW_TUTORIAL, "Review tutorial", "Review",
+            "Повторить обучение", "Повторить" }
     };
     if (countOut)
         *countOut = (int)(sizeof(kTable) / sizeof(kTable[0]));

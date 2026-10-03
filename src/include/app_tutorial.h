@@ -155,8 +155,10 @@ struct Rect
 };
 
 /* Spotlight rect per step from live layout metrics. Welcome centers a
- * dialog with no focus; settings and help share the top-right cluster
- * with different widths so each highlight reads distinctly. */
+ * dialog with no focus. The right-cluster fallbacks sit left of the Quit
+ * corner (Quit is rightmost, then Settings, then ?), so a stale estimate
+ * can never ring the Quit button; the app prefers measured button rects
+ * whenever the top bar has drawn. */
 inline Rect focusRect(int step, float scrW, float scrH,
     float toolkitW, float topbarH)
 {
@@ -172,13 +174,15 @@ inline Rect focusRect(int step, float scrW, float scrH,
     }
     else if (step == TUT_SETTINGS)
     {
-        r.w = scrW < 240.0f ? scrW : 240.0f;
-        r.x = scrW - r.w; r.y = 0; r.h = topbarH; r.hasFocus = 1;
+        r.w = scrW < 100.0f ? scrW : 100.0f;
+        r.x = scrW - 190.0f; r.y = 0; r.h = topbarH; r.hasFocus = 1;
+        if (r.x < 0) r.x = 0;
     }
     else if (step == TUT_HELP)
     {
-        r.w = scrW < 80.0f ? scrW : 80.0f;
-        r.x = scrW - r.w; r.y = 0; r.h = topbarH; r.hasFocus = 1;
+        r.w = scrW < 100.0f ? scrW : 100.0f;
+        r.x = scrW - 300.0f; r.y = 0; r.h = topbarH; r.hasFocus = 1;
+        if (r.x < 0) r.x = 0;
     }
     return r;
 }

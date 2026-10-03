@@ -81,9 +81,11 @@ int main()
     Rect comp = focusRect(TUT_COMPONENTS, 1280, 800, 220, 48);
     CHECK(comp.hasFocus && comp.x == 0 && comp.w == 220 && comp.h == 752, "components spotlights the palette");
     Rect sett = focusRect(TUT_SETTINGS, 1280, 800, 220, 48);
-    CHECK(sett.hasFocus && sett.x + sett.w == 1280 && sett.h == 48, "settings spotlights the top-right cluster");
+    CHECK(sett.hasFocus && sett.x + sett.w <= 1190 && sett.x >= 1020 && sett.h == 48,
+        "settings fallback stays left of the Quit corner");
     Rect help = focusRect(TUT_HELP, 1280, 800, 220, 48);
-    CHECK(help.hasFocus && help.x + help.w == 1280 && help.w < sett.w, "help spotlights a narrower corner than settings");
+    CHECK(help.hasFocus && help.x + help.w <= sett.x,
+        "help fallback sits left of settings, never on Quit");
     Rect wel = focusRect(TUT_WELCOME, 1280, 800, 220, 48);
     CHECK(!wel.hasFocus, "welcome centers a dialog with no focus rect");
 

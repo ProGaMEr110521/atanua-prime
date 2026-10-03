@@ -63,7 +63,8 @@ trunks axis-aligned, goldens stable plus validate/simulate behavior).
 `atanua.exe --simulate <file> [--ticks N] [--set C:P=V ...]` loads a
 circuit with the real loader, runs the real propagation loop on virtual
 time (same `mPhysicsKHz` substeps, same dirty marking), and prints one
-JSON object: file, ticks, chip/wire counts, `leds` (chip, name, state),
+JSON object: file, ticks, chip/wire counts, `wireLegacy` (loaded wire
+style: 0 modern, 1 legacy), `leds` (chip, name, state),
 `nets` (index, state, pin count), `pins` (chip, pad, net, state).
 States are `high`/`low`/`nc`/`invalid` (`unconnected` for loose pads).
 
