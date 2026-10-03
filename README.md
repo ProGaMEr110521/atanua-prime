@@ -87,8 +87,6 @@ python tests/test_modern_ui_and_fixes.py
 
 The script runs structural checks against sources and, when a local build exists, exercises the binary and bundled test circuits under `tests/fixtures/`.
 
-### Automation (for AI agents and scripts)
-
 Circuits are plain XML files the app also opens itself, so generators never touch the GUI: look up parts in `tools/chips.json`, write `.atanua`, then `atanua --validate <file>` (exit 0/1/2 with one `ERROR` line per problem) and `atanua --simulate <file> --ticks N --set C:P=V` (JSON report with LED/net/pin states, no window). Full protocol in `tools/README.md`; `test_simulate_cli` shows the loop end to end.
 
 ### Repository layout
@@ -194,8 +192,6 @@ python tests/test_modern_ui_and_fixes.py
 ```
 
 Скрипт проверяет исходники и, при наличии локальной сборки, запускает бинарник с тестовыми схемами из `tests/fixtures/`.
-
-### Автоматизация (для ИИ-агентов и скриптов)
 
 Схемы — обычные XML-файлы, которые открывает и само приложение, так что генераторам GUI не нужен: детали — в `tools/chips.json`, далее `atanua --validate <file>` (выход 0/1/2, по строке `ERROR` на проблему) и `atanua --simulate <file> --ticks N --set C:P=V` (JSON-отчёт о LED/цепях/пинах, без окна). Полный протокол — в `tools/README.md`; `test_simulate_cli` показывает цикл целиком.
 

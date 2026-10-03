@@ -1,0 +1,13 @@
+<Atanua>
+<Chip Name="button ('1')" xpos="226492416" ypos="92274688" rot="0"/>
+<Chip Name="logic '1'" xpos="226492416" ypos="134217728" rot="0"/>
+<Chip Name="logic AND" xpos="293601280" ypos="117440512" rot="0"/>
+<Chip Name="LED (red)" xpos="360710144" ypos="117440512" rot="0"/>
+<Chip Name="Connection Pin" xpos="293076736" ypos="92798976" rot="0"/>
+<Chip Name="Connection Pin" xpos="293076736" ypos="133693440" rot="0"/>
+<Wire chip1="0" pad1="0" chip2="4" pad2="0"/>
+<Wire chip1="4" pad1="0" chip2="2" pad2="0"/>
+<Wire chip1="1" pad1="0" chip2="5" pad2="0"/>
+<Wire chip1="5" pad1="0" chip2="2" pad2="1"/>
+<Wire chip1="2" pad1="2" chip2="3" pad2="0"/>
+</Atanua>

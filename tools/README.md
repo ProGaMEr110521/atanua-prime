@@ -38,6 +38,26 @@ window (exit before GL/audio init, so it also runs headless):
 - Pin counts come from `src/include/chipdb.h`, emitted by the same
   miner run as the JSON catalog.
 
+## Clean wiring — 90-degree schemes without touching the model
+
+A `Wire` always draws straight, so every bend is one or two `Connection
+Pin` chips joining shorter segments. Generators have two ways to stay
+clean; both are file-level, no simulation changes.
+
+- By hand: follow `.grok/skills/atanua-clean-schemes/SKILL.md` (grid,
+  L/Z patterns, fan-out sharing, validate loop). Copy the nearest file
+  under `tools/examples/` (`and_led_L`, `and_led_Z`,
+  `fanout_shared_anchor`) instead of inventing geometry.
+- Automatic: `python tools/route_wires.py in.atanua out.atanua` snaps
+  chips to an 8-unit grid and replaces each long diagonal with an
+  `A -> a1 -> a2 -> B` Z-bend whose middle trunk shares one X or one Y
+  exactly. Wires already touching a `Connection Pin` are left alone.
+  Every routed net gets fresh anchors, and lanes are offset so parallel
+  trunks never overlap and anchors never land inside a chip body.
+
+Regression: `python tests/test_route_wires.py` (diagonals routed,
+trunks axis-aligned, goldens stable plus validate/simulate behavior).
+
 ## atanua --simulate — headless batch runs
 
 `atanua.exe --simulate <file> [--ticks N] [--set C:P=V ...]` loads a

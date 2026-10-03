@@ -10,3 +10,4 @@ out/
 .vcpkg/
 vcpkg_installed/
 atanua_build_public/
+/.grok

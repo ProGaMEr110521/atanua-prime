@@ -30,7 +30,7 @@ distribution.
 extern std::string resolve_argv_path(const char *p);
 
 
-#define ATANUAVERSION "1.3.141232"
+#define ATANUAVERSION "1.3.141233"
 
 #ifdef __APPLE__
 #define ATANUAPLATFORM "OSX"
