@@ -139,6 +139,9 @@ enum StrKey
     S_PAPER,
     S_LIVE,
     S_GREY,
+    S_UPDATE,
+    S_CHECK_NOW,
+    S_CHECKING,
     S_COUNT
 };
 
@@ -256,7 +259,12 @@ inline const StrEntry *stringTable(int *countOut)
         { S_CANVAS, "Background", "Background", "Фон", "Фон" },
         { S_PAPER, "Paper", "Paper", "Бумага", "Бумага" },
         { S_LIVE, "Live", "Live", "Цветные", "Цветные" },
-        { S_GREY, "Grey", "Grey", "Серые", "Серые" }
+        { S_GREY, "Grey", "Grey", "Серые", "Серые" },
+        { S_UPDATE, "Updates", "Updates", "Обновления", "Обновления" },
+        { S_CHECK_NOW, "Check for updates", "Check now",
+            "Проверить обновления", "Проверить" },
+        { S_CHECKING, "Checking for updates...", "Checking...",
+            "Проверка обновлений...", "Проверка..." }
     };
     if (countOut)
         *countOut = (int)(sizeof(kTable) / sizeof(kTable[0]));

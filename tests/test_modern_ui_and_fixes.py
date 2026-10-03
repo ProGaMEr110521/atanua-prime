@@ -693,10 +693,13 @@ def test_updatecheck_wired_into_app():
     assert "AppUpdate_DownloadActive(" in main, "no progress overlay"
     assert "AppUpdate_CancelDownload();" in main, "no way to cancel the download"
     assert "AppUpdate_ConsumeReady(" in main, "ready/failed result never consumed"
+    assert "AppUpdate_CheckNow();" in main, "settings has no manual update check"
+    assert "S_CHECK_NOW" in main, "manual check button missing from settings"
+    assert "S_UPDATE" in main, "updates settings row missing"
     assert "sRestartFrames" in main, "no restart countdown after install"
     assert "ATANUAVERSION" in main, "prompt must show built-in version"
     internal = read(os.path.join(REPO, "src", "include", "atanua_internal.h"))
-    for token in ["AppUpdate_StartCheck", "AppUpdate_Poll", "AppUpdate_BeginDownload",
+    for token in ["AppUpdate_StartCheck", "AppUpdate_CheckNow", "AppUpdate_Poll", "AppUpdate_BeginDownload",
                   "AppUpdate_DownloadActive", "AppUpdate_CancelDownload",
                   "AppUpdate_ConsumeReady"]:
         assert token in internal, f"missing updater decl: {token}"

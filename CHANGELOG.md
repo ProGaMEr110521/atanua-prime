@@ -7,6 +7,8 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 ## [Unreleased] / [В разработке]
 
 ### Added / Добавлено
+- Settings gains a manual update check: if the silent startup check failed (e.g. offline launch), the Updates row runs it again on demand.
+- В настройках появилась ручная проверка обновлений: если тихая проверка при запуске не удалась (например запуск без сети), строка обновлений запускает её повторно.
 - AI circuit tooling: mined chip catalog (`tools/chips.json`, 269 chips with pinouts) and headless `atanua --validate` with machine-readable diagnostics and exit codes.
 - Инструменты для ИИ-генерации схем: каталог компонентов (`tools/chips.json`, 269 чипов с распиновкой) и headless-проверка `atanua --validate` с машиночитаемой диагностикой и кодами выхода.
 - Headless `atanua --simulate`: batch runs of the real propagation loop with `--set` stimuli and a JSON report (LED/net/pin states), no window needed.

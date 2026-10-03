@@ -997,6 +997,20 @@ static void draw_settings_panel(int lang)
         else
             assocCache = assocState(0);
     }
+    ImGui::AlignTextToFramePadding();
+    // Manual update check: the startup check runs once and stays silent on
+    // failure, so an offline launch could never check again. A found update
+    // surfaces through the same once-prompt; the hint only marks the click.
+    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_UPDATE, lang, 0));
+    ImGui::SameLine(150.0f);
+    static Uint32 sUpdateCheckClick = 0;
+    if (ImGui::Button(AppSettings::text(AppSettings::S_CHECK_NOW, lang, 0)))
+    {
+        AppUpdate_CheckNow();
+        sUpdateCheckClick = SDL_GetTicks();
+    }
+    if (sUpdateCheckClick != 0 && SDL_GetTicks() - sUpdateCheckClick < 25000)
+        ImGui::TextDisabled("%s", AppSettings::text(AppSettings::S_CHECKING, lang, 0));
     ImGui::TextDisabled("%s", AppSettings::text(AppSettings::S_SOUND_RESTART_NOTE, lang, 0));
     ImGui::TextDisabled("%s", AppSettings::text(AppSettings::S_SAVED_NOTE, lang, 0));
     if (ImGui::Button(AppSettings::text(AppSettings::S_CLOSE, lang, 0)))

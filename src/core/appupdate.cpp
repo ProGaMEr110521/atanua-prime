@@ -181,6 +181,23 @@ void AppUpdate_StartCheck(void)
     }
 }
 
+/* Manual retry from the settings panel. The startup check runs once per
+ * process and stays silent on failure, so an offline launch could never
+ * check again. Reset the one-shot latch and start over; a newer release
+ * surfaces through the same once-prompt as the startup check. Never
+ * disturbs an active download. A stale worker thread racing the new one
+ * only rewrites the same version/url slots before raising ready. */
+void AppUpdate_CheckNow(void)
+{
+    int phase = SDL_AtomicGet(&s_phase);
+    if (phase == AUP_BUSY_DL || phase == AUP_BUSY_EX)
+        return;
+    SDL_AtomicSet(&s_ready, 0);
+    s_consumed = 0; /* main thread only, same owner as Poll */
+    SDL_AtomicSet(&s_started, 0);
+    AppUpdate_StartCheck();
+}
+
 int AppUpdate_Poll(char *versionOut, int versionCap, char *urlOut, int urlCap)
 {
     if (s_consumed)

@@ -30,7 +30,7 @@ distribution.
 extern std::string resolve_argv_path(const char *p);
 
 
-#define ATANUAVERSION "1.3.141233"
+#define ATANUAVERSION "1.3.141234"
 
 #ifdef __APPLE__
 #define ATANUAPLATFORM "OSX"
@@ -162,6 +162,7 @@ extern void do_savedialog();
 
 // from appupdate.cpp (background update check, prompt once when newer)
 extern void AppUpdate_StartCheck();
+extern void AppUpdate_CheckNow();
 extern int AppUpdate_Poll(char *aVersionOut, int aVersionCap, char *aUrlOut, int aUrlCap);
 // download + install flow: BeginDownload after a Yes, DownloadActive drives
 // the progress overlay (percent 0..100, -1 unknown size, -2 extracting),
