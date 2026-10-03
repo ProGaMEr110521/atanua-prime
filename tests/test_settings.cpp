@@ -106,12 +106,14 @@ int main()
     CHECK(themeHotRow(THEME_DARK) == 0xff31406b, "dark theme keeps legacy hot row");
     CHECK(themeHotRow(THEME_CONTRAST) != themeHotRow(THEME_DARK), "contrast hot row differs");
 
-    CHECK(fieldCount() == 7, "seven persisted fields");
+    CHECK(fieldCount() == 9, "nine persisted fields");
     CHECK(strcmp(fieldTag(0), "Language") == 0, "language tag matches atanua.xml style");
     CHECK(strcmp(fieldTag(1), "ThemeVariant") == 0, "theme tag named");
     CHECK(strcmp(fieldTag(4), "UiScale") == 0, "scale tag named");
     CHECK(strcmp(fieldTag(5), "CanvasDark") == 0, "canvas tag named");
     CHECK(strcmp(fieldTag(6), "LiveWires") == 0, "wires tag named");
+    CHECK(strcmp(fieldTag(7), "WireLegacy") == 0, "wire style tag named");
+    CHECK(strcmp(fieldTag(8), "TutorialSeen") == 0, "tutorial flag tag named");
 
     Values v;
     defaults(v);
@@ -119,6 +121,8 @@ int main()
     CHECK(v.tooltipMs == 1500 && v.audio == 1, "defaults match shipped config");
     CHECK(v.uiScale == 1.0f, "default scale is 1");
     CHECK(v.canvasDark == 1 && v.liveWires == 1, "defaults are dark canvas, live wires");
+    CHECK(v.wireLegacy == 0, "default wire style is modern");
+    CHECK(v.tutorialSeen == 0, "tutorial unseen by default");
     char buf[16];
     CHECK(getField(v, "Language", buf, sizeof(buf)) && strcmp(buf, "0") == 0, "language serializes");
     CHECK(getField(v, "TooltipDelay", buf, sizeof(buf)) && strcmp(buf, "1500") == 0, "tooltip serializes");
@@ -139,6 +143,9 @@ int main()
     CHECK(setField(w, "CanvasDark", "0") && w.canvasDark == 0, "canvas parses");
     CHECK(setField(w, "CanvasDark", "9") && w.canvasDark == 1, "bad canvas clamps");
     CHECK(setField(w, "LiveWires", "0") && w.liveWires == 0, "wires parse");
+    CHECK(setField(w, "WireLegacy", "1") && w.wireLegacy == 1, "wire style parses");
+    CHECK(setField(w, "WireLegacy", "9") && w.wireLegacy == 0, "bad wire style clamps to modern");
+    CHECK(setField(w, "TutorialSeen", "1") && w.tutorialSeen == 1, "tutorial flag parses");
     CHECK(!setField(w, "Nope", "1"), "unknown tag rejected on set");
     CHECK(!setField(w, 0, "1") && !setField(w, "Language", 0), "null guarded");
 
@@ -152,6 +159,8 @@ int main()
     rt.uiScale = 1.25f;
     rt.canvasDark = 0;
     rt.liveWires = 0;
+    rt.wireLegacy = 1;
+    rt.tutorialSeen = 1;
     Values back;
     defaults(back);
     for (int i = 0; i < fieldCount(); i++)
@@ -164,6 +173,7 @@ int main()
     CHECK(back.tooltipMs == 750 && back.audio == 0, "round-trip keeps tooltip+audio");
     CHECK(back.uiScale == 1.25f, "round-trip keeps scale");
     CHECK(back.canvasDark == 0 && back.liveWires == 0, "round-trip keeps canvas+wires");
+    CHECK(back.wireLegacy == 1 && back.tutorialSeen == 1, "round-trip keeps wire style+seen flag");
 
     if (failures == 0)
         printf("ALL SETTINGS TESTS PASSED\n");

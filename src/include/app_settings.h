@@ -142,6 +142,13 @@ enum StrKey
     S_UPDATE,
     S_CHECK_NOW,
     S_CHECKING,
+    S_WIREMODE,
+    S_WIRE_MODERN,
+    S_WIRE_LEGACY,
+    S_NEXT,
+    S_BACK,
+    S_SKIP,
+    S_FINISH,
     S_COUNT
 };
 
@@ -264,7 +271,17 @@ inline const StrEntry *stringTable(int *countOut)
         { S_CHECK_NOW, "Check for updates", "Check now",
             "Проверить обновления", "Проверить" },
         { S_CHECKING, "Checking for updates...", "Checking...",
-            "Проверка обновлений...", "Проверка..." }
+            "Проверка обновлений...", "Проверка..." },
+        { S_WIREMODE, "Wire style", "Wire style",
+            "Стиль проводов", "Стиль проводов" },
+        { S_WIRE_MODERN, "Modern", "Modern",
+            "Современный", "Современный" },
+        { S_WIRE_LEGACY, "Legacy", "Legacy",
+            "Классический", "Классический" },
+        { S_NEXT, "Next", "Next", "Далее", "Далее" },
+        { S_BACK, "Back", "Back", "Назад", "Назад" },
+        { S_SKIP, "Skip", "Skip", "Пропустить", "Пропустить" },
+        { S_FINISH, "Finish", "Finish", "Готово", "Готово" }
     };
     if (countOut)
         *countOut = (int)(sizeof(kTable) / sizeof(kTable[0]));
@@ -374,6 +391,8 @@ struct Values
     float uiScale;
     int canvasDark;
     int liveWires;
+    int wireLegacy;
+    int tutorialSeen;
 };
 
 inline void defaults(Values &v)
@@ -385,6 +404,8 @@ inline void defaults(Values &v)
     v.uiScale = 1.0f;
     v.canvasDark = 1;
     v.liveWires = 1;
+    v.wireLegacy = 0;
+    v.tutorialSeen = 0;
 }
 
 inline void validate(Values &v)
@@ -396,6 +417,8 @@ inline void validate(Values &v)
     v.uiScale = clampUiScale(v.uiScale);
     v.canvasDark = clampAudio(v.canvasDark);
     v.liveWires = clampAudio(v.liveWires);
+    v.wireLegacy = clampAudio(v.wireLegacy);
+    v.tutorialSeen = clampAudio(v.tutorialSeen);
 }
 
 inline int parseDec(const char *s, int fallback)
@@ -471,7 +494,7 @@ inline float parseFloat(const char *s, float fallback)
 // attribute as a decimal string.
 inline int fieldCount()
 {
-    return 7;
+    return 9;
 }
 
 inline const char *fieldTag(int i)
@@ -485,6 +508,8 @@ inline const char *fieldTag(int i)
     case 4: return "UiScale";
     case 5: return "CanvasDark";
     case 6: return "LiveWires";
+    case 7: return "WireLegacy";
+    case 8: return "TutorialSeen";
     default: return "";
     }
 }
@@ -554,6 +579,10 @@ inline bool getField(const Values &v, const char *tag, char *out, int cap)
         val = v.canvasDark;
     else if (strcmp(tag, "LiveWires") == 0)
         val = v.liveWires;
+    else if (strcmp(tag, "WireLegacy") == 0)
+        val = v.wireLegacy;
+    else if (strcmp(tag, "TutorialSeen") == 0)
+        val = v.tutorialSeen;
     else
         return false;
     // Decimal itoa without stdio so tests and app share one path.
@@ -618,6 +647,16 @@ inline bool setField(Values &v, const char *tag, const char *str)
     if (strcmp(tag, "LiveWires") == 0)
     {
         v.liveWires = clampAudio(parseDec(str, 1));
+        return true;
+    }
+    if (strcmp(tag, "WireLegacy") == 0)
+    {
+        v.wireLegacy = clampAudio(parseDec(str, 0));
+        return true;
+    }
+    if (strcmp(tag, "TutorialSeen") == 0)
+    {
+        v.tutorialSeen = clampAudio(parseDec(str, 0));
         return true;
     }
     return false;

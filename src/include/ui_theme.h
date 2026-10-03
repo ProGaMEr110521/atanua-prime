@@ -142,6 +142,40 @@ inline float wireFinishSnap(float zoom, float endTol)
     return endTol > px ? endTol : px;
 }
 
+// Wire interaction zones along a wire, as a fraction t of its length.
+// Modern mode treats the whole wire as one bend/split zone (current
+// behavior). Legacy mode splits it: the center band moves the wire,
+// the outer squares start a connection from the nearer end.
+enum WireZone
+{
+    WIRE_ZONE_NONE = 0,
+    WIRE_ZONE_MODERN = 1,
+    WIRE_ZONE_MOVE = 2,
+    WIRE_ZONE_CONNECT = 3
+};
+
+// Projection of (px,py) onto segment a->b as a fraction: 0 at a, 1 at b.
+// Degenerate segments report the middle so callers stay total.
+inline float wireProjectionT(float px, float py,
+    float ax, float ay, float bx, float by)
+{
+    float dx = bx - ax;
+    float dy = by - ay;
+    float len2 = dx * dx + dy * dy;
+    if (len2 <= 0.0f)
+        return 0.5f;
+    return ((px - ax) * dx + (py - ay) * dy) / len2;
+}
+
+inline int wireZoneAt(float t, int legacyMode)
+{
+    if (!legacyMode)
+        return WIRE_ZONE_MODERN;
+    if (t >= 0.4f && t <= 0.6f)
+        return WIRE_ZONE_MOVE;
+    return WIRE_ZONE_CONNECT;
+}
+
 // Keyboard-nudge undo coalescing: one undo step per burst of arrow moves.
 inline int shouldSaveNudge(int nowTick, int lastTick)
 {

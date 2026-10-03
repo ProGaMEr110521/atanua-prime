@@ -9,6 +9,10 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 ### Added / Добавлено
 - Settings gains a manual update check: if the silent startup check failed (e.g. offline launch), the Updates row runs it again on demand.
 - В настройках появилась ручная проверка обновлений: если тихая проверка при запуске не удалась (например запуск без сети), строка обновлений запускает её повторно.
+- Wire style switch (Modern/Legacy) in settings: legacy mode moves wires from the center band and connects from the outer squares, modern keeps click-to-bend; the choice persists in atanua.xml.
+- Переключатель стиля проводов (Современный/Классический) в настройках: классический режим двигает провод за центр и соединяет с краев, современный оставляет изгибы по клику; выбор сохраняется в atanua.xml.
+- First-start briefing with spotlight focus: a short tour of tools, components, settings, and help on the very first launch, with Back/Next, one-shot Skip (Esc works too), and a persisted seen-flag so it never nags again.
+- Приветственный обзор при первом запуске с подсветкой областей: короткий тур по инструментам, компонентам, настройкам и помощи, с кнопками Назад/Далее, пропуском в один клик (Esc тоже работает) и флагом просмотра, чтобы больше не показываться.
 - AI circuit tooling: mined chip catalog (`tools/chips.json`, 269 chips with pinouts) and headless `atanua --validate` with machine-readable diagnostics and exit codes.
 - Инструменты для ИИ-генерации схем: каталог компонентов (`tools/chips.json`, 269 чипов с распиновкой) и headless-проверка `atanua --validate` с машиночитаемой диагностикой и кодами выхода.
 - Headless `atanua --simulate`: batch runs of the real propagation loop with `--set` stimuli and a JSON report (LED/net/pin states), no window needed.

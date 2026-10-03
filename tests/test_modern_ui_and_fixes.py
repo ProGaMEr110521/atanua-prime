@@ -458,6 +458,46 @@ def test_settings_units():
                      "ALL SETTINGS TESTS PASSED")
 
 
+def test_wiremode_tutorial_units():
+    # Compiles the SHIPPED wire-zone helpers plus the tutorial step
+    # machine and drives zones per mode, tour walk/skip/seen-flag and
+    # spotlight geometry without opening a window.
+    _compile_and_run(os.path.join(REPO, "tests", "test_wiremode_tutorial.cpp"),
+                     [],
+                     "ALL WIREMODE+TUTORIAL TESTS PASSED")
+
+
+def test_wiremode_tutorial_wired_into_app():
+    # Legacy zones must branch the real drag/click/preview paths, the
+    # settings panel must carry the persisted switch, and the tutorial
+    # overlay must gate the canvas, show first-start and persist skip.
+    main = read(SRC_MAIN)
+    assert '#include "app_tutorial.h"' in main, "tutorial header not included"
+    assert "UiTheme::wireZoneAt" in main, "drag never consults legacy zones"
+    assert "UiTheme::wireProjectionT" in main, "grab point never projected"
+    assert "WIRE_ZONE_MOVE" in main, "legacy move branch missing"
+    assert "!gConfig.mWireLegacy" in main, "modern path not preserved"
+    assert "split_wire_middle_at(worldmousedownx" in main, "legacy move drops no anchor"
+    assert "S_WIREMODE" in main, "wire style row missing from settings"
+    assert "S_WIRE_MODERN" in main and "S_WIRE_LEGACY" in main, "mode labels missing"
+    assert "mWireLegacy" in main, "switch never persists the mode"
+    assert "draw_tutorial_overlay" in main, "tutorial overlay missing"
+    assert "tutorial_dismiss" in main, "skip path missing"
+    assert "AppTutorial::visible" in main, "visibility never polled"
+    assert "AppTutorial::focusRect" in main, "spotlight geometry missing"
+    assert "AppTutorial::stepText" in main, "tour text missing"
+    assert "S_SKIP" in main and "S_NEXT" in main and "S_BACK" in main, "tour controls missing"
+    assert "gTutorialOpen" in main, "canvas never gated on the briefing"
+    assert "mTutorialSeen" in main, "seen flag never persisted"
+    assert os.path.isfile(os.path.join(REPO, "src", "include", "app_tutorial.h")), \
+        "tutorial header missing"
+    cfg = read(os.path.join(REPO, "src", "core", "AtanuaConfig.cpp"))
+    assert '"WireLegacy"' in cfg, "mode missing from config save/load"
+    assert '"TutorialSeen"' in cfg, "seen flag missing from config save/load"
+    header = read(os.path.join(REPO, "src", "include", "atanua.h"))
+    assert "mWireLegacy;" in header and "mTutorialSeen;" in header, "config decl missing"
+
+
 def test_settings_wired_into_app():
     # Language + settings must flow through the real paths: config fields
     # with save(), localized topbar labels, a settings panel that
@@ -884,6 +924,8 @@ if __name__ == "__main__":
     test_fileutils_roundtrip()
     test_updatecheck_units()
     test_updatecheck_wired_into_app()
+    test_wiremode_tutorial_units()
+    test_wiremode_tutorial_wired_into_app()
     test_validate_units()
     test_validate_wired_into_app()
     test_simulate_wired_into_app()

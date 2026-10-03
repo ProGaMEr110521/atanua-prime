@@ -25,6 +25,7 @@ distribution.
 #include "fileutils.h"
 #include "ui_theme.h"
 #include "app_settings.h"
+#include "app_tutorial.h"
 #include "dropfile.h"
 #include "applocation.h"
 #include "imgui.h"
@@ -85,6 +86,19 @@ AtanuaConfig gConfig;
 int gVisibleChiplist = 0;
 int gSettingsOpen = 0;
 int gShortcutsOpen = 0;
+int gTutorialOpen = 0;
+static AppTutorial::State sTutState;
+static int sTutInit = 0;
+
+// Dismiss the first-start briefing at once and remember it so later
+// starts stay quiet.
+static void tutorial_dismiss(void)
+{
+    AppTutorial::skip(sTutState);
+    gConfig.mTutorialSeen = 1;
+    gConfig.save();
+    gTutorialOpen = 0;
+}
 extern char *gFilename;
 void storefilename(const char *fn);
 int validate_circuit(const char *aPath);
@@ -156,6 +170,12 @@ void handle_key(int keysym, int down)
     case SDLK_ESCAPE:
         if (down)
         {
+            // Esc dismisses the first-start briefing at once like Skip.
+            if (gTutorialOpen)
+            {
+                tutorial_dismiss();
+                break;
+            }
             gSettingsOpen = 0;
             gShortcutsOpen = 0;
             sUserBufInit = 0;
@@ -832,6 +852,68 @@ static void draw_shortcuts_window(int lang)
     ImGui::End();
 }
 
+static void draw_tutorial_overlay(int lang)
+{
+    // Spotlight briefing: dim everything except the focused rect, ring it
+    // with the accent, and park a small step panel at the bottom center
+    // with Back / Next|Finish / Skip.
+    float scrW = (float)gScreenWidth;
+    float scrH = (float)gScreenHeight;
+    AppTutorial::Rect focus = AppTutorial::focusRect(sTutState.step, scrW, scrH,
+        (float)gConfig.mToolkitWidth, (float)gTopbarH);
+    ImDrawList *dl = ImGui::GetForegroundDrawList();
+    const ImU32 dim = IM_COL32(0, 0, 0, 140);
+    if (focus.hasFocus)
+    {
+        dl->AddRectFilled(ImVec2(0, 0), ImVec2(scrW, focus.y), dim);
+        dl->AddRectFilled(ImVec2(0, focus.y + focus.h), ImVec2(scrW, scrH), dim);
+        dl->AddRectFilled(ImVec2(0, focus.y), ImVec2(focus.x, focus.y + focus.h), dim);
+        dl->AddRectFilled(ImVec2(focus.x + focus.w, focus.y), ImVec2(scrW, focus.y + focus.h), dim);
+        dl->AddRect(ImVec2(focus.x, focus.y),
+            ImVec2(focus.x + focus.w, focus.y + focus.h),
+            IM_COL32(0x4c, 0x8d, 0xff, 255), 0.0f, 0, 3.0f);
+    }
+    else
+    {
+        dl->AddRectFilled(ImVec2(0, 0), ImVec2(scrW, scrH), dim);
+    }
+    AppTutorial::Text tx = AppTutorial::stepText(sTutState.step);
+    ImGui::SetNextWindowPos(ImVec2(scrW * 0.5f, scrH - 24.0f),
+        ImGuiCond_Always, ImVec2(0.5f, 1.0f));
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_AlwaysAutoResize;
+    if (!ImGui::Begin("###tutorial", NULL, flags))
+    {
+        ImGui::End();
+        return;
+    }
+    ImGui::TextUnformatted(lang == AppSettings::LANG_RU ? tx.titleRu : tx.titleEn);
+    ImGui::PushTextWrapPos(420.0f);
+    ImGui::TextUnformatted(lang == AppSettings::LANG_RU ? tx.bodyRu : tx.bodyEn);
+    ImGui::PopTextWrapPos();
+    int last = (sTutState.step == AppTutorial::TUT_HELP) ? 1 : 0;
+    if (sTutState.step != AppTutorial::TUT_WELCOME)
+    {
+        if (ImGui::Button(AppSettings::text(AppSettings::S_BACK, lang, 0)))
+            AppTutorial::back(sTutState);
+        ImGui::SameLine();
+    }
+    if (ImGui::Button(last ? AppSettings::text(AppSettings::S_FINISH, lang, 0)
+                           : AppSettings::text(AppSettings::S_NEXT, lang, 0)))
+    {
+        if (AppTutorial::advance(sTutState))
+        {
+            gConfig.mTutorialSeen = 1;
+            gConfig.save();
+            gTutorialOpen = 0;
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button(AppSettings::text(AppSettings::S_SKIP, lang, 0)))
+        tutorial_dismiss();
+    ImGui::End();
+}
+
 static void draw_settings_panel(int lang)
 {
     // Auto-sized: the window grows to fit any label length, so translated
@@ -941,6 +1023,24 @@ static void draw_settings_panel(int lang)
     {
         gBlackBackground = 0;
         gConfig.mCanvasDark = 0;
+        gConfig.save();
+    }
+    ImGui::AlignTextToFramePadding();
+    // Wire interaction style: modern keeps click-to-bend and drag-anywhere
+    // split; legacy moves from the wire center and connects from the outer
+    // squares. Persists in atanua.xml like the other canvas settings.
+    ImGui::TextUnformatted(AppSettings::text(AppSettings::S_WIREMODE, lang, 0));
+    ImGui::SameLine(150.0f);
+    int curWire = AppSettings::clampAudio(gConfig.mWireLegacy);
+    if (settings_radio(AppSettings::S_WIREMODE, AppSettings::S_WIRE_MODERN, AppSettings::text(AppSettings::S_WIRE_MODERN, lang, 0), curWire == 0))
+    {
+        gConfig.mWireLegacy = 0;
+        gConfig.save();
+    }
+    ImGui::SameLine();
+    if (settings_radio(AppSettings::S_WIREMODE, AppSettings::S_WIRE_LEGACY, AppSettings::text(AppSettings::S_WIRE_LEGACY, lang, 0), curWire == 1))
+    {
+        gConfig.mWireLegacy = 1;
         gConfig.save();
     }
     ImGui::AlignTextToFramePadding();
@@ -1549,7 +1649,9 @@ static void draw_screen()
 
     imgui_prepare();
 
-    if (!gSettingsOpen && gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > gTopbarH)
+    gTutorialOpen = AppTutorial::visible(sTutState);
+
+    if (!gSettingsOpen && !gTutorialOpen && gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > gTopbarH)
     {
         if (gDragMode == DRAGMODE_NONE)
         {
@@ -1903,23 +2005,54 @@ static void draw_screen()
                 gMultiSelectChip.clear();
                 gMultiSelectWire.clear();
                 gMultiselectDirty = 1;
+                if (gConfig.mWireLegacy)
+                {
+                    // Legacy zones from the grab point: the center band
+                    // moves the wire by dropping an anchor there, the
+                    // outer squares reconnect from the nearer end.
+                    Wire *lw = gWire[splitId];
+                    if (lw && lw->mFirst && lw->mSecond &&
+                        lw->mFirst->mHost && lw->mSecond->mHost)
+                    {
+                        float ax = lw->mFirst->mHost->mRotatedX + lw->mFirst->mRotatedX + 0.25f;
+                        float ay = lw->mFirst->mHost->mRotatedY + lw->mFirst->mRotatedY + 0.25f;
+                        float bx = lw->mSecond->mHost->mRotatedX + lw->mSecond->mRotatedX + 0.25f;
+                        float by = lw->mSecond->mHost->mRotatedY + lw->mSecond->mRotatedY + 0.25f;
+                        float t = UiTheme::wireProjectionT(worldmousedownx, worldmousedowny,
+                            ax, ay, bx, by);
+                        if (UiTheme::wireZoneAt(t, 1) == UiTheme::WIRE_ZONE_MOVE)
+                            split_wire_middle_at(worldmousedownx, worldmousedowny, splitId);
+                        else
+                        {
+                            Pin *end = (t < 0.5f) ? lw->mFirst : lw->mSecond;
+                            gDragMode = DRAGMODE_WIRE;
+                            gWireStartDrag = end;
+                            gUIState.activeitem = getChipIdForPad(end);
+                        }
+                    }
+                }
+                else
+                {
                 // First check if distance from the dragged position to one of the original pins was
                 // short enough, and draw a new line from said pin instead of splitting the wire.
                 split_wire(1);
+                }
             }
             }
         }
 
         // Click (press and release without dragging) on the middle of a wire
-        // drops a bend point there. Dragging still splits or rewires instead,
-        // and shift-click still multi-selects.
+        // drops a bend point there in modern mode; legacy mode has no
+        // click-to-bend (center grabs move instead). Dragging still splits
+        // or rewires instead, and shift-click still multi-selects.
         {
             static int sPrevDown = 0;
             static int sClickWire = -1;
             if (gUIState.mousedown && !sPrevDown)
             {
                 sClickWire = -1;
-                if (gDragMode == DRAGMODE_NONE && IS_WIRE_ID(gUIState.hotitem) &&
+                if (!gConfig.mWireLegacy &&
+                    gDragMode == DRAGMODE_NONE && IS_WIRE_ID(gUIState.hotitem) &&
                     !(gUIState.keymod & gSelectKeyMask))
                 {
                     int hid = GET_WIRE_ID(gUIState.hotitem);
@@ -2406,7 +2539,9 @@ static void draw_screen()
         if (gUIState.hotitem == WIRE_ID(i))
         {
             glColor4f(1,1,1,0.5);
-            if (split_wire(0))
+            // Bend-point preview marker is modern-only; legacy mode moves
+            // from the center instead of bending on click.
+            if (!gConfig.mWireLegacy && split_wire(0))
             {
                 float xv = (a->mHost->mRotatedX + a->mRotatedX + 0.25) - (b->mHost->mRotatedX + b->mRotatedX + 0.25);
                 float yv = (a->mHost->mRotatedY + a->mRotatedY + 0.25) - (b->mHost->mRotatedY + b->mRotatedY + 0.25);
@@ -2742,6 +2877,8 @@ static void draw_screen()
         draw_settings_panel(lang);
     if (gShortcutsOpen)
         draw_shortcuts_window(lang);
+    if (gTutorialOpen)
+        draw_tutorial_overlay(lang);
     ImGui::Render();
     ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
 
@@ -2890,6 +3027,13 @@ int main(int argc, char** args)
     // the frame loop, the config owns the values.
     gBlackBackground = gConfig.mCanvasDark ? 1 : 0;
     gLiveWires = gConfig.mLiveWires ? 1 : 0;
+
+    // First-start briefing: shows only when no seen-flag was ever saved.
+    if (!sTutInit)
+    {
+        AppTutorial::init(sTutState, gConfig.mTutorialSeen);
+        sTutInit = 1;
+    }
 
     if (gConfig.mSwapShiftAndCtrl)
     {

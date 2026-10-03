@@ -211,6 +211,8 @@ public:
     float mUiScale;
     int mCanvasDark;
     int mLiveWires;
+    int mWireLegacy;
+    int mTutorialSeen;
 };
 
 extern AtanuaConfig gConfig;

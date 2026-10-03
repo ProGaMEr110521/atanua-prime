@@ -64,6 +64,8 @@ AtanuaConfig::AtanuaConfig()
     mUiScale = 1.0f;
     mCanvasDark = 1;
     mLiveWires = 1;
+    mWireLegacy = 0;
+    mTutorialSeen = 0;
 }
 
 AtanuaConfig::~AtanuaConfig()
@@ -215,6 +217,14 @@ void AtanuaConfig::load()
         topelement->InsertEndChild(element);
         element->SetAttribute("value", mLiveWires);
 
+        element = doc.NewElement("WireLegacy");
+        topelement->InsertEndChild(element);
+        element->SetAttribute("value", mWireLegacy);
+
+        element = doc.NewElement("TutorialSeen");
+        topelement->InsertEndChild(element);
+        element->SetAttribute("value", mTutorialSeen);
+
         AppLocation_EnsureConfigDir();
         f = fopen(AppLocation_ConfigFile(), "wb");
         if (f)
@@ -328,6 +338,20 @@ void AtanuaConfig::load()
                 mLiveWires = AppSettings::clampAudio(live);
             }
             else
+            if (stricmp(part->Value(), "WireLegacy") == 0)
+            {
+                int legacy = mWireLegacy;
+                part->QueryIntAttribute("value", &legacy);
+                mWireLegacy = AppSettings::clampAudio(legacy);
+            }
+            else
+            if (stricmp(part->Value(), "TutorialSeen") == 0)
+            {
+                int seen = mTutorialSeen;
+                part->QueryIntAttribute("value", &seen);
+                mTutorialSeen = AppSettings::clampAudio(seen);
+            }
+            else
             if (stricmp(part->Value(), "ToolkitWidth") == 0)
             {
                 part->QueryIntAttribute("value", &mToolkitWidth);
@@ -432,7 +456,7 @@ static int isKnownConfigElement(const char *name)
         "LineEndTolerance", "LineSplitDragDistance", "ChipCloneDragDistance",
         "User", "FontSystem", "PerformanceOptions", "Limits", "LED",
         "Autosave", "Language", "ThemeVariant", "UiScale", "CanvasDark",
-        "LiveWires", 0
+        "LiveWires", "WireLegacy", "TutorialSeen", 0
     };
     if (!name)
         return 0;
@@ -463,6 +487,8 @@ void AtanuaConfig::save()
     mUiScale = AppSettings::clampUiScale(mUiScale);
     mCanvasDark = AppSettings::clampAudio(mCanvasDark);
     mLiveWires = AppSettings::clampAudio(mLiveWires);
+    mWireLegacy = AppSettings::clampAudio(mWireLegacy);
+    mTutorialSeen = AppSettings::clampAudio(mTutorialSeen);
 
     XMLDocument doc;
     int haveDoc = 0;
@@ -542,6 +568,10 @@ void AtanuaConfig::save()
     el->SetAttribute("value", mCanvasDark);
     el = findOrCreateChild(root, doc, "LiveWires");
     el->SetAttribute("value", mLiveWires);
+    el = findOrCreateChild(root, doc, "WireLegacy");
+    el->SetAttribute("value", mWireLegacy);
+    el = findOrCreateChild(root, doc, "TutorialSeen");
+    el->SetAttribute("value", mTutorialSeen);
 
     // Drop duplicate known elements from hand edits, keep unknowns.
     XMLElement *child = root->FirstChildElement();

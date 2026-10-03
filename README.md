@@ -27,7 +27,8 @@ Plain branch pushes build in CI but do not publish release archives.
 - **Route-through anchors** — while drawing a wire, click empty canvas to drop routing anchors; releasing near a pin snaps the connection to that pin.
 - **Magnetic anchors and pins** — bend points render as visible dots with separate inner (start wire) and outer (move) hit zones; pins have padded grab areas that win over nearby wires.
 - **Undo/redo** — snapshot history capped at 100 steps and 64 MiB total; moves, rotations, and edits record history; depth shown in the status bar.
-- **Settings** — language (English / Russian), theme (Dark / Contrast), UI scale, tooltip delay, and sound; choices persist in `atanua.xml`.
+- **Settings** — language (English / Russian), theme (Dark / Contrast), UI scale, tooltip delay, wire style (Modern / Legacy), and sound; choices persist in `atanua.xml`.
+- **First-start briefing** — a short spotlight tour of tools, components, settings, and help on the very first launch, skippable at once and never shown again.
 - **Auto-update (Windows)** — on launch, the app checks GitHub releases and can download, install, and restart when a newer tagged build is available. Linux builds do not perform this background check.
 - **CI** — every push and pull request builds on Windows and Ubuntu; tagged releases additionally package and publish both platform archives.
 
@@ -133,7 +134,8 @@ Atanua Prime — симулятор цифровой логики в реаль�
 - **Маршрутизация через якоря** — при ведении провода кликайте по пустому холсту для промежуточных якорей; отпускание рядом с выводом примагничивает соединение к нему.
 - **Магнитные якоря и пины** — точки изгиба видны и имеют отдельные зоны для нового провода (внутри) и перемещения (снаружи); у выводов расширенная зона захвата.
 - **Undo/redo** — до 100 шагов и 64 МиБ суммарно; перемещения, повороты и правки попадают в историю; глубина видна в строке состояния.
-- **Настройки** — язык (English / Русский), тема (Тёмная / Контрастная), масштаб UI, задержка подсказок и звук; всё сохраняется в `atanua.xml`.
+- **Настройки** — язык (English / Русский), тема (Тёмная / Контрастная), масштаб UI, задержка подсказок, стиль проводов (Современный / Классический) и звук; всё сохраняется в `atanua.xml`.
+- **Приветственный обзор** — короткий тур с подсветкой по инструментам, компонентам, настройкам и помощи при самом первом запуске, пропускается в один клик и больше не показывается.
 - **Автообновление (Windows)** — при запуске приложение проверяет релизы на GitHub и может скачать, установить и перезапуститься. Сборки для Linux фоновую проверку не выполняют.
 - **CI** — каждый push и pull request собирается под Windows и Ubuntu; по тегам дополнительно публикуются архивы обеих платформ.
 
