@@ -467,6 +467,33 @@ def test_wiremode_tutorial_units():
                      "ALL WIREMODE+TUTORIAL TESTS PASSED")
 
 
+def test_quickfind_units():
+    # Compiles the SHIPPED quick-find helpers and drives substring
+    # matching plus double-tap timing (arm/fire/expiry/wrap) headlessly.
+    _compile_and_run(os.path.join(REPO, "tests", "test_quickfind.cpp"),
+                     [],
+                     "ALL QUICKFIND TESTS PASSED")
+
+
+def test_quickfind_wired_into_app():
+    # Double-shift must reach the detector on keydown (not repeat, never
+    # while typing or briefing), and the overlay must list every tab,
+    # navigate, and place through the same factory handshake as palette
+    # drags without nudging the selection.
+    main = read(SRC_MAIN)
+    assert '#include "quick_find.h"' in main, "quick-find header not included"
+    assert "QuickFind::doubleTapTick" in main, "no double-shift detection"
+    assert "SDLK_LSHIFT" in main and "SDLK_RSHIFT" in main, "both shifts unwatched"
+    assert "!event.key.repeat" in main, "key repeat would retrigger the palette"
+    assert "draw_quickfind_overlay" in main, "palette overlay missing"
+    assert "quickfind_place" in main, "palette never places chips"
+    assert "S_QUICK_FIND" in main and "S_NO_MATCHES" in main, "palette strings missing"
+    assert "sFindOpen" in main, "palette open state missing"
+    assert "DRAGMODE_NEWCHIP" in main, "palette skips the drop handshake"
+    assert os.path.isfile(os.path.join(REPO, "src", "include", "quick_find.h")), \
+        "quick-find header missing"
+
+
 def test_wiremode_tutorial_wired_into_app():
     # Legacy zones must branch the real drag/click/preview paths, the
     # settings panel must carry the persisted switch, and the tutorial
@@ -965,6 +992,8 @@ if __name__ == "__main__":
     test_updatecheck_wired_into_app()
     test_wiremode_tutorial_units()
     test_wiremode_tutorial_wired_into_app()
+    test_quickfind_units()
+    test_quickfind_wired_into_app()
     test_wiremode_flag_reaches_binary()
     test_validate_units()
     test_validate_wired_into_app()

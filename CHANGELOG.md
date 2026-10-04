@@ -15,6 +15,8 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 - Приветственный обзор при первом запуске с подсветкой областей: короткий тур по инструментам, компонентам, настройкам и помощи, с кнопками Назад/Далее, пропуском в один клик (Esc тоже работает) и флагом просмотра, чтобы больше не показываться.
 - Briefing fixes: the step panel renders above the dim, the help spotlight rings the real ? button instead of Quit, the ? window offers a tutorial re-run, the status bar shows the active wire style, and the headless report carries the loaded wire mode.
 - Исправления обзора: панель шагов поверх затемнения, подсветка помощи на настоящей кнопке ?, повтор обучения из окна помощи, стиль проводов в строке состояния, режим проводов в headless-отчёте.
+- Quick-find palette: double-press Shift opens a filterable list of every component across all tabs; Enter drops the highlighted chip for canvas placement, Esc or canvas click dismisses.
+- Быстрый поиск: двойное нажатие Shift открывает фильтруемый список всех компонентов со всех вкладок; Enter ставит подсвеченный чип для размещения на холсте, Esc или клик по холсту закрывает.
 - AI circuit tooling: mined chip catalog (`tools/chips.json`, 269 chips with pinouts) and headless `atanua --validate` with machine-readable diagnostics and exit codes.
 - Инструменты для ИИ-генерации схем: каталог компонентов (`tools/chips.json`, 269 чипов с распиновкой) и headless-проверка `atanua --validate` с машиночитаемой диагностикой и кодами выхода.
 - Headless `atanua --simulate`: batch runs of the real propagation loop with `--set` stimuli and a JSON report (LED/net/pin states), no window needed.

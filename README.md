@@ -37,6 +37,7 @@ Plain branch pushes build in CI but do not publish release archives.
 | Action | How |
 |---|---|
 | Place chip | Drag from the left palette onto the canvas |
+| Find component | Double-press `Shift`, type, `Enter` to place |
 | Move chip / anchor | Drag the chip body (outer ring on anchors) |
 | Start / finish a wire | Drag pin to pin, or click pin, click empty spots, click target pin |
 | Bend a wire (Click-to-bend) | Left-click the middle of a wire; drag the created dot |
@@ -144,6 +145,7 @@ Atanua Prime — симулятор цифровой логики в реаль�
 | Действие | Как |
 |---|---|
 | Поставить микросхему | Перетащить из левой палитры |
+| Найти компонент | Двойное нажатие `Shift`, ввод, `Enter` для установки |
 | Переместить микросхему / якорь | Тащить за корпус (у якоря — за внешнее кольцо) |
 | Начать / завершить провод | Тащить пин → пин, либо клики: пин, пустые места, целевой пин |
 | Изогнуть провод | Клик по середине провода; перетащить точку |

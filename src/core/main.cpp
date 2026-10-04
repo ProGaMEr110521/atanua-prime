@@ -26,6 +26,7 @@ distribution.
 #include "ui_theme.h"
 #include "app_settings.h"
 #include "app_tutorial.h"
+#include "quick_find.h"
 #include "dropfile.h"
 #include "applocation.h"
 #include "imgui.h"
@@ -95,6 +96,13 @@ static int sTutInit = 0;
 static float sHelpRect[4] = { 0, 0, 0, 0 };
 static float sSettingsRect[4] = { 0, 0, 0, 0 };
 static int sHaveBtnRects = 0;
+// Quick-find palette state: double-shift opens a filterable list of every
+// palette chip; Enter drops the highlighted one for canvas placement.
+static int sFindOpen = 0;
+static char sFindBuf[64] = { 0 };
+static int sFindSel = 0;
+static int sFindFocus = 0;
+static unsigned sLastShiftTick = 0;
 
 // Dismiss the first-start briefing at once and remember it so later
 // starts stay quiet.
@@ -176,7 +184,13 @@ void handle_key(int keysym, int down)
     case SDLK_ESCAPE:
         if (down)
         {
-            // Esc dismisses the first-start briefing at once like Skip.
+            // Esc dismisses the quick-find palette first, then the
+            // first-start briefing like Skip.
+            if (sFindOpen)
+            {
+                sFindOpen = 0;
+                break;
+            }
             if (gTutorialOpen)
             {
                 tutorial_dismiss();
@@ -293,6 +307,20 @@ void process_events()
             if (event.key.keysym.sym == SDLK_RSHIFT) gUIState.keymod |= KMOD_RSHIFT;
             if (event.key.keysym.sym == SDLK_LALT) gUIState.keymod |= KMOD_LALT;
             if (event.key.keysym.sym == SDLK_RALT) gUIState.keymod |= KMOD_RALT;
+
+            // Double-shift opens the quick-find component palette. Typing
+            // anywhere (filter inputs included) and the briefing gate it.
+            if ((event.key.keysym.sym == SDLK_LSHIFT || event.key.keysym.sym == SDLK_RSHIFT) &&
+                !event.key.repeat && !gTutorialOpen && !sFindOpen)
+            {
+                if (QuickFind::doubleTapTick(&sLastShiftTick, SDL_GetTicks(), QuickFind::tapWindowMs()))
+                {
+                    sFindOpen = 1;
+                    sFindBuf[0] = 0;
+                    sFindSel = 0;
+                    sFindFocus = 1;
+                }
+            }
 
             // Alias for 'del', as accessing it may be difficult on laptops etc.
             if (event.key.keysym.sym == SDLK_d &&
@@ -940,8 +968,130 @@ static void draw_tutorial_overlay(int lang)
     ImGui::End();
 }
 
-static void draw_settings_panel(int lang)
+static void quickfind_place(int tab, int idx)
 {
+    // Same drop handshake as dragging from the palette: the factory builds
+    // the chip, the next canvas click drops it.
+    if (tab < 0 || tab > 4 || idx < 0 || idx >= (int)gAvailableChip[tab].size())
+        return;
+    const char *name = gAvailableChip[tab][idx];
+    if (!name)
+        return;
+    Chip *built = NULL;
+    for (size_t j = 0; built == NULL && j < gChipFactory.size(); j++)
+        built = gChipFactory[j]->build(name);
+    if (!built)
+        return;
+    if (gDragMode == DRAGMODE_NEWCHIP)
+        do_cancel();
+    gMultiSelectChip.clear();
+    gMultiSelectWire.clear();
+    gMultiselectDirty = 1;
+    gNewChip = built;
+    gNewChipName = name;
+    gDragMode = DRAGMODE_NEWCHIP;
+    gUIState.mousedownkeymod &= ~gCloneKeyMask;
+    sFindOpen = 0;
+}
+
+static void draw_quickfind_overlay(int lang)
+{
+    float scrW = (float)gScreenWidth;
+    float panelW = scrW - 80.0f;
+    if (panelW > 560.0f)
+        panelW = 560.0f;
+    if (panelW < 200.0f)
+        panelW = 200.0f;
+    ImGui::SetNextWindowPos(ImVec2(scrW * 0.5f, (float)gTopbarH + 12.0f),
+        ImGuiCond_Always, ImVec2(0.5f, 0.0f));
+    ImGui::SetNextWindowSize(ImVec2(panelW, 0));
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize;
+    if (!ImGui::Begin("###quickfind", NULL, flags))
+    {
+        ImGui::End();
+        return;
+    }
+    // Clicking the canvas (no window hovered) dismisses, like losing focus.
+    if (gUIState.mousedown && !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow))
+    {
+        sFindOpen = 0;
+        ImGui::End();
+        return;
+    }
+    if (sFindFocus)
+    {
+        ImGui::SetKeyboardFocusHere(-1);
+        sFindFocus = 0;
+    }
+    ImGui::PushItemWidth(-1.0f);
+    bool enter = ImGui::InputTextWithHint("##findinput",
+        AppSettings::text(AppSettings::S_QUICK_FIND, lang, 0),
+        sFindBuf, (int)sizeof(sFindBuf),
+        ImGuiInputTextFlags_EnterReturnsTrue);
+    ImGui::PopItemWidth();
+    // Matches across every palette tab, in tab order.
+    static int matchTab[512];
+    static int matchIdx[512];
+    int matches = 0;
+    for (int t = 0; t < 5 && matches < 512; t++)
+    {
+        for (int i = 0; i < (signed)gAvailableChip[t].size() && matches < 512; i++)
+        {
+            const char *nm = gAvailableChip[t][i];
+            if (!nm || !QuickFind::substringMatch(nm, sFindBuf))
+                continue;
+            matchTab[matches] = t;
+            matchIdx[matches] = i;
+            matches++;
+        }
+    }
+    if (sFindSel >= matches)
+        sFindSel = matches - 1;
+    if (sFindSel < 0 && matches > 0)
+        sFindSel = 0;
+    if (ImGui::IsKeyPressed(ImGuiKey_DownArrow) && matches > 0)
+    {
+        sFindSel = (sFindSel + 1) % matches;
+    }
+    if (ImGui::IsKeyPressed(ImGuiKey_UpArrow) && matches > 0)
+    {
+        sFindSel = (sFindSel - 1 + matches) % matches;
+    }
+    int followSel = ImGui::IsKeyPressed(ImGuiKey_DownArrow) ||
+        ImGui::IsKeyPressed(ImGuiKey_UpArrow);
+    static const int tabKey[5] = { AppSettings::S_BASE, AppSettings::S_CHIPS,
+        AppSettings::S_IN, AppSettings::S_OUT, AppSettings::S_MISC };
+    if (matches == 0)
+    {
+        ImGui::TextDisabled("%s", AppSettings::text(AppSettings::S_NO_MATCHES, lang, 0));
+    }
+    else
+    {
+        float rowH = ImGui::GetTextLineHeightWithSpacing();
+        int rows = matches < 12 ? matches : 12;
+        if (ImGui::BeginChild("##findlist", ImVec2(0, rowH * (float)rows)))
+        {
+            for (int m = 0; m < matches; m++)
+            {
+                const char *nm = gAvailableChip[matchTab[m]][matchIdx[m]];
+                char row[192];
+                snprintf(row, sizeof(row), "%s  [%s]", nm ? nm : "?",
+                    AppSettings::text(tabKey[matchTab[m]], lang, 1));
+                if (ImGui::Selectable(row, m == sFindSel))
+                    quickfind_place(matchTab[m], matchIdx[m]);
+                if (m == sFindSel && followSel)
+                    ImGui::SetScrollHereY();
+            }
+        }
+        ImGui::EndChild();
+    }
+    if (enter && matches > 0)
+        quickfind_place(matchTab[sFindSel], matchIdx[sFindSel]);
+    ImGui::End();
+}
+
+static void draw_settings_panel(int lang){
     // Auto-sized: the window grows to fit any label length, so translated
     // strings can never overflow their controls.
     ImGui::SetNextWindowPos(ImVec2((float)gScreenWidth * 0.5f, (float)gScreenHeight * 0.5f),
@@ -1423,28 +1573,12 @@ static void draw_topbar_imgui(int lang, int cAccent)
 
 static int ascii_tolower(int c)
 {
-    return (c >= 'A' && c <= 'Z') ? c + 32 : c;
+    return QuickFind::asciiTolower(c);
 }
 
 static int name_matches(const char *name, const char *filter)
 {
-    if (!filter || !filter[0])
-        return 1;
-    if (!name)
-        return 0;
-    for (const char *p = name; *p; p++)
-    {
-        const char *a = p;
-        const char *b = filter;
-        while (*a && *b && ascii_tolower(*a) == ascii_tolower(*b))
-        {
-            a++;
-            b++;
-        }
-        if (!*b)
-            return 1;
-    }
-    return 0;
+    return QuickFind::substringMatch(name, filter);
 }
 
 static void draw_sidebar_imgui(int *locOut)
@@ -2221,9 +2355,10 @@ static void draw_screen()
         }
     }
 
-    // Handle keyboard events for selected objects
+    // Handle keyboard events for selected objects. Disabled while the
+    // quick-find palette is open so list navigation never nudges chips.
     static int sLastNudgeTick = 0;
-    if ((!gMultiSelectChip.empty()) || (!gMultiSelectWire.empty()))
+    if (((!gMultiSelectChip.empty()) || (!gMultiSelectWire.empty())) && !sFindOpen)
     {
         // multiselect mode
         if (gUIState.keyentered == SDLK_LEFT ||
@@ -2927,6 +3062,8 @@ static void draw_screen()
         draw_shortcuts_window(lang);
     if (gTutorialOpen)
         draw_tutorial_overlay(lang);
+    if (sFindOpen)
+        draw_quickfind_overlay(lang);
     ImGui::Render();
     ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
 
