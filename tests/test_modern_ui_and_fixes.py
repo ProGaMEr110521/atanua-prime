@@ -481,6 +481,7 @@ def test_wiremode_tutorial_wired_into_app():
     assert "split_wire_middle_at(worldmousedownx" in main, "legacy move drops no anchor"
     assert "S_WIREMODE" in main, "wire style row missing from settings"
     assert "S_WIRE_MODERN" in main and "S_WIRE_LEGACY" in main, "mode labels missing"
+    assert "S_WIRE_MODERN_TIP" in main and "S_WIRE_LEGACY_TIP" in main, "mode hover tips missing"
     assert "mWireLegacy" in main, "switch never persists the mode"
     assert "draw_tutorial_overlay" in main, "tutorial overlay missing"
     assert "tutorial_dismiss" in main, "skip path missing"

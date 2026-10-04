@@ -1063,12 +1063,17 @@ static void draw_settings_panel(int lang)
         gConfig.mWireLegacy = 0;
         gConfig.save();
     }
+    // Hover explains the mode; honors Tooltips off like the canvas tips.
+    if (gConfig.mTooltipDelay > 0 && ImGui::IsItemHovered())
+        ImGui::SetItemTooltip("%s", AppSettings::text(AppSettings::S_WIRE_MODERN_TIP, lang, 0));
     ImGui::SameLine();
     if (settings_radio(AppSettings::S_WIREMODE, AppSettings::S_WIRE_LEGACY, AppSettings::text(AppSettings::S_WIRE_LEGACY, lang, 0), curWire == 1))
     {
         gConfig.mWireLegacy = 1;
         gConfig.save();
     }
+    if (gConfig.mTooltipDelay > 0 && ImGui::IsItemHovered())
+        ImGui::SetItemTooltip("%s", AppSettings::text(AppSettings::S_WIRE_LEGACY_TIP, lang, 0));
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted(AppSettings::text(AppSettings::S_USERNAME, lang, 0));
     ImGui::SameLine(150.0f);
