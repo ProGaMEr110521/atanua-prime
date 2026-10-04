@@ -64,7 +64,7 @@ AtanuaConfig::AtanuaConfig()
     mUiScale = 1.0f;
     mCanvasDark = 1;
     mLiveWires = 1;
-    mWireLegacy = 0;
+    mWireLegacy = 1;
     mTutorialSeen = 0;
 }
 
@@ -342,7 +342,7 @@ void AtanuaConfig::load()
             {
                 int legacy = mWireLegacy;
                 part->QueryIntAttribute("value", &legacy);
-                mWireLegacy = (legacy == 1) ? 1 : 0;
+                mWireLegacy = (legacy == 0) ? 0 : 1;
             }
             else
             if (stricmp(part->Value(), "TutorialSeen") == 0)
@@ -487,7 +487,7 @@ void AtanuaConfig::save()
     mUiScale = AppSettings::clampUiScale(mUiScale);
     mCanvasDark = AppSettings::clampAudio(mCanvasDark);
     mLiveWires = AppSettings::clampAudio(mLiveWires);
-    mWireLegacy = (mWireLegacy == 1) ? 1 : 0;
+    mWireLegacy = (mWireLegacy == 0) ? 0 : 1;
     mTutorialSeen = (mTutorialSeen == 1) ? 1 : 0;
 
     XMLDocument doc;

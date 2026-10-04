@@ -407,7 +407,7 @@ inline void defaults(Values &v)
     v.uiScale = 1.0f;
     v.canvasDark = 1;
     v.liveWires = 1;
-    v.wireLegacy = 0;
+    v.wireLegacy = 1;
     v.tutorialSeen = 0;
 }
 
@@ -654,8 +654,8 @@ inline bool setField(Values &v, const char *tag, const char *str)
     }
     if (strcmp(tag, "WireLegacy") == 0)
     {
-        // Only 1 enables legacy; anything else falls back to modern.
-        v.wireLegacy = parseDec(str, 0) == 1 ? 1 : 0;
+        // Only 0 selects modern; anything else falls back to classic.
+        v.wireLegacy = parseDec(str, 1) == 0 ? 0 : 1;
         return true;
     }
     if (strcmp(tag, "TutorialSeen") == 0)

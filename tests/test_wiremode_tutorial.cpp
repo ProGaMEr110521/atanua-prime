@@ -105,13 +105,13 @@ int main()
     /* Persisted values cover the new fields with modern/unseen defaults. */
     AppSettings::Values v;
     AppSettings::defaults(v);
-    CHECK(v.wireLegacy == 0 && v.tutorialSeen == 0, "wire/tutorial defaults are modern/unseen");
+    CHECK(v.wireLegacy == 1 && v.tutorialSeen == 0, "wire/tutorial defaults are classic/unseen");
     char buf[16];
-    CHECK(AppSettings::getField(v, "WireLegacy", buf, sizeof(buf)) && strcmp(buf, "0") == 0,
+    CHECK(AppSettings::getField(v, "WireLegacy", buf, sizeof(buf)) && strcmp(buf, "1") == 0,
         "wire style serializes");
     AppSettings::Values w;
     AppSettings::defaults(w);
-    CHECK(AppSettings::setField(w, "WireLegacy", "1") && w.wireLegacy == 1, "wire style parses");
+    CHECK(AppSettings::setField(w, "WireLegacy", "0") && w.wireLegacy == 0, "modern parses");
 
     if (failures == 0)
         printf("ALL WIREMODE+TUTORIAL TESTS PASSED\n");

@@ -121,7 +121,7 @@ int main()
     CHECK(v.tooltipMs == 1500 && v.audio == 1, "defaults match shipped config");
     CHECK(v.uiScale == 1.0f, "default scale is 1");
     CHECK(v.canvasDark == 1 && v.liveWires == 1, "defaults are dark canvas, live wires");
-    CHECK(v.wireLegacy == 0, "default wire style is modern");
+    CHECK(v.wireLegacy == 1, "default wire style is classic");
     CHECK(v.tutorialSeen == 0, "tutorial unseen by default");
     char buf[16];
     CHECK(getField(v, "Language", buf, sizeof(buf)) && strcmp(buf, "0") == 0, "language serializes");
@@ -144,7 +144,7 @@ int main()
     CHECK(setField(w, "CanvasDark", "9") && w.canvasDark == 1, "bad canvas clamps");
     CHECK(setField(w, "LiveWires", "0") && w.liveWires == 0, "wires parse");
     CHECK(setField(w, "WireLegacy", "1") && w.wireLegacy == 1, "wire style parses");
-    CHECK(setField(w, "WireLegacy", "9") && w.wireLegacy == 0, "bad wire style clamps to modern");
+    CHECK(setField(w, "WireLegacy", "9") && w.wireLegacy == 1, "bad wire style clamps to classic");
     CHECK(setField(w, "TutorialSeen", "1") && w.tutorialSeen == 1, "tutorial flag parses");
     CHECK(setField(w, "TutorialSeen", "9") && w.tutorialSeen == 0, "bad tutorial flag shows the tour");
     CHECK(!setField(w, "Nope", "1"), "unknown tag rejected on set");
