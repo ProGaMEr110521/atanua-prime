@@ -19,6 +19,10 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 - Быстрый поиск: двойное нажатие Shift открывает фильтруемый список всех компонентов со всех вкладок; Enter ставит подсвеченный чип для размещения на холсте, Esc или клик по холсту закрывает.
 - Quick-find fixes: rows place on press so picks drag straight out like the sidebar, dismiss is edge-triggered with the press swallowed, mouse capture holds only while dragging, and the hotkey ignores nav focus (text entry still vetoes).
 - Исправления поиска: строки ставятся по нажатию и тянутся наружу как из палитры, закрытие только по новому клику без побочных действий, захват мыши только при перетаскивании, хоткей не зависит от фокуса навигации (ввод текста по-прежнему блокирует).
+- Quick-find filter autofocuses on open so typing starts at once with no click.
+- Поле быстрого поиска получает фокус при открытии, ввод начинается сразу без клика.
+- What is new popup: after an update the app shows the changelog section for the new build once (remembered as SeenVersion in atanua.xml); Help reopens it any time with Esc to close.
+- Окно Что нового: после обновления приложение один раз показывает раздел журнала для новой сборки (запоминается как SeenVersion в atanua.xml); помощь открывает его повторно, закрытие по Esc.
 - AI circuit tooling: mined chip catalog (`tools/chips.json`, 269 chips with pinouts) and headless `atanua --validate` with machine-readable diagnostics and exit codes.
 - Инструменты для ИИ-генерации схем: каталог компонентов (`tools/chips.json`, 269 чипов с распиновкой) и headless-проверка `atanua --validate` с машиночитаемой диагностикой и кодами выхода.
 - Headless `atanua --simulate`: batch runs of the real propagation loop with `--set` stimuli and a JSON report (LED/net/pin states), no window needed.

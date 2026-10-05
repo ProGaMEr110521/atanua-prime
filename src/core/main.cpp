@@ -26,6 +26,7 @@ distribution.
 #include "ui_theme.h"
 #include "app_settings.h"
 #include "app_tutorial.h"
+#include "app_changelog.h"
 #include "quick_find.h"
 #include "dropfile.h"
 #include "applocation.h"
@@ -106,6 +107,11 @@ static unsigned sLastShiftTick = 0;
 // Set when the press that dismissed the palette began outside it: the
 // same press must not also drop a pending chip (cancel-only, like Zed).
 static int sFindSwallow = 0;
+// One-time post-update notes: opened once when the running build is
+// newer than the remembered SeenVersion, plus on demand from Help.
+static int sChangelogOpen = 0;
+static char sChangelogText[8192] = { 0 };
+static char sChangelogVer[64] = { 0 };
 
 // Dismiss the first-start briefing at once and remember it so later
 // starts stay quiet.
@@ -115,6 +121,73 @@ static void tutorial_dismiss(void)
     gConfig.mTutorialSeen = 1;
     gConfig.save();
     gTutorialOpen = 0;
+}
+
+// Load the CHANGELOG.md section for version into the popup buffer.
+// Tries the exe/data dir first (where the updater stages it), then the
+// repo checkout for dev runs. Leaves the buffer empty when no section
+// matches, so the window falls back to a short generic line.
+static void changelog_load_text(const char *version)
+{
+    static const char *paths[] = { "CHANGELOG.md", "../CHANGELOG.md", "../../CHANGELOG.md", 0 };
+    char clean[64];
+    char blob[131072];
+    sChangelogText[0] = '\0';
+    sChangelogVer[0] = '\0';
+    if (!version || !*version)
+        return;
+    AppChangelog::sanitizeVersion(version, clean, (int)sizeof(clean));
+    if (!clean[0])
+        return;
+    snprintf(sChangelogVer, sizeof(sChangelogVer), "%s", clean);
+    for (int pi = 0; paths[pi]; pi++)
+    {
+        FILE *f = fopen(paths[pi], "rb");
+        size_t n;
+        if (!f)
+            continue;
+        n = fread(blob, 1, sizeof(blob) - 1, f);
+        fclose(f);
+        blob[n] = '\0';
+        if (AppChangelog::sectionFor(blob, clean, sChangelogText, (int)sizeof(sChangelogText)))
+            return;
+    }
+}
+
+// Remember the running build so the notes show exactly once.
+static void changelog_record_seen(void)
+{
+    delete[] gConfig.mSeenVersion;
+    gConfig.mSeenVersion = mystrdup(ATANUAVERSION);
+    gConfig.save();
+}
+
+static void changelog_dismiss(void)
+{
+    changelog_record_seen();
+    sChangelogOpen = 0;
+}
+
+// Decide at startup whether the notes pop up. Fresh installs (no
+// remembered version) record silently; upgrades from before this popup
+// arrive as 0.0.0 so they show once; downgrades just re-record.
+static void changelog_maybe_show_on_startup(void)
+{
+    const char *seen = gConfig.mSeenVersion ? gConfig.mSeenVersion : "";
+    if (!seen[0])
+    {
+        changelog_record_seen();
+        return;
+    }
+    if (AppChangelog::shouldShow(seen, ATANUAVERSION))
+    {
+        changelog_load_text(ATANUAVERSION);
+        sChangelogOpen = 1;
+    }
+    else if (strcmp(seen, ATANUAVERSION) != 0)
+    {
+        changelog_record_seen();
+    }
 }
 extern char *gFilename;
 void storefilename(const char *fn);
@@ -196,7 +269,7 @@ void handle_key(int keysym, int down)
         if (down)
         {
             // Esc dismisses the quick-find palette first, then the
-            // first-start briefing like Skip.
+            // first-start briefing like Skip, then the update notes.
             if (sFindOpen)
             {
                 sFindOpen = 0;
@@ -205,6 +278,11 @@ void handle_key(int keysym, int down)
             if (gTutorialOpen)
             {
                 tutorial_dismiss();
+                break;
+            }
+            if (sChangelogOpen)
+            {
+                changelog_dismiss();
                 break;
             }
             gSettingsOpen = 0;
@@ -321,11 +399,11 @@ void process_events()
 
             // Double-shift opens the quick-find component palette.
             // Typing anywhere (filter inputs included), the briefing, an
-            // open palette, and an active drag veto it; mere keyboard
-            // navigation must not.
+            // open palette, the briefing/notes, and an active drag veto it;
+            // mere keyboard navigation must not.
             if ((event.key.keysym.sym == SDLK_LSHIFT || event.key.keysym.sym == SDLK_RSHIFT) &&
                 !event.key.repeat &&
-                QuickFind::shouldDetect(imgui_typing(), gTutorialOpen, sFindOpen,
+                QuickFind::shouldDetect(imgui_typing(), (gTutorialOpen || sChangelogOpen), sFindOpen,
                     gDragMode != DRAGMODE_NONE))
             {
                 if (QuickFind::doubleTapTick(&sLastShiftTick, SDL_GetTicks(), QuickFind::tapWindowMs()))
@@ -905,6 +983,15 @@ static void draw_shortcuts_window(int lang)
         gTutorialOpen = 1;
     }
     ImGui::SameLine();
+    // Reopen the post-update notes any time; closing a manual reopen
+    // records the build just like the automatic once-popup.
+    if (ImGui::Button(AppSettings::text(AppSettings::S_WHATS_NEW, lang, 0)))
+    {
+        changelog_load_text(ATANUAVERSION);
+        gShortcutsOpen = 0;
+        sChangelogOpen = 1;
+    }
+    ImGui::SameLine();
     if (ImGui::Button(AppSettings::text(AppSettings::S_CLOSE, lang, 0)))
         gShortcutsOpen = 0;
     ImGui::End();
@@ -980,6 +1067,36 @@ static void draw_tutorial_overlay(int lang)
     ImGui::SameLine();
     if (ImGui::Button(AppSettings::text(AppSettings::S_SKIP, lang, 0)))
         tutorial_dismiss();
+    ImGui::End();
+}
+
+static void draw_changelog_window(int lang)
+{
+    // One-time post-update notes with the CHANGELOG.md section for the
+    // running build; Help can reopen it any time. Closing records the
+    // build so it shows exactly once per update.
+    char title[128];
+    snprintf(title, sizeof(title), "%s - v%s",
+        AppSettings::text(AppSettings::S_WHATS_NEW, lang, 0),
+        sChangelogVer[0] ? sChangelogVer : ATANUAVERSION);
+    ImGui::SetNextWindowPos(ImVec2((float)gScreenWidth * 0.5f, (float)gScreenHeight * 0.5f),
+        ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(560.0f, 420.0f), ImGuiCond_FirstUseEver);
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse;
+    if (!ImGui::Begin(title, NULL, flags))
+    {
+        ImGui::End();
+        return;
+    }
+    const char *body = sChangelogText[0] ? sChangelogText
+        : AppSettings::text(AppSettings::S_WHATS_NEW_EMPTY, lang, 0);
+    ImGui::BeginChild("##whatsnewbody", ImVec2(0, -32.0f), true);
+    ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + 520.0f);
+    ImGui::TextUnformatted(body);
+    ImGui::PopTextWrapPos();
+    ImGui::EndChild();
+    if (ImGui::Button(AppSettings::text(AppSettings::S_CLOSE, lang, 0)))
+        changelog_dismiss();
     ImGui::End();
 }
 
@@ -3095,6 +3212,8 @@ static void draw_screen()
         draw_shortcuts_window(lang);
     if (gTutorialOpen)
         draw_tutorial_overlay(lang);
+    if (sChangelogOpen)
+        draw_changelog_window(lang);
     if (sFindOpen)
         draw_quickfind_overlay(lang);
     ImGui::Render();
@@ -3245,6 +3364,10 @@ int main(int argc, char** args)
     // the frame loop, the config owns the values.
     gBlackBackground = gConfig.mCanvasDark ? 1 : 0;
     gLiveWires = gConfig.mLiveWires ? 1 : 0;
+
+    // Post-update notes: pop up once when the running build is newer
+    // than the remembered one; fresh installs record silently.
+    changelog_maybe_show_on_startup();
 
     // First-start briefing: shows only when no seen-flag was ever saved.
     if (!sTutInit)

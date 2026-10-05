@@ -154,6 +154,8 @@ enum StrKey
     S_REVIEW_TUTORIAL,
     S_QUICK_FIND,
     S_NO_MATCHES,
+    S_WHATS_NEW,
+    S_WHATS_NEW_EMPTY,
     S_COUNT
 };
 
@@ -300,7 +302,11 @@ inline const StrEntry *stringTable(int *countOut)
         { S_QUICK_FIND, "Find component", "Find",
             "Найти компонент", "Найти" },
         { S_NO_MATCHES, "No matches", "No matches",
-            "Нет совпадений", "Нет совпадений" }
+            "Нет совпадений", "Нет совпадений" },
+        { S_WHATS_NEW, "What is new", "New",
+            "Что нового", "Новое" },
+        { S_WHATS_NEW_EMPTY, "No changelog found for this version.", "No changelog.",
+            "Список изменений для этой версии не найден.", "Нет изменений." }
     };
     if (countOut)
         *countOut = (int)(sizeof(kTable) / sizeof(kTable[0]));

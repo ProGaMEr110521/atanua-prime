@@ -606,6 +606,7 @@ static int installDataNix(const char *pkgRoot, const char *exeDir)
     char shareProbe[PATH_MAX];
     char shareResolved[PATH_MAX];
     char cmd[2200];
+    char notes[2200];
     const char *dataDest;
     if (!pkgRoot || !exeDir || !shellSafe(pkgRoot) || !shellSafe(exeDir))
         return 0;
@@ -624,7 +625,16 @@ static int installDataNix(const char *pkgRoot, const char *exeDir)
         return 0;
     snprintf(cmd, sizeof(cmd), "mkdir -p '%s/data' && cp -a '%s/atanua-linux/data/.' '%s/data/'",
         dataDest, pkgRoot, dataDest);
-    return runCmd(cmd) == 0 ? 1 : 0;
+    if (runCmd(cmd) != 0)
+        return 0;
+    // Stage the release notes next to the data root so the one-time
+    // what's-new popup can read them after relaunch. Best-effort: a
+    // missing file must never fail an otherwise good update.
+    snprintf(notes, sizeof(notes), "cp -f '%s/atanua-linux/CHANGELOG.md' '%s/CHANGELOG.md' 2>/dev/null; "
+        "cp -f '%s/atanua-linux/README.md' '%s/README.md' 2>/dev/null; exit 0",
+        pkgRoot, dataDest, pkgRoot, dataDest);
+    runCmd(notes);
+    return 1;
 }
 
 /* Reject packages whose dynamic libs are missing here (e.g. Ubuntu

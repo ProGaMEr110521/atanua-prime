@@ -23,6 +23,7 @@ distribution.
 #include "atanua.h"
 #include "atanua_internal.h"
 #include "app_settings.h"
+#include "app_changelog.h"
 #include "applocation.h"
 #include <tinyxml2.h>
 #include <time.h>
@@ -66,12 +67,14 @@ AtanuaConfig::AtanuaConfig()
     mLiveWires = 1;
     mWireLegacy = 1;
     mTutorialSeen = 0;
+    mSeenVersion = mystrdup("");
 }
 
 AtanuaConfig::~AtanuaConfig()
 {
     delete[] mUserInfo;
     delete[] mAutosaveDir;
+    delete[] mSeenVersion;
 }
 
 static int h2i(char d)
@@ -225,6 +228,10 @@ void AtanuaConfig::load()
         topelement->InsertEndChild(element);
         element->SetAttribute("value", mTutorialSeen);
 
+        element = doc.NewElement("SeenVersion");
+        topelement->InsertEndChild(element);
+        element->SetAttribute("value", mSeenVersion ? mSeenVersion : "");
+
         AppLocation_EnsureConfigDir();
         f = fopen(AppLocation_ConfigFile(), "wb");
         if (f)
@@ -245,6 +252,7 @@ void AtanuaConfig::load()
         XMLElement *root = doc.FirstChildElement("AtanuaConfig");
         if (!root)
             return;
+        int seenVersionFound = 0;
         for (XMLElement *part = root->FirstChildElement(); part != 0; part = part->NextSiblingElement())
         {
             if (stricmp(part->Value(), "FontSystem") == 0)
@@ -352,6 +360,16 @@ void AtanuaConfig::load()
                 mTutorialSeen = (seen == 1) ? 1 : 0;
             }
             else
+            if (stricmp(part->Value(), "SeenVersion") == 0)
+            {
+                const char *t = part->Attribute("value");
+                char clean[64];
+                AppChangelog::sanitizeVersion(t ? t : "", clean, (int)sizeof(clean));
+                delete[] mSeenVersion;
+                mSeenVersion = mystrdup(clean);
+                seenVersionFound = 1;
+            }
+            else
             if (stricmp(part->Value(), "ToolkitWidth") == 0)
             {
                 part->QueryIntAttribute("value", &mToolkitWidth);
@@ -444,6 +462,14 @@ void AtanuaConfig::load()
 				}
 			}
         }
+        // Configs written before the what's-new popup have no SeenVersion:
+        // treat them as an upgrade so the next start shows the notes once
+        // instead of silently swallowing them like a fresh install.
+        if (!seenVersionFound)
+        {
+            delete[] mSeenVersion;
+            mSeenVersion = mystrdup("0.0.0");
+        }
     }
 }
 
@@ -456,7 +482,7 @@ static int isKnownConfigElement(const char *name)
         "LineEndTolerance", "LineSplitDragDistance", "ChipCloneDragDistance",
         "User", "FontSystem", "PerformanceOptions", "Limits", "LED",
         "Autosave", "Language", "ThemeVariant", "UiScale", "CanvasDark",
-        "LiveWires", "WireLegacy", "TutorialSeen", 0
+        "LiveWires", "WireLegacy", "TutorialSeen", "SeenVersion", 0
     };
     if (!name)
         return 0;
@@ -489,6 +515,12 @@ void AtanuaConfig::save()
     mLiveWires = AppSettings::clampAudio(mLiveWires);
     mWireLegacy = (mWireLegacy == 0) ? 0 : 1;
     mTutorialSeen = (mTutorialSeen == 1) ? 1 : 0;
+    {
+        char clean[64];
+        AppChangelog::sanitizeVersion(mSeenVersion ? mSeenVersion : "", clean, (int)sizeof(clean));
+        delete[] mSeenVersion;
+        mSeenVersion = mystrdup(clean);
+    }
 
     XMLDocument doc;
     int haveDoc = 0;
@@ -572,6 +604,8 @@ void AtanuaConfig::save()
     el->SetAttribute("value", mWireLegacy);
     el = findOrCreateChild(root, doc, "TutorialSeen");
     el->SetAttribute("value", mTutorialSeen);
+    el = findOrCreateChild(root, doc, "SeenVersion");
+    el->SetAttribute("value", mSeenVersion ? mSeenVersion : "");
 
     // Drop duplicate known elements from hand edits, keep unknowns.
     XMLElement *child = root->FirstChildElement();

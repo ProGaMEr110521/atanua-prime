@@ -213,6 +213,7 @@ public:
     int mLiveWires;
     int mWireLegacy;
     int mTutorialSeen;
+    char *mSeenVersion;
 };
 
 extern AtanuaConfig gConfig;
