@@ -483,12 +483,18 @@ def test_quickfind_wired_into_app():
     main = read(SRC_MAIN)
     assert '#include "quick_find.h"' in main, "quick-find header not included"
     assert "QuickFind::doubleTapTick" in main, "no double-shift detection"
+    assert "QuickFind::shouldDetect" in main, "hotkey gate bypasses typing check"
+    assert "imgui_typing" in main, "no text-input gate for the hotkey"
+    assert "gDragMode != DRAGMODE_NONE && gUIState.mousedown" in main, \
+        "mouse capture must only hold while a button is held"
     assert "SDLK_LSHIFT" in main and "SDLK_RSHIFT" in main, "both shifts unwatched"
     assert "!event.key.repeat" in main, "key repeat would retrigger the palette"
     assert "draw_quickfind_overlay" in main, "palette overlay missing"
     assert "quickfind_place" in main, "palette never places chips"
     assert "S_QUICK_FIND" in main and "S_NO_MATCHES" in main, "palette strings missing"
     assert "sFindOpen" in main, "palette open state missing"
+    assert "sFindSwallow" in main, "dismissing press can also drop a chip"
+    assert "IsMouseClicked(ImGuiMouseButton_Left)" in main, "row press never places for drag-out"
     assert "DRAGMODE_NEWCHIP" in main, "palette skips the drop handshake"
     assert os.path.isfile(os.path.join(REPO, "src", "include", "quick_find.h")), \
         "quick-find header missing"

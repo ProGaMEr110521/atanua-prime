@@ -103,6 +103,9 @@ static char sFindBuf[64] = { 0 };
 static int sFindSel = 0;
 static int sFindFocus = 0;
 static unsigned sLastShiftTick = 0;
+// Set when the press that dismissed the palette began outside it: the
+// same press must not also drop a pending chip (cancel-only, like Zed).
+static int sFindSwallow = 0;
 
 // Dismiss the first-start briefing at once and remember it so later
 // starts stay quiet.
@@ -175,6 +178,14 @@ void initvideo();
 static int imgui_wants_keys()
 {
     return ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureKeyboard;
+}
+
+// Narrower than wants_keys: true only while text is actually being
+// entered. Global hotkeys (double-shift) use this so keyboard navigation
+// elsewhere never swallows them.
+static int imgui_typing()
+{
+    return ImGui::GetCurrentContext() && ImGui::GetIO().WantTextInput;
 }
 
 void handle_key(int keysym, int down)
@@ -308,10 +319,14 @@ void process_events()
             if (event.key.keysym.sym == SDLK_LALT) gUIState.keymod |= KMOD_LALT;
             if (event.key.keysym.sym == SDLK_RALT) gUIState.keymod |= KMOD_RALT;
 
-            // Double-shift opens the quick-find component palette. Typing
-            // anywhere (filter inputs included) and the briefing gate it.
+            // Double-shift opens the quick-find component palette.
+            // Typing anywhere (filter inputs included), the briefing, an
+            // open palette, and an active drag veto it; mere keyboard
+            // navigation must not.
             if ((event.key.keysym.sym == SDLK_LSHIFT || event.key.keysym.sym == SDLK_RSHIFT) &&
-                !event.key.repeat && !gTutorialOpen && !sFindOpen)
+                !event.key.repeat &&
+                QuickFind::shouldDetect(imgui_typing(), gTutorialOpen, sFindOpen,
+                    gDragMode != DRAGMODE_NONE))
             {
                 if (QuickFind::doubleTapTick(&sLastShiftTick, SDL_GetTicks(), QuickFind::tapWindowMs()))
                 {
@@ -1012,10 +1027,17 @@ static void draw_quickfind_overlay(int lang)
         ImGui::End();
         return;
     }
-    // Clicking the canvas (no window hovered) dismisses, like losing focus.
-    if (gUIState.mousedown && !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow))
+    // A fresh press outside any window dismisses, like losing focus.
+    // Edge-triggered so a held button (e.g. mid-drag from a row) never
+    // kills the palette, and the dismissing press is swallowed so it
+    // cannot also drop a chip or start a canvas action.
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
+        !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow))
     {
         sFindOpen = 0;
+        sFindSwallow = 1;
+        gUIState.mousedownx = (float)gUIState.mousex;
+        gUIState.mousedowny = (float)gUIState.mousey;
         ImGui::End();
         return;
     }
@@ -1078,7 +1100,13 @@ static void draw_quickfind_overlay(int lang)
                 char row[192];
                 snprintf(row, sizeof(row), "%s  [%s]", nm ? nm : "?",
                     AppSettings::text(tabKey[matchTab[m]], lang, 1));
-                if (ImGui::Selectable(row, m == sFindSel))
+                // Press-edge places immediately (sidebar parity) so the
+                // pick can be dragged straight out; the release fallback
+                // below covers press-began-elsewhere clicks.
+                bool picked = ImGui::Selectable(row, m == sFindSel);
+                if (picked)
+                    quickfind_place(matchTab[m], matchIdx[m]);
+                else if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                     quickfind_place(matchTab[m], matchIdx[m]);
                 if (m == sFindSel && followSel)
                     ImGui::SetScrollHereY();
@@ -1698,9 +1726,11 @@ static void draw_screen()
     ImGui_ImplOpenGL2_NewFrame();
     ImGui_ImplSDL2_NewFrame();
     ImGui::NewFrame();
-    // Route all mouse input here while dragging so a focus change or a
-    // release outside the window cannot strand a drag (or an ImGui press).
-    SDL_CaptureMouse(gDragMode != DRAGMODE_NONE ? SDL_TRUE : SDL_FALSE);
+    // Route all mouse input here while a drag is actually held so a
+    // focus change or a release outside the window cannot strand a drag
+    // (or an ImGui press). No button held means nothing to protect, and
+    // holding capture then can swallow the next fresh press.
+    SDL_CaptureMouse((gDragMode != DRAGMODE_NONE && gUIState.mousedown) ? SDL_TRUE : SDL_FALSE);
     draw_topbar_imgui(lang, cAccent);
     draw_statusbar_imgui(lang);
     int loc = -1;
@@ -2783,7 +2813,9 @@ static void draw_screen()
         glDisable(GL_LINE_SMOOTH);
     }
 
-    if (!gSettingsOpen && gDragMode == DRAGMODE_NEWCHIP && gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > gTopbarH && gUIState.mousedown)
+    if (!gUIState.mousedown)
+        sFindSwallow = 0;
+    if (!gSettingsOpen && !sFindSwallow && gDragMode == DRAGMODE_NEWCHIP && gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > gTopbarH && gUIState.mousedown)
     {
         if (gNewChip && gNewChipName)
         {

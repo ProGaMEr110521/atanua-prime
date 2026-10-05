@@ -42,6 +42,15 @@ inline int substringMatch(const char *name, const char *filter)
     return 0;
 }
 
+/* Whether a shift tap may open the palette. Typing anywhere (filter
+ * inputs included), the briefing, an open palette, and an active drag
+ * all veto; mere keyboard navigation must not, or the hotkey dies
+ * whenever ImGui holds nav focus (which also silences shortcuts). */
+inline int shouldDetect(int typing, int tutorialOpen, int findOpen, int dragging)
+{
+    return (!typing && !tutorialOpen && !findOpen && !dragging) ? 1 : 0;
+}
+
 /* Double-press detector for the shortcut key. First press arms, a second
  * press inside the window fires and disarms (so a triple press reads as
  * open, arm, open rather than one stuck state). Unsigned math keeps

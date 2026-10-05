@@ -22,7 +22,13 @@ int main()
     CHECK(substringMatch("LED (red)", "blue") == 0, "non-match rejected");
     CHECK(substringMatch("logic AND", "logic AND gate") == 0, "longer filter rejected");
 
-    /* Double-tap timing: arm, fire in-window, disarm, expiry. */
+    /* Detection gate: typing, briefing, open palette, or active drag
+     * vetoes; mere navigation must not swallow the hotkey. */
+    CHECK(shouldDetect(0, 0, 0, 0) == 1, "idle state detects");
+    CHECK(shouldDetect(1, 0, 0, 0) == 0, "typing vetoes");
+    CHECK(shouldDetect(0, 1, 0, 0) == 0, "briefing vetoes");
+    CHECK(shouldDetect(0, 0, 1, 0) == 0, "open palette vetoes");
+    CHECK(shouldDetect(0, 0, 0, 1) == 0, "active drag vetoes");
     unsigned last = 0;
     CHECK(doubleTapTick(&last, 1000, 400) == 0, "first tap arms without firing");
     CHECK(doubleTapTick(&last, 1200, 400) == 1, "second tap in-window fires");

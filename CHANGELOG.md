@@ -17,6 +17,8 @@ This file drives the release pages: the section matching a pushed `v*` tag is pu
 - Исправления обзора: панель шагов поверх затемнения, подсветка помощи на настоящей кнопке ?, повтор обучения из окна помощи, стиль проводов в строке состояния, режим проводов в headless-отчёте.
 - Quick-find palette: double-press Shift opens a filterable list of every component across all tabs; Enter drops the highlighted chip for canvas placement, Esc or canvas click dismisses.
 - Быстрый поиск: двойное нажатие Shift открывает фильтруемый список всех компонентов со всех вкладок; Enter ставит подсвеченный чип для размещения на холсте, Esc или клик по холсту закрывает.
+- Quick-find fixes: rows place on press so picks drag straight out like the sidebar, dismiss is edge-triggered with the press swallowed, mouse capture holds only while dragging, and the hotkey ignores nav focus (text entry still vetoes).
+- Исправления поиска: строки ставятся по нажатию и тянутся наружу как из палитры, закрытие только по новому клику без побочных действий, захват мыши только при перетаскивании, хоткей не зависит от фокуса навигации (ввод текста по-прежнему блокирует).
 - AI circuit tooling: mined chip catalog (`tools/chips.json`, 269 chips with pinouts) and headless `atanua --validate` with machine-readable diagnostics and exit codes.
 - Инструменты для ИИ-генерации схем: каталог компонентов (`tools/chips.json`, 269 чипов с распиновкой) и headless-проверка `atanua --validate` с машиночитаемой диагностикой и кодами выхода.
 - Headless `atanua --simulate`: batch runs of the real propagation loop with `--set` stimuli and a JSON report (LED/net/pin states), no window needed.
