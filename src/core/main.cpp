@@ -1041,9 +1041,10 @@ static void draw_quickfind_overlay(int lang)
         ImGui::End();
         return;
     }
+    // Autofocus the filter so typing starts at once with no click.
     if (sFindFocus)
     {
-        ImGui::SetKeyboardFocusHere(-1);
+        ImGui::SetKeyboardFocusHere();
         sFindFocus = 0;
     }
     ImGui::PushItemWidth(-1.0f);

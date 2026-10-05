@@ -494,6 +494,7 @@ def test_quickfind_wired_into_app():
     assert "S_QUICK_FIND" in main and "S_NO_MATCHES" in main, "palette strings missing"
     assert "sFindOpen" in main, "palette open state missing"
     assert "sFindSwallow" in main, "dismissing press can also drop a chip"
+    assert "SetKeyboardFocusHere()" in main, "filter never autofocuses on open"
     assert "IsMouseClicked(ImGuiMouseButton_Left)" in main, "row press never places for drag-out"
     assert "DRAGMODE_NEWCHIP" in main, "palette skips the drop handshake"
     assert os.path.isfile(os.path.join(REPO, "src", "include", "quick_find.h")), \
