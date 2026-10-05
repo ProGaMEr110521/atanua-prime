@@ -303,4 +303,15 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/data")
   )
 endif()
 
+# The What's New popup reads CHANGELOG.md next to the exe (where the
+# updater also stages it), so dev builds copy the working-tree file on
+# every build instead of going stale like data snapshots do.
+if(EXISTS "${CMAKE_SOURCE_DIR}/CHANGELOG.md")
+  add_custom_command(TARGET atanua POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "${CMAKE_SOURCE_DIR}/CHANGELOG.md"
+      "$<TARGET_FILE_DIR:atanua>/CHANGELOG.md"
+  )
+endif()
+
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT atanua)

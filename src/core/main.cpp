@@ -110,7 +110,7 @@ static int sFindSwallow = 0;
 // One-time post-update notes: opened once when the running build is
 // newer than the remembered SeenVersion, plus on demand from Help.
 static int sChangelogOpen = 0;
-static char sChangelogText[8192] = { 0 };
+static char sChangelogText[12288] = { 0 };
 static char sChangelogVer[64] = { 0 };
 
 // Dismiss the first-start briefing at once and remember it so later
@@ -154,6 +154,36 @@ static void changelog_load_text(const char *version)
     }
 }
 
+// Range variant for the automatic once-popup: collects every tagged
+// section in (seen, current] so multi-release jumps show everything
+// new, newest first. Same path fallback as the single lookup.
+static void changelog_load_range(const char *seen, const char *current)
+{
+    static const char *paths[] = { "CHANGELOG.md", "../CHANGELOG.md", "../../CHANGELOG.md", 0 };
+    char clean[64];
+    char blob[131072];
+    sChangelogText[0] = '\0';
+    sChangelogVer[0] = '\0';
+    if (!current || !*current)
+        return;
+    AppChangelog::sanitizeVersion(current, clean, (int)sizeof(clean));
+    if (!clean[0])
+        return;
+    snprintf(sChangelogVer, sizeof(sChangelogVer), "%s", clean);
+    for (int pi = 0; paths[pi]; pi++)
+    {
+        FILE *f = fopen(paths[pi], "rb");
+        size_t n;
+        if (!f)
+            continue;
+        n = fread(blob, 1, sizeof(blob) - 1, f);
+        fclose(f);
+        blob[n] = '\0';
+        if (AppChangelog::rangeFor(blob, seen, clean, sChangelogText, (int)sizeof(sChangelogText)))
+            return;
+    }
+}
+
 // Remember the running build so the notes show exactly once.
 static void changelog_record_seen(void)
 {
@@ -181,7 +211,7 @@ static void changelog_maybe_show_on_startup(void)
     }
     if (AppChangelog::shouldShow(seen, ATANUAVERSION))
     {
-        changelog_load_text(ATANUAVERSION);
+        changelog_load_range(seen, ATANUAVERSION);
         sChangelogOpen = 1;
     }
     else if (strcmp(seen, ATANUAVERSION) != 0)

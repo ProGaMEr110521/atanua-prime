@@ -193,6 +193,21 @@ def test_readme_and_changelog():    # Front page is bilingual and documents the 
     assert "## [v1.3.141222]" in changelog, "changelog missing published tag section"
 
 
+def test_every_tag_has_changelog_section():
+    # The What's New popup and the release workflow both read ## [vX]
+    # sections; a version bump without one ships silent notes (the
+    # v1.3.141232..v1.3.141236 gap that showed "No changelog found").
+    changelog = read(os.path.join(REPO, "CHANGELOG.md"))
+    p = subprocess.run(["git", "tag"], capture_output=True, text=True,
+                       timeout=60, cwd=REPO)
+    assert p.returncode == 0, "git tag listing failed"
+    tags = [t.strip() for t in p.stdout.splitlines() if t.strip().startswith("v")]
+    assert tags, "no version tags found"
+    for tag in tags:
+        assert "## [%s]" % tag in changelog, \
+            "changelog missing section for pushed tag %s" % tag
+
+
 def test_dropfile_units():
     # Compiles the SHIPPED drop/argv helper header and drives extension
     # checks, drop acceptance and basename handling without a window.
