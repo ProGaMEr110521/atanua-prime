@@ -107,6 +107,11 @@ static unsigned sLastShiftTick = 0;
 // Set when the press that dismissed the palette began outside it: the
 // same press must not also drop a pending chip (cancel-only, like Zed).
 static int sFindSwallow = 0;
+// Set on Ctrl+A (by scancode, so any keyboard layout works): consumed on
+// the next canvas pass to replace the selection with every foreground
+// chip and wire. Deferred because process_events runs before the canvas
+// globals it needs are in scope order here.
+static int sSelectAllPending = 0;
 // One-time post-update notes: opened once when the running build is
 // newer than the remembered SeenVersion, plus on demand from Help.
 static int sChangelogOpen = 0;
@@ -449,6 +454,15 @@ void process_events()
             if (event.key.keysym.sym == SDLK_d &&
                 event.key.keysym.mod & KMOD_CTRL)
                 gUIState.keyentered = SDLK_DELETE;
+
+            // Ctrl+A selects every foreground chip and wire. Match the
+            // physical key (scancode) so Russian and other layouts work
+            // too; imgui_wants_keys() above already keeps text fields
+            // (where Ctrl+A must keep selecting text) out of here.
+            if (!event.key.repeat &&
+                event.key.keysym.scancode == SDL_SCANCODE_A &&
+                (event.key.keysym.mod & KMOD_CTRL || event.key.keysym.mod & KMOD_GUI))
+                sSelectAllPending = 1;
 
 
             // SDL2: no unicode field; printable ASCII comes via sym, full text via SDL_TEXTINPUT
@@ -878,6 +892,38 @@ void multiselect_active()
     }
 }
 
+// Shift and Ctrl both count as "add to selection": either held key lets a
+// click add one item, or an empty-canvas drag open a rubber-band that
+// grabs everything it touches. Clone (Ctrl-drag on a chip) keeps priority
+// for single chips, so release the key and drag any highlighted chip to
+// move the whole group at once.
+static int select_mod_held()
+{
+    return (gUIState.keymod & (gSelectKeyMask | gCloneKeyMask)) != 0;
+}
+
+// Ctrl+A: replace the selection with every foreground chip and wire.
+static void select_all_canvas()
+{
+    gMultiSelectChip.clear();
+    gMultiSelectWire.clear();
+    for (size_t si = 0; si < gChip.size(); si++)
+    {
+        if (!gChip[si] || gChip[si]->mBox != 0)
+            continue;
+        gMultiSelectChip.push_back(gChip[si]);
+    }
+    for (size_t si = 0; si < gWire.size(); si++)
+    {
+        if (!gWire[si] || gWire[si]->mBox != 0)
+            continue;
+        if (!gWire[si]->mFirst || !gWire[si]->mSecond)
+            continue;
+        gMultiSelectWire.push_back(gWire[si]);
+    }
+    gMultiselectDirty = 1;
+}
+
 void move_chip(Chip *c, int charcode)
 {
 	if (!c)
@@ -973,6 +1019,9 @@ static void draw_shortcuts_window(int lang)
         { AppSettings::S_ROTATE, "Ctrl+R", 0 },
         { AppSettings::S_OPTIMIZE, "Ctrl+O", 0 },
         { AppSettings::S_DELETE, "Del / Ctrl+D", 0 },
+        { AppSettings::S_SELECT_ALL, "Ctrl+A", 0 },
+        { AppSettings::S_SELECT_ADD, "Shift/Ctrl+click", 0 },
+        { AppSettings::S_SELECT_BOX, "Shift/Ctrl+drag", 0 },
         { AppSettings::S_NUDGE, NULL, 1 },
         { AppSettings::S_CANCEL, "Esc", 0 },
     };
@@ -1850,14 +1899,25 @@ static void draw_statusbar_imgui(int lang)
     if (gSmallFont)
         ImGui::PushFont(gSmallFont);
     char status[256];
-    snprintf(status, sizeof(status), "Chips:%d  Wires:%d  Nets:%d   Zoom:%.0f   %s   %s   %s   Undo:%d Redo:%d",
-        (int)gChip.size(), (int)gWire.size(), (int)gNet.size(),
-        gZoomFactor,
-        gSnap ? "Snap:on" : "Snap:off",
-        gLiveWires ? AppSettings::text(AppSettings::S_LIVE, lang, 0)
-                   : AppSettings::text(AppSettings::S_GREY, lang, 0),
-        AppSettings::text(gConfig.mWireLegacy ? AppSettings::S_WIRE_LEGACY : AppSettings::S_WIRE_MODERN, lang, 1),
-        (int)gUndoStack.size(), (int)gRedoStack.size());
+    int selCount = (int)gMultiSelectChip.size() + (int)gMultiSelectWire.size();
+    if (selCount > 0)
+        snprintf(status, sizeof(status), "Chips:%d  Wires:%d  Nets:%d   Zoom:%.0f   %s   %s   %s   Undo:%d Redo:%d   Sel:%d",
+            (int)gChip.size(), (int)gWire.size(), (int)gNet.size(),
+            gZoomFactor,
+            gSnap ? "Snap:on" : "Snap:off",
+            gLiveWires ? AppSettings::text(AppSettings::S_LIVE, lang, 0)
+                       : AppSettings::text(AppSettings::S_GREY, lang, 0),
+            AppSettings::text(gConfig.mWireLegacy ? AppSettings::S_WIRE_LEGACY : AppSettings::S_WIRE_MODERN, lang, 1),
+            (int)gUndoStack.size(), (int)gRedoStack.size(), selCount);
+    else
+        snprintf(status, sizeof(status), "Chips:%d  Wires:%d  Nets:%d   Zoom:%.0f   %s   %s   %s   Undo:%d Redo:%d",
+            (int)gChip.size(), (int)gWire.size(), (int)gNet.size(),
+            gZoomFactor,
+            gSnap ? "Snap:on" : "Snap:off",
+            gLiveWires ? AppSettings::text(AppSettings::S_LIVE, lang, 0)
+                       : AppSettings::text(AppSettings::S_GREY, lang, 0),
+            AppSettings::text(gConfig.mWireLegacy ? AppSettings::S_WIRE_LEGACY : AppSettings::S_WIRE_MODERN, lang, 1),
+            (int)gUndoStack.size(), (int)gRedoStack.size());
     ImGui::TextUnformatted(status);
     if (gSmallFont)
         ImGui::PopFont();
@@ -2006,6 +2066,15 @@ static void draw_screen()
 
     gTutorialOpen = AppTutorial::visible(sTutState);
 
+    // Deferred Ctrl+A from process_events: grab every foreground chip and
+    // wire so a packed corner like in the report can be moved in one drag.
+    if (sSelectAllPending)
+    {
+        sSelectAllPending = 0;
+        if (!gSettingsOpen && !gTutorialOpen && !sFindOpen)
+            select_all_canvas();
+    }
+
     if (!gSettingsOpen && !gTutorialOpen && gUIState.mousex > gConfig.mToolkitWidth && gUIState.mousey > gTopbarH)
     {
         if (gDragMode == DRAGMODE_NONE)
@@ -2030,7 +2099,7 @@ static void draw_screen()
                 {
                     gUIState.hotitem = WIRE_ID(i);
                     int newly_multiselected = 0;
-                    if (gUIState.keymod & gSelectKeyMask && gUIState.mousedown && gWire[i]->mMultiSelectState == 0)
+                    if (select_mod_held() && gUIState.mousedown && gWire[i]->mMultiSelectState == 0)
                     {
                         newly_multiselected = 1;
                         multiselect_active();
@@ -2044,7 +2113,7 @@ static void draw_screen()
                         gUIState.activeitem = gUIState.hotitem;
                         if (gUIState.activeitem == WIRE_ID(i))
                             gUIState.kbditem = gUIState.activeitem;
-                        if (gWire[i]->mMultiSelectState == 0 && !(gUIState.keymod & gSelectKeyMask))
+                        if (gWire[i]->mMultiSelectState == 0 && !select_mod_held())
                         {
                             gMultiselectDirty = 1;
                             gMultiSelectWire.clear();
@@ -2108,7 +2177,7 @@ static void draw_screen()
                             }
                         }
                     }
-                    if (gUIState.keymod & gSelectKeyMask && gUIState.mousedown && gChip[i]->mMultiSelectState == 0)
+                    if (select_mod_held() && gUIState.mousedown && gChip[i]->mMultiSelectState == 0)
                     {
                         multiselect_active();
                         if (gChip[i]->mMultiSelectState == 0)
@@ -2126,7 +2195,7 @@ static void draw_screen()
                         {
                             gUIState.kbditem = gUIState.activeitem;
                         }
-                        if (gChip[i]->mMultiSelectState == 0 && !(gUIState.keymod & gSelectKeyMask))
+                        if (gChip[i]->mMultiSelectState == 0 && !select_mod_held())
                         {
                             gMultiselectDirty = 1;
                             gMultiSelectWire.clear();
@@ -2284,7 +2353,7 @@ static void draw_screen()
         // If nothing is active so far, we're in "move the world" mode
         if (gDragMode == DRAGMODE_NONE && gUIState.activeitem == -1 && gUIState.mousedown)
         {
-            if (gUIState.keymod & gSelectKeyMask)
+            if (select_mod_held())
             {
                 // Move to select-drag mode
                 gDragMode = DRAGMODE_SELECT;
@@ -2299,7 +2368,7 @@ static void draw_screen()
                 gUIState.mousedowny -= dy;
                 gUIState.kbditem = 0;
                 mousemode = 1;
-                if (!(gUIState.keymod & gSelectKeyMask) && (!gMultiSelectWire.empty() || !gMultiSelectChip.empty()))
+                if (!select_mod_held() && (!gMultiSelectWire.empty() || !gMultiSelectChip.empty()))
                 {
                     gMultiselectDirty = 1;
                     gMultiSelectWire.clear();
@@ -2404,7 +2473,7 @@ static void draw_screen()
         // Click (press and release without dragging) on the middle of a wire
         // drops a bend point there in modern mode; legacy mode has no
         // click-to-bend (center grabs move instead). Dragging still splits
-        // or rewires instead, and shift-click still multi-selects.
+        // or rewires instead, and shift/ctrl-click still multi-selects.
         {
             static int sPrevDown = 0;
             static int sClickWire = -1;
@@ -2413,7 +2482,7 @@ static void draw_screen()
                 sClickWire = -1;
                 if (!gConfig.mWireLegacy &&
                     gDragMode == DRAGMODE_NONE && IS_WIRE_ID(gUIState.hotitem) &&
-                    !(gUIState.keymod & gSelectKeyMask))
+                    !select_mod_held())
                 {
                     int hid = GET_WIRE_ID(gUIState.hotitem);
                     if (hid >= 0 && hid < (int)gWire.size() && gWire[hid])
@@ -2432,7 +2501,7 @@ static void draw_screen()
                     gWire[wid]->mFirst->mHost && gWire[wid]->mSecond->mHost &&
                     gUIState.activeitem == WIRE_ID(wid) &&
                     moved < gConfig.mLineSplitDragDistance &&
-                    !(gUIState.keymod & gSelectKeyMask))
+                    !select_mod_held())
                 {
                     Pin *a = gWire[wid]->mFirst;
                     Pin *b = gWire[wid]->mSecond;

@@ -11,3 +11,14 @@ out/
 vcpkg_installed/
 atanua_build_public/
 /.grok
+atanua.xml
+fileutils.obj
+test_dropfile.obj
+test_fileassoc.obj
+test_fileutils_roundtrip.obj
+test_quickfind.obj
+test_ui_theme.obj
+test_updatecheck.obj
+test_validate.obj
+test_wiremode_tutorial.obj
+validate.obj
